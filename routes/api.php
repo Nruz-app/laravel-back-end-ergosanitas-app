@@ -1,0 +1,151 @@
+<?php
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Artisan;
+
+Route::get('/user', function (Request $request) {
+    return $request->user();
+})->middleware('auth:sanctum');
+
+
+//Importar
+use App\Http\Controllers\AgendaHorasController;
+use App\Http\Controllers\ChequeoCardiovascularController;
+use App\Http\Controllers\FileUploadController;
+
+use App\Http\Controllers\ServiciosController;
+use App\Http\Controllers\WebPayController;
+
+use App\Http\Controllers\EmailController;
+
+use App\Http\Controllers\OpenAIController;
+
+use App\Http\Controllers\Auth\GoogleAuthControlle;
+
+use App\Http\Controllers\Auth\UserController;
+
+use App\Http\Controllers\CertificadoUrlController;
+
+use App\Http\Controllers\ElectroCardiogramaController;
+
+use App\Http\Controllers\EstadisticasController;
+
+
+Route::get('/user', function (Request $request) {
+    return $request->user();
+})->middleware('auth:sanctum');
+
+
+//LoginAuth
+
+Route::post('auth-login',[GoogleAuthControlle::class,'AuthLogin'])
+    ->name('AuthLogin');
+
+Route::post('auth-register',[UserController::class,'AuthRegister'])
+    ->name('AuthRegister');
+
+
+Route::get('servicios',[ServiciosController::class,'index'])->name('index');
+
+Route::get('servicios/{name}',[ServiciosController::class,'show'])->name('show');
+
+Route::post('servicios/like',[ServiciosController::class,'LikeServices'])->name('LikeServices');
+
+
+//API Agendar Hora
+Route::get('agenda-horas/health',[AgendaHorasController::class,'Health'])
+    ->name('Health');
+
+Route::get('agenda-horas',[AgendaHorasController::class,'Index'])
+    ->name('Index');
+
+Route::post('agenda-horas',[AgendaHorasController::class,'Store'])
+    ->name('Store');
+
+
+//    
+Route::get('chequeo-cardiovascular/health',[ChequeoCardiovascularController::class,'Health'])
+    ->name('Health');
+
+
+Route::get('chequeo-cardiovascular',[ChequeoCardiovascularController::class,'Index'])
+    ->name('index');
+
+Route::post('chequeo-cardiovascular/user',[ChequeoCardiovascularController::class,'FindByEmail'])
+    ->name('FindByEmail');    
+
+
+Route::get('chequeo-cardiovascular/pdf/{rut}',[ChequeoCardiovascularController::class,'ChequeoPDF'])
+    ->name('ChequeoPDF');   
+    
+Route::get('chequeo-cardiovascular/{rut}',[ChequeoCardiovascularController::class,'ChequeoRut'])
+    ->name('ChequeoRut');       
+
+Route::post('chequeo-cardiovascular',[ChequeoCardiovascularController::class,'Store'])
+    ->name('Store');
+
+Route::put('chequeo-cardiovascular/{rut}',[ChequeoCardiovascularController::class,'Update'])
+    ->name('Update');    
+
+
+Route::post('chequeo-cardiovascular/like-chequeo',[ChequeoCardiovascularController::class,'LikeChequeo'])
+    ->name('LikeChequeo');   
+    
+Route::post('chequeo-cardiovascular/like-chequeo/user',[ChequeoCardiovascularController::class,'LikeChequeoUser'])
+    ->name('LikeChequeoUser');   
+    
+Route::delete('chequeo-cardiovascular/{rut}',[ChequeoCardiovascularController::class,'DeleteRut'])
+    ->name('DeleteRut');    
+
+
+Route::post('file-upload',[FileUploadController::class,'FileUpload'])
+    ->name('FileUpload');    
+
+/*************************************************************************************************  
+* * Se Epone el siguiente path para ejecutar el comando para crear link simbolico para 
+* * sincronizar la carpeta "storage/app/public" => "public/storge" con el fin de poder exponer o
+* * consumir los archivos del servidor expuesto a la nube
+* * Comando (solo sirve en ambiente dev ya que prod no se puede ejecutar este comando)
+* * php artisan storage:link
+*************************************************************************************************/
+Route::get('/execute-link-simbolik',function() {
+
+    Artisan::call('storage:link');
+    return 'storage-link-execute success';
+
+});
+
+
+Route::post('transbank/web-pay-request',[WebPayController::class,'WebPayRequest'])
+    ->name('WebPayRequest');    
+
+
+Route::get('transbank/web-pay-response',[WebPayController::class,'WebPayResponse'])
+    ->name('WebPayResponse');
+
+
+Route::post('email/reserva-hora',[EmailController::class,'EmailReservaHora'])
+    ->name('EmailReservaHora');
+
+//CHATGPT-API
+
+Route::post('sam-assistant/as-question',[OpenAIController::class,'AsQuestionUseCase'])
+    ->name('AsQuestionUseCase');
+
+
+Route::post('certificado/save-url',[CertificadoUrlController::class,'FileUpload'])
+    ->name('FileUpload');    
+
+Route::get('certificado/{rut_paciente}',[CertificadoUrlController::class,'show'])
+    ->name('show');    
+
+
+Route::post('electro-cardiograma/find-by-rut',[ElectroCardiogramaController::class,'FindByRut'])
+    ->name('FindByRut'); 
+
+Route::post('electro-cardiograma/save',[ElectroCardiogramaController::class,'Save'])
+    ->name('Save');
+    
+Route::get('estadisticas/estadistica-imc/{user_email}',[EstadisticasController::class,'Estadistica_IMC'])
+    ->name('Estadistica_IMC');    
