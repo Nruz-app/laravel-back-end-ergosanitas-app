@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\ElectroCardiograma;
 
+use App\Models\ChequeoCardiovascular;
+
 class ElectroCardiogramaController extends Controller
 {
     //
@@ -19,7 +21,7 @@ class ElectroCardiogramaController extends Controller
             return response()->json($electroCardiograma,200);
         }
         catch (\Exception $e) {
-            
+
             $array = array(
                 'rut_paciente'                 => $rut_paciente,
                 'estado_paciente'              =>  'N/A',
@@ -28,11 +30,11 @@ class ElectroCardiogramaController extends Controller
                 'observacion_paciente'         => '',
                 'imc_paciente'         => '',
             );
-        
+
             return response()->json($array,200);
-        
+
         }
-        
+
     }
 
 
@@ -47,7 +49,7 @@ class ElectroCardiogramaController extends Controller
             $array = array('response' => array(
                 'status' => 'Bad Request',
                 'mensaje' => 'Error en momento de ejecucion!!!'));
-        
+
             return response()->json($array,400);
 
         }
@@ -55,7 +57,7 @@ class ElectroCardiogramaController extends Controller
         try {
 
             ElectroCardiograma::where(['rut_paciente' => $request->rut_paciente])->delete();
-            
+
             $electroCardiograma = new ElectroCardiograma;
 
             $electroCardiograma->rut_paciente    = $request->rut_paciente;
@@ -64,24 +66,29 @@ class ElectroCardiogramaController extends Controller
             $electroCardiograma->derivacion_paciente  = $request->derivacion_paciente;
             $electroCardiograma->observacion_paciente = $request->observacion_paciente;
             $electroCardiograma->imc_paciente = $request->imc_paciente;
-        
+
             $electroCardiograma->save();
+
+            $chequeoCardiovascular = ChequeoCardiovascular::where(['rut' => $request->rut_paciente])->firstOrFail();
+            $chequeoCardiovascular->status         = 'REVISION MEDICA';
+            $chequeoCardiovascular->save();
+
 
             $array = array('response' => array(
                 'status' => 'OK',
-                'mensaje' => 'Reserva con Exito'));                                    
-    
+                'mensaje' => 'Reserva con Exito'));
+
             return response()->json($array,201);
         }
         catch (\Exception $e) {
-            
+
             // Retorna una respuesta con el error
             $array = array('response' => array(
                 'status' => 'Error en ejecucion',
                 'mensaje' => $e->getMessage()));
-        
+
             return response()->json($array,500);
-        
+
         }
     }
 }

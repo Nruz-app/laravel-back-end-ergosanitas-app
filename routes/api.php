@@ -45,6 +45,8 @@ Route::post('auth-login',[GoogleAuthControlle::class,'AuthLogin'])
 Route::post('auth-register',[UserController::class,'AuthRegister'])
     ->name('AuthRegister');
 
+Route::post('auth-register/load-logo',[UserController::class,'FileUpload'])
+    ->name('FileUpload');
 
 Route::get('servicios',[ServiciosController::class,'index'])->name('index');
 
@@ -64,7 +66,7 @@ Route::post('agenda-horas',[AgendaHorasController::class,'Store'])
     ->name('Store');
 
 
-//    
+//
 Route::get('chequeo-cardiovascular/health',[ChequeoCardiovascularController::class,'Health'])
     ->name('Health');
 
@@ -73,37 +75,46 @@ Route::get('chequeo-cardiovascular',[ChequeoCardiovascularController::class,'Ind
     ->name('index');
 
 Route::post('chequeo-cardiovascular/user',[ChequeoCardiovascularController::class,'FindByEmail'])
-    ->name('FindByEmail');    
+    ->name('FindByEmail');
 
 
 Route::get('chequeo-cardiovascular/pdf/{rut}',[ChequeoCardiovascularController::class,'ChequeoPDF'])
-    ->name('ChequeoPDF');   
-    
+    ->name('ChequeoPDF');
+
 Route::get('chequeo-cardiovascular/{rut}',[ChequeoCardiovascularController::class,'ChequeoRut'])
-    ->name('ChequeoRut');       
+    ->name('ChequeoRut');
 
 Route::post('chequeo-cardiovascular',[ChequeoCardiovascularController::class,'Store'])
     ->name('Store');
 
-Route::put('chequeo-cardiovascular/{rut}',[ChequeoCardiovascularController::class,'Update'])
-    ->name('Update');    
+Route::put('chequeo-cardiovascular/{rut}/{user_email}',[ChequeoCardiovascularController::class,'Update'])
+    ->name('Update');
 
 
 Route::post('chequeo-cardiovascular/like-chequeo',[ChequeoCardiovascularController::class,'LikeChequeo'])
-    ->name('LikeChequeo');   
-    
+    ->name('LikeChequeo');
+
 Route::post('chequeo-cardiovascular/like-chequeo/user',[ChequeoCardiovascularController::class,'LikeChequeoUser'])
-    ->name('LikeChequeoUser');   
-    
-Route::delete('chequeo-cardiovascular/{rut}',[ChequeoCardiovascularController::class,'DeleteRut'])
-    ->name('DeleteRut');    
+    ->name('LikeChequeoUser');
+
+//Route::delete('chequeo-cardiovascular/{rut}',[ChequeoCardiovascularController::class,'DeleteRut'])
+//    ->name('DeleteRut');
+
+Route::delete('chequeo-cardiovascular/{id}',[ChequeoCardiovascularController::class,'deleteById'])
+    ->name('deleteById');
+
+Route::post('chequeo-cardiovascular/filter-calendar',[ChequeoCardiovascularController::class,'FilterCalendar'])
+    ->name('FilterCalendar');
+
+Route::get('chequeo-cardiovascular/estado-general/{user_email}',[ChequeoCardiovascularController::class,'EstadoGeneral'])
+    ->name('EstadoGeneral');
 
 
 Route::post('file-upload',[FileUploadController::class,'FileUpload'])
-    ->name('FileUpload');    
+    ->name('FileUpload');
 
-/*************************************************************************************************  
-* * Se Epone el siguiente path para ejecutar el comando para crear link simbolico para 
+/*************************************************************************************************
+* * Se Epone el siguiente path para ejecutar el comando para crear link simbolico para
 * * sincronizar la carpeta "storage/app/public" => "public/storge" con el fin de poder exponer o
 * * consumir los archivos del servidor expuesto a la nube
 * * Comando (solo sirve en ambiente dev ya que prod no se puede ejecutar este comando)
@@ -118,7 +129,7 @@ Route::get('/execute-link-simbolik',function() {
 
 
 Route::post('transbank/web-pay-request',[WebPayController::class,'WebPayRequest'])
-    ->name('WebPayRequest');    
+    ->name('WebPayRequest');
 
 
 Route::get('transbank/web-pay-response',[WebPayController::class,'WebPayResponse'])
@@ -135,17 +146,17 @@ Route::post('sam-assistant/as-question',[OpenAIController::class,'AsQuestionUseC
 
 
 Route::post('certificado/save-url',[CertificadoUrlController::class,'FileUpload'])
-    ->name('FileUpload');    
+    ->name('FileUpload');
 
 Route::get('certificado/{rut_paciente}',[CertificadoUrlController::class,'show'])
-    ->name('show');    
+    ->name('show');
 
 
 Route::post('electro-cardiograma/find-by-rut',[ElectroCardiogramaController::class,'FindByRut'])
-    ->name('FindByRut'); 
+    ->name('FindByRut');
 
 Route::post('electro-cardiograma/save',[ElectroCardiogramaController::class,'Save'])
     ->name('Save');
-    
+
 Route::get('estadisticas/estadistica-imc/{user_email}',[EstadisticasController::class,'Estadistica_IMC'])
-    ->name('Estadistica_IMC');    
+    ->name('Estadistica_IMC');

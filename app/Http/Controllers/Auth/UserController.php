@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\File;
 use App\Models\UsersMetadata;
 
 class UserController extends Controller {
@@ -30,10 +30,10 @@ class UserController extends Controller {
             );
 
             //retorna pass encriptada
-            //die (Hash::make($request->input('user_password'))); 
-            
+            //die (Hash::make($request->input('user_password')));
+
             if(Auth::attempt([
-                'email'     =>$request->input('user_email'), 
+                'email'     =>$request->input('user_email'),
                 'password'  =>$request->input('user_password')
             ])){
 
@@ -47,7 +47,8 @@ class UserController extends Controller {
                         'user_id'     => $usuario->id,
                         'user_email'  => $usuario->user_email,
                         'user_name'   => $usuario->user_name,
-                        'user_perfil' => $usuario->perfiles->nombre
+                        'user_perfil' => $usuario->perfiles->nombre,
+                        'user_logo'   => $usuario->user_logo
                     ],
                 ]);
             }
@@ -61,7 +62,7 @@ class UserController extends Controller {
             }
         }
         catch (\Exception $e) {
-            
+
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
@@ -69,5 +70,50 @@ class UserController extends Controller {
             ],500);
         }
     }
-    
+    public function FileUpload(Request $request) {
+
+        $user_email   = $request->user_email;
+
+        // Verificar si el archivo existe
+        if ($request->hasFile('file') && $request->file('file')->isValid()) {
+
+            // Obtener el archivo
+            $file = $request->file('file');
+
+            // Obtener la extensión del archivo
+            $extension = $file->getClientOriginalExtension();
+
+            // Definir la ruta de destino (Carpeta "Certificado")
+            $destinationPath = public_path('Logo'); // o puedes usar 'storage_path('app/public/Certificado')'
+
+
+            // Crear el nombre completo con el rut del paciente y la extensión
+            $fileName = $user_email .'_'.uniqid().'.' . $extension;
+
+            //
+            $filePath = $destinationPath . '/' . $fileName;
+            if (File::exists($destinationPath . '/' . $fileName)) {
+                File::delete($filePath);
+            }
+
+            // Mover el archivo al destino
+            $file->move($destinationPath, $fileName);
+
+
+            $url_pdf=env('API_PATH_LOGO').'/'.$fileName;
+
+            $chequeoCardiovascular = UsersMetadata::where(['user_email' => $user_email])->firstOrFail();
+            $chequeoCardiovascular->user_logo = $url_pdf;
+            $chequeoCardiovascular->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Archivo subido correctamente',
+                'user_logo' => $url_pdf
+            ]);
+
+        }
+
+    }
+
 }
