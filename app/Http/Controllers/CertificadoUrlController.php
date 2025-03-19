@@ -10,6 +10,26 @@ use App\Models\ChequeoCardiovascular;
 
 class CertificadoUrlController extends Controller {
 
+    public function ValidarRut(string $rut_paciente) {
+
+        try {
+            $existe = CertificadoURl::where('rut_paciente', $rut_paciente)->exists();
+
+            if ($existe) {
+                return response()->json([
+                    'status' => 200,
+                    'mensaje' => 'El certificado existe.']);
+            } else {
+                return response()->json([
+                    'status' => 404,
+                    'mensaje' => 'No se encontró un Certificado Registrado para el RUT: ' . $rut_paciente]);
+            }
+        } catch (\Exception $e) {
+            return response()->json(['status' => 500, 'error' => 'Error en la consulta: ' . $e->getMessage()]);
+        }
+
+    }
+
     public function show(string $rut_paciente) {
 
         try {
@@ -37,6 +57,7 @@ class CertificadoUrlController extends Controller {
     public function FileUpload(Request $request) {
 
         $rut_paciente   = $request->rut_paciente;
+        $id_paciente    = $request->id_paciente;
         $nombre         = ucwords(strtolower($request->nombre_paciente));
 
         // Verificar si el archivo existe
@@ -66,13 +87,14 @@ class CertificadoUrlController extends Controller {
 
             $save                   = new CertificadoURl;
             $save->rut_paciente     = $rut_paciente;
+            $save->id_chequeo       = $id_paciente;
             $save->url_pdf          = $url_pdf;
             $save->name_pdf         = $name_pdf;
             $save->titulo           = $titulo;
 
             $save->save();
 
-            $chequeoCardiovascular = ChequeoCardiovascular::where(['rut' => $rut_paciente])->firstOrFail();
+            $chequeoCardiovascular = ChequeoCardiovascular::where(['id' => $id_paciente])->firstOrFail();
             $chequeoCardiovascular->status         = 'ECG FOTO';
             $chequeoCardiovascular->save();
 

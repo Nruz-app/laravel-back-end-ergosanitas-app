@@ -4,11 +4,11 @@ namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
 
-use App\Services\ChequeoCardiovascularService;
+use App\Services\EstadisticasService;
 
 /*** NOTA IMPORTANTE : Agregar la clase Provedir al archivo bootstrap/providers.php ***/
 
-class ChequeoCardiovascularProvider extends ServiceProvider
+class EstadisticasProvider extends ServiceProvider
 {
     /**
      * Register any application services.
@@ -16,8 +16,8 @@ class ChequeoCardiovascularProvider extends ServiceProvider
     public function register(): void
     {
         //
-        $this->app->singleton(ChequeoCardiovascularService::class, function ($app) {
-            return new ChequeoCardiovascularService();
+        $this->app->singleton(EstadisticasService::class, function ($app) {
+            return new EstadisticasService();
         });
     }
 

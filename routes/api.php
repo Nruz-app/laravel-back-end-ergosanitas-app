@@ -31,6 +31,8 @@ use App\Http\Controllers\ElectroCardiogramaController;
 
 use App\Http\Controllers\EstadisticasController;
 
+use App\Http\Controllers\CargaMasivaController;
+
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -47,6 +49,9 @@ Route::post('auth-register',[UserController::class,'AuthRegister'])
 
 Route::post('auth-register/load-logo',[UserController::class,'FileUpload'])
     ->name('FileUpload');
+
+Route::get('auth-register/user_email',[UserController::class,'ListUserEmail'])
+    ->name('ListUserEmail');
 
 Route::get('servicios',[ServiciosController::class,'index'])->name('index');
 
@@ -77,17 +82,19 @@ Route::get('chequeo-cardiovascular',[ChequeoCardiovascularController::class,'Ind
 Route::post('chequeo-cardiovascular/user',[ChequeoCardiovascularController::class,'FindByEmail'])
     ->name('FindByEmail');
 
+Route::get('chequeo-cardiovascular/pdfRut/{rut_paciente}',[ChequeoCardiovascularController::class,'ChequeoPDFRut'])
+    ->name('ChequeoPDFRut');
 
-Route::get('chequeo-cardiovascular/pdf/{rut}',[ChequeoCardiovascularController::class,'ChequeoPDF'])
+Route::get('chequeo-cardiovascular/pdf/{id_paciente}',[ChequeoCardiovascularController::class,'ChequeoPDF'])
     ->name('ChequeoPDF');
 
-Route::get('chequeo-cardiovascular/{rut}',[ChequeoCardiovascularController::class,'ChequeoRut'])
+Route::get('chequeo-cardiovascular/{id_paciente}',[ChequeoCardiovascularController::class,'ChequeoRut'])
     ->name('ChequeoRut');
 
 Route::post('chequeo-cardiovascular',[ChequeoCardiovascularController::class,'Store'])
     ->name('Store');
 
-Route::put('chequeo-cardiovascular/{rut}/{user_email}',[ChequeoCardiovascularController::class,'Update'])
+Route::put('chequeo-cardiovascular/{id_paciente}/{user_email}',[ChequeoCardiovascularController::class,'Update'])
     ->name('Update');
 
 
@@ -109,6 +116,8 @@ Route::post('chequeo-cardiovascular/filter-calendar',[ChequeoCardiovascularContr
 Route::get('chequeo-cardiovascular/estado-general/{user_email}',[ChequeoCardiovascularController::class,'EstadoGeneral'])
     ->name('EstadoGeneral');
 
+Route::post('chequeo-cardiovascular/club-deportivo',[ChequeoCardiovascularController::class,'ChequeoUserEmail'])
+    ->name('ChequeoUserEmail');
 
 Route::post('file-upload',[FileUploadController::class,'FileUpload'])
     ->name('FileUpload');
@@ -148,9 +157,11 @@ Route::post('sam-assistant/as-question',[OpenAIController::class,'AsQuestionUseC
 Route::post('certificado/save-url',[CertificadoUrlController::class,'FileUpload'])
     ->name('FileUpload');
 
+Route::get('certificado/validar/{rut_paciente}',[CertificadoUrlController::class,'ValidarRut'])
+    ->name('ValidarRut');
+
 Route::get('certificado/{rut_paciente}',[CertificadoUrlController::class,'show'])
     ->name('show');
-
 
 Route::post('electro-cardiograma/find-by-rut',[ElectroCardiogramaController::class,'FindByRut'])
     ->name('FindByRut');
@@ -158,5 +169,12 @@ Route::post('electro-cardiograma/find-by-rut',[ElectroCardiogramaController::cla
 Route::post('electro-cardiograma/save',[ElectroCardiogramaController::class,'Save'])
     ->name('Save');
 
-Route::get('estadisticas/estadistica-imc/{user_email}',[EstadisticasController::class,'Estadistica_IMC'])
-    ->name('Estadistica_IMC');
+Route::get('estadisticas/estadistica-imc/{user_email}',[EstadisticasController::class,'EstadisticaIMC'])
+    ->name('EstadisticaIMC');
+
+Route::get('estadisticas/estadistica-presion/{user_email}',[EstadisticasController::class,'EstadisticaPresion'])
+    ->name('EstadisticaPresion');
+
+
+Route::post('carga-masiva/excel',[CargaMasivaController::class,'CargaMasivaExcel'])
+    ->name('CargaMasivaExcel');

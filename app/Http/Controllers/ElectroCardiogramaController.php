@@ -56,11 +56,12 @@ class ElectroCardiogramaController extends Controller
 
         try {
 
-            ElectroCardiograma::where(['rut_paciente' => $request->rut_paciente])->delete();
+            ElectroCardiograma::where(['id_chequeo' => $request->id_paciente])->delete();
 
             $electroCardiograma = new ElectroCardiograma;
 
             $electroCardiograma->rut_paciente    = $request->rut_paciente;
+            $electroCardiograma->id_chequeo      = $request->id_paciente;
             $electroCardiograma->estado_paciente = $request->estado_paciente;
             $electroCardiograma->frecuencia_cardiaca_paciente = $request->frecuencia_cardiaca_paciente;
             $electroCardiograma->derivacion_paciente  = $request->derivacion_paciente;
@@ -69,7 +70,7 @@ class ElectroCardiogramaController extends Controller
 
             $electroCardiograma->save();
 
-            $chequeoCardiovascular = ChequeoCardiovascular::where(['rut' => $request->rut_paciente])->firstOrFail();
+            $chequeoCardiovascular = ChequeoCardiovascular::where(['id' => $request->id_paciente])->firstOrFail();
             $chequeoCardiovascular->status         = 'REVISION MEDICA';
             $chequeoCardiovascular->save();
 

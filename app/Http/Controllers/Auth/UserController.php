@@ -116,4 +116,12 @@ class UserController extends Controller {
 
     }
 
+    public function ListUserEmail() {
+        $responseUser = UsersMetadata::where('status', 'S')  // Verifica que 's' sea el valor correcto
+        ->where('perfiles_id', 3)
+        ->select('users_id','user_email', 'user_name')
+        ->get(); // Devuelve una colección de resultados
+
+    return response()->json($responseUser, 200);
+    }
 }

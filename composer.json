@@ -1,6 +1,7 @@
 {
     "name": "laravel/laravel",
     "type": "project",
+    "version" : "0.0.4",
     "description": "The skeleton application for the Laravel framework.",
     "keywords": ["laravel", "framework"],
     "license": "MIT",
@@ -10,6 +11,7 @@
         "laravel/framework": "^11.9",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.9",
+        "maatwebsite/excel": "^3.1",
         "mpdf/mpdf": "^8.2",
         "openai-php/laravel": "^0.10.1",
         "php-open-source-saver/jwt-auth": "^2.3",
