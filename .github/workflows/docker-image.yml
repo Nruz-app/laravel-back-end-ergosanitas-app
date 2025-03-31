@@ -53,5 +53,5 @@ jobs:
       - name: Subir `.env` al servidor
         run: echo "${{ secrets.LARAVEL_ENV }}" > .env
 
-#      - name: Ejecutar migraciones en HostGator (opcional)
-#        run: php artisan migrate --force
+##      - name: Ejecutar migraciones en HostGator (opcional)
+##        run: php artisan migrate --force
