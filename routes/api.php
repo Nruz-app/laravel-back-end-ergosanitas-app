@@ -33,6 +33,7 @@ use App\Http\Controllers\EstadisticasController;
 
 use App\Http\Controllers\CargaMasivaController;
 
+use App\Http\Controllers\ChequeoCardiovascularWordController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -178,3 +179,6 @@ Route::get('estadisticas/estadistica-presion/{user_email}',[EstadisticasControll
 
 Route::post('carga-masiva/excel',[CargaMasivaController::class,'CargaMasivaExcel'])
     ->name('CargaMasivaExcel');
+
+Route::get('chequeo-cardiovascular-word/{id_paciente}',[ChequeoCardiovascularWordController::class,'ChequeoWord'])
+    ->name('ChequeoWord');

@@ -10,7 +10,7 @@ use Illuminate\Http\Request;
 use Mpdf\Mpdf;
 use Mpdf\MpdfException;
 use Carbon\Carbon;
-
+use Illuminate\Support\Facades\DB;
 use App\Services\UserMetadataService;
 use App\Services\ChequeoCardiovascularService;
 use App\Services\ChequeoCardiovascularPDFService;
@@ -50,9 +50,29 @@ class ChequeoCardiovascularController extends Controller
 
             $user_email = $request->user_email;
 
-            $resChequeoCardiovascular = ChequeoCardiovascular::where(['user_email' => $user_email])
-                ->get();
-            $resArray = $resChequeoCardiovascular->toArray();
+            $perfilId = $this->userMetadataService->getPerfilIdByEmail($user_email);
+
+            $resChequeoCardiovascular = DB::table('chequeo_cardiovascular as cc')
+                ->leftJoin('electro_cardiogranas as ec', 'cc.rut', '=', 'ec.rut_paciente');
+            if($perfilId == 3) {
+                $resChequeoCardiovascular->where('cc.user_email', $user_email);
+            }
+            // Seleccionar columnas y aplicar orden
+            $resChequeoCardiovascular->select(
+                'cc.*',
+                DB::raw("DATE_FORMAT(cc.fecha_atencion, '%d/%m/%Y') as fecha_atencion"),
+                DB::raw("DATE_FORMAT(cc.created_at, '%d/%m/%Y') as created_at") ,
+                DB::raw("COALESCE(ec.estado_paciente, 'En Revisión') as estado_paciente"),
+                DB::raw("COALESCE(ec.frecuencia_cardiaca_paciente, '-') as frecuencia_cardiaca_paciente"),
+                DB::raw("COALESCE(ec.derivacion_paciente, '-') as derivacion_paciente"),
+                DB::raw("COALESCE(ec.observacion_paciente, '-') as observacion_paciente")
+            )
+            ->orderBy('cc.id', 'desc')
+            ->get();
+
+
+            $resArray = json_decode(json_encode($resChequeoCardiovascular->get()), true);
+
             return response()->json($resArray,200);
          }
          catch (\Exception $e) {
@@ -133,25 +153,31 @@ class ChequeoCardiovascularController extends Controller
 
             $perfilId = $this->userMetadataService->getPerfilIdByEmail($user_email);
 
-            if ($perfilId == 3) {
-
-                $resChequeo = ChequeoCardiovascular::where('user_email', $user_email)
-                ->where('rut', 'like', '%' . $textoValue . '%')
-                ->orWhere('nombre', 'like', '%' . $textoValue . '%')
-                ->where('user_email', $user_email)
-                ->get();
-            }
-            else {
-
-                $resChequeo = ChequeoCardiovascular::where('rut', 'like', '%' . $textoValue . '%')
-                    ->orWhere('nombre', 'like', '%' . $textoValue . '%')
-                    ->get();
-
+            $resChequeoCardiovascular = DB::table('chequeo_cardiovascular as cc')
+                ->leftJoin('electro_cardiogranas as ec', 'cc.rut', '=', 'ec.rut_paciente');
+            if($perfilId ==3) {
+                $resChequeoCardiovascular->where('cc.user_email', $user_email);
             }
 
+            $resChequeoCardiovascular->where(function ($query) use ($textoValue) {
+                $query->where('cc.rut', 'like', '%' . $textoValue . '%')
+                      ->orWhere('cc.nombre', 'like', '%' . $textoValue . '%');
+            });
 
+            // Seleccionar columnas y aplicar orden
+            $resChequeoCardiovascular->select(
+                'cc.*',
+                DB::raw("DATE_FORMAT(cc.fecha_atencion, '%d/%m/%Y') as fecha_atencion") ,
+                DB::raw("DATE_FORMAT(cc.created_at, '%d/%m/%Y') as created_at") ,
+                DB::raw("COALESCE(ec.estado_paciente, 'En Revisión') as estado_paciente"),
+                DB::raw("COALESCE(ec.frecuencia_cardiaca_paciente, '-') as frecuencia_cardiaca_paciente"),
+                DB::raw("COALESCE(ec.derivacion_paciente, '-') as derivacion_paciente"),
+                DB::raw("COALESCE(ec.observacion_paciente, '-') as observacion_paciente")
+            )
+            ->orderBy('cc.id', 'desc')
+            ->get();
 
-            $resArray = $resChequeo->toArray();
+            $resArray = json_decode(json_encode($resChequeoCardiovascular->get()), true);
             return response()->json($resArray,200);
         }
         catch (\Exception $e) {
@@ -227,12 +253,13 @@ class ChequeoCardiovascularController extends Controller
             return response()->json($array,400);
 
         }
+        $perfilId = $this->userMetadataService->getPerfilIdByEmail($request->user_email);
 
         $save = new ChequeoCardiovascular;
         $save->nombre                  = ucwords(strtolower($request->nombre));
         $save->rut                     = $request->rut;
         $save->edad                    = $request->edad;
-        $save->estatura                = $request->estatura;
+        $save->estatura                = str_replace(',','.',$request->estatura);
         $save->peso                    = $request->peso;
         $save->hemoglucotest           = $request->hemoglucotest;
         $save->pulso                   = $request->pulso;
@@ -249,10 +276,16 @@ class ChequeoCardiovascularController extends Controller
         $save->gradoIncidenciaPosterio = $request->gradoIncidenciaPosterio;
         $save->fechaNacimiento         = $request->fechaNacimiento;
         $save->user_email              = $request->user_email;
+        $save->user_email_update       = $request->user_email_perfil;
         $save->sexo_paciente           = $request->sexo_paciente;
         $save->imc_paciente            = $request->imc_paciente;
         $save->division_paciente       = $request->division_paciente;
         $save->medio_pago_paciente     = $request->medio_pago_paciente;
+
+        if($perfilId == 2) {
+            $save->fecha_atencion = Carbon::now()->format('Y-m-d H:i:s');
+            $save->status         = 'Testiado';
+        }
 
         try {
 
@@ -301,7 +334,7 @@ class ChequeoCardiovascularController extends Controller
 
             $chequeoCardiovascular->nombre                  = ucwords(strtolower($json['nombre']));
             $chequeoCardiovascular->edad                    = $json['edad'];
-            $chequeoCardiovascular->estatura                = $json['estatura'];
+            $chequeoCardiovascular->estatura                = str_replace(',','.',$json['estatura']);
             $chequeoCardiovascular->peso                    = $json['peso'];
             $chequeoCardiovascular->pulso                   = $json['pulso'];
             $chequeoCardiovascular->presionArterial         = $json['presionArterial'];
@@ -317,7 +350,7 @@ class ChequeoCardiovascularController extends Controller
             $chequeoCardiovascular->gradoIncidenciaPosterio = $json['gradoIncidenciaPosterio'];
             $chequeoCardiovascular->fechaNacimiento         = $json['fechaNacimiento'];
             $chequeoCardiovascular->hemoglucotest           = $json['hemoglucotest'];
-            $chequeoCardiovascular->user_email_update       = $json['user_email'];
+            $chequeoCardiovascular->user_email_update       = $json['user_email_perfil'];
             $chequeoCardiovascular->sexo_paciente           = $json['sexo_paciente'];
             $chequeoCardiovascular->imc_paciente            = $json['imc_paciente'];
             $chequeoCardiovascular->division_paciente       = $json['division_paciente'];
@@ -328,6 +361,15 @@ class ChequeoCardiovascularController extends Controller
                 $chequeoCardiovascular->status         = 'Testiado';
             }
 
+            if($perfilId == 1) {
+                $chequeoCardiovascular->rut            = $json['rut'];
+                $chequeoCardiovascular->user_email     = $json['user_email'];
+                $chequeoCardiovascular->status         = $json['status'];
+                if (isset($json['fecha_atencion']) && !empty($json['fecha_atencion'])) {
+                    $chequeoCardiovascular->fecha_atencion = Carbon::parse($json['fecha_atencion'])->format('Y-m-d H:i:s');
+                }
+
+            }
             $chequeoCardiovascular->save();
 
             $array = array(
