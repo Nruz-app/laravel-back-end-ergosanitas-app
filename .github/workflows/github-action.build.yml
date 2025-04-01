@@ -19,61 +19,92 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Configurar PHP
-        uses: shivammathur/setup-php@v2
+      #https://github.com/marketplace/actions/git-semantic-version?version=v4.0.3
+      - name: Git Semantic Version
+        uses: PaulHatch/semantic-version@v4.0.3
+        id: version
         with:
-          php-version: '8.2'  # Laravel 11 requiere PHP 8.2
-          tools: composer
+          major_pattern : "major"
+          minor_pattern : "feat"
+          format: "${major}.${minor}.${patch}-prerelease${increment}"
 
-      - name: Instalar dependencias de Laravel
-        run: composer install --no-dev --prefer-dist --no-progress --no-interaction
 
-      - name: Subir `.env` al servidor
+      - name: Docker Login
+        env:
+            DOCKER_USER: ${{ secrets.DOCKER_USER }}
+            DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
         run: |
-          if [ -z "${{ secrets.LARAVEL_ENV }}" ]; then
-            echo "ERROR: No se encontró LARAVEL_ENV en los secrets" >&2
-            exit 1
-          fi
-          echo "${{ secrets.LARAVEL_ENV }}" > .env
+          echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USER" --password-stdin
 
-      - name: Generar clave de aplicación
-        run: php artisan key:generate
-
-      - name: Configurar permisos de Laravel
-        run: chmod -R 775 storage bootstrap/cache
-
-      - name: Instalar lftp
-        run: sudo NEEDRESTART_MODE=a apt-get install -y lftp
-
-      - name: Crear carpetas necesarias en HostGator con FTP
+      - name: Build Docker Image
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          sudo apt-get install -y lftp
-          lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" ftp.ergosanitas.com <<EOF
-          set ftp:ssl-allow no
-          set net:max-retries 5
-          set net:timeout 60
-          set ftp:passive-mode on
+          docker build -t nruz176/react-front-end-ergosanitas-app:$NEW_VERSION .
+          docker build -t nruz176/react-front-end-ergosanitas-app:latest .
 
-          cls /public_html/laravel_app/ || mkdir /public_html/laravel_app/
-          cls /public_html/laravel_app/bootstrap/cache || mkdir /public_html/laravel_app/bootstrap/cache
-          cls /public_html/laravel_app/storage/framework/sessions || mkdir /public_html/laravel_app/storage/framework/sessions
-          cls /public_html/laravel_app/storage/framework/views || mkdir /public_html/laravel_app/storage/framework/views
-          cls /public_html/laravel_app/storage/framework/cache || mkdir /public_html/laravel_app/storage/framework/cache
-
-          mirror -R --only-newer . /public_html/laravel_app/
-          quit
-          EOF
-
-      - name: Ajustar permisos en HostGator
+      - name: Push Docker Image
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" ftp.ergosanitas.com <<EOF
-          set ftp:ssl-allow no
-          set ssl:verify-certificate no
-          set ftp:passive-mode on
-          chmod -R 775 /public_html/laravel_app/storage
-          chmod -R 775 /public_html/laravel_app/bootstrap/cache
-          quit
-          EOF
+          docker push nruz176/react-front-end-ergosanitas-app:$NEW_VERSION
+          docker push nruz176/react-front-end-ergosanitas-app:latest
+
+#      - name: Configurar PHP
+#        uses: shivammathur/setup-php@v2
+#        with:
+#          php-version: '8.2'  # Laravel 11 requiere PHP 8.2
+#          tools: composer
+#
+#      - name: Instalar dependencias de Laravel
+#        run: composer install --no-dev --prefer-dist --no-progress --no-interaction
+#
+#      - name: Subir `.env` al servidor
+#        run: |
+#          if [ -z "${{ secrets.LARAVEL_ENV }}" ]; then
+#            echo "ERROR: No se encontró LARAVEL_ENV en los secrets" >&2
+#            exit 1
+#          fi
+#          echo "${{ secrets.LARAVEL_ENV }}" > .env
+#
+#      - name: Generar clave de aplicación
+#        run: php artisan key:generate
+#
+#      - name: Configurar permisos de Laravel
+#        run: chmod -R 775 storage bootstrap/cache
+#
+#      - name: Instalar lftp
+#        run: sudo NEEDRESTART_MODE=a apt-get install -y lftp
+#
+#      - name: Crear carpetas necesarias en HostGator con FTP
+#        run: |
+#          sudo apt-get install -y lftp
+#          lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" ftp.ergosanitas.com <<EOF
+#          set ftp:ssl-allow no
+#          set net:max-retries 5
+#          set net:timeout 60
+#          set ftp:passive-mode on
+#
+#          cls /public_html/laravel_app/ || mkdir /public_html/laravel_app/
+#          cls /public_html/laravel_app/bootstrap/cache || mkdir /public_html/laravel_app/bootstrap/cache
+#          cls /public_html/laravel_app/storage/framework/sessions || mkdir /public_html/laravel_app/storage/framework/sessions
+#          cls /public_html/laravel_app/storage/framework/views || mkdir /public_html/laravel_app/storage/framework/views
+#          cls /public_html/laravel_app/storage/framework/cache || mkdir /public_html/laravel_app/storage/framework/cache
+#
+#          mirror -R --only-newer . /public_html/laravel_app/
+#          quit
+#          EOF
+#
+#      - name: Ajustar permisos en HostGator
+#        run: |
+#          lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" ftp.ergosanitas.com <<EOF
+#          set ftp:ssl-allow no
+#          set ssl:verify-certificate no
+#          set ftp:passive-mode on
+#          chmod -R 775 /public_html/laravel_app/storage
+#          chmod -R 775 /public_html/laravel_app/bootstrap/cache
+#          quit
+#          EOF
 
 
 #      - name: Ejecutar migraciones en HostGator (opcional)
