@@ -1,61 +1,69 @@
-name: ergosanitas backend laravel 11
+name: Ergosanitas CI
 
 on:
   push:
     branches:
-      - main  # Cambia esto si usas otra rama
+      - main  # Cambia esto si usas otra rama para producción
 
 concurrency:
-  # Define un grupo de concurrencia basado en la referencia de la rama
   group: ci-${{ github.ref }}
-  # Cancela cualquier ejecución anterior en progreso para esta rama
   cancel-in-progress: true
 
-
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
 
     steps:
       - name: Clonar el repositorio
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Configurar PHP
+      # Configurar PHP y Composer para Laravel
+      - name: Configurar PHP y Composer
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'  # Laravel 11 requiere PHP 8.2
-          tools: composer
+          php-version: 8.3
+          tools: composer:v2
+          coverage: none
 
       - name: Instalar dependencias de Laravel
         run: composer install --no-dev --prefer-dist --no-progress --no-interaction
 
-      - name: Subir `.env` al servidor
+      - name: Configurar archivo `.env`
         run: echo "${{ secrets.LARAVEL_ENV }}" > .env
 
       - name: Generar clave de aplicación
         run: php artisan key:generate
 
-      - name: Configurar permisos de Laravel
-        run: |
-          chmod -R 775 storage bootstrap/cache
-          chmod -R 775 public
+      - name: Ejecutar migraciones
+        run: php artisan migrate --force
 
-      - name: Crear carpetas necesarias en HostGator con FTP
+      - name: Limpiar y cachear configuración
         run: |
-          sudo apt-get install -y lftp
+          php artisan config:clear
+          php artisan config:cache
+          php artisan route:cache
+          php artisan view:cache
+
+      - name: Otorgar permisos a storage y bootstrap
+        run: chmod -R 777 storage bootstrap/cache
+
+      # Instalar `lftp` de forma segura
+      - name: Instalar lftp
+        run: sudo DEBIAN_FRONTEND=noninteractive apt-get install -y lftp
+
+      # Subir archivos al servidor con FTP
+      - name: Subir archivos con lftp
+        run: |
           lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" ftp.ergosanitas.com <<EOF
           set ftp:ssl-allow no
           set net:max-retries 5
           set net:timeout 60
-          set mirror:parallel-transfer-count 5
+          set mirror:parallel-transfer-count 1
           set ftp:passive-mode on
-          mkdir -p /public_html/laravel_app/{bootstrap/cache,storage/framework/{sessions,views,cache}}
-          mirror -R . /public_html/laravel_app/
+          mkdir -p /public_html/mi_react_app/{files/gallery,files/images}
+          mirror -R dist/ /public_html/mi_react_app/
+          mirror -R . /public_html/mi_laravel_app/
           quit
           EOF
-
-
-#      - name: Ejecutar migraciones en HostGator (opcional)
-#        run: php artisan migrate --force
