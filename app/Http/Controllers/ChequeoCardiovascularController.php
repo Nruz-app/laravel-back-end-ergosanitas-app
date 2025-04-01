@@ -33,7 +33,7 @@ class ChequeoCardiovascularController extends Controller
         $this->chequeoCardiovascularPDFService = $chequeoCardiovascularPDFService;
     }
     //
-    public function Health(){
+    public function HealthCheck(){
         return "Bienvenido a ergosanitas.com";
     }
 

@@ -73,8 +73,8 @@ Route::post('agenda-horas',[AgendaHorasController::class,'Store'])
 
 
 //
-Route::get('chequeo-cardiovascular/health',[ChequeoCardiovascularController::class,'Health'])
-    ->name('Health');
+Route::get('chequeo-cardiovascular/health',[ChequeoCardiovascularController::class,'HealthCheck'])
+    ->name('HealthCheck');
 
 
 Route::get('chequeo-cardiovascular',[ChequeoCardiovascularController::class,'Index'])
