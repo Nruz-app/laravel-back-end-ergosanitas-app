@@ -6,11 +6,8 @@ on:
       - main  # Cambia esto si usas otra rama
 
 concurrency:
-  # Define un grupo de concurrencia basado en la referencia de la rama
   group: ci-${{ github.ref }}
-  # Cancela cualquier ejecución anterior en progreso para esta rama
   cancel-in-progress: true
-
 
 jobs:
   deploy:
@@ -32,46 +29,47 @@ jobs:
         run: composer install --no-dev --prefer-dist --no-progress --no-interaction
 
       - name: Subir `.env` al servidor
-        run: echo "${{ secrets.LARAVEL_ENV }}" > .env
+        run: |
+          if [ -z "${{ secrets.LARAVEL_ENV }}" ]; then
+            echo "ERROR: No se encontró LARAVEL_ENV en los secrets" >&2
+            exit 1
+          fi
+          echo "${{ secrets.LARAVEL_ENV }}" > .env
 
       - name: Generar clave de aplicación
         run: php artisan key:generate
 
       - name: Configurar permisos de Laravel
-        run: |
-          chmod -R 775 storage bootstrap/cache
-          chmod -R 775 public
+        run: chmod -R 775 storage bootstrap/cache
 
-      - name: Deshabilitar needrestart temporalmente
-        run: sudo sh -c 'echo "restart = a" | sudo tee /etc/needrestart/conf.d/no-restart.conf'
+      - name: Instalar lftp
+        run: sudo NEEDRESTART_MODE=a apt-get install -y lftp
 
       - name: Crear carpetas necesarias en HostGator con FTP
         run: |
-          sudo apt-get install -y lftp
           lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" ftp.ergosanitas.com <<EOF
           set ftp:ssl-allow no
           set net:max-retries 5
           set net:timeout 60
-          set mirror:parallel-transfer-count 5
           set ftp:passive-mode on
-          mlist /public_html/laravel_app/ || mkdir /public_html/laravel_app/
-          mlist /public_html/laravel_app/bootstrap/cache || mkdir /public_html/laravel_app/bootstrap/cache
-          mlist /public_html/laravel_app/storage/framework/sessions || mkdir /public_html/laravel_app/storage/framework/sessions
-          mlist /public_html/laravel_app/storage/framework/views || mkdir /public_html/laravel_app/storage/framework/views
-          mlist /public_html/laravel_app/storage/framework/cache || mkdir /public_html/laravel_app/storage/framework/cache
+
+          cls /public_html/laravel_app/ || mkdir /public_html/laravel_app/
+          cls /public_html/laravel_app/bootstrap/cache || mkdir /public_html/laravel_app/bootstrap/cache
+          cls /public_html/laravel_app/storage/framework/sessions || mkdir /public_html/laravel_app/storage/framework/sessions
+          cls /public_html/laravel_app/storage/framework/views || mkdir /public_html/laravel_app/storage/framework/views
+          cls /public_html/laravel_app/storage/framework/cache || mkdir /public_html/laravel_app/storage/framework/cache
+
           mirror -R --only-newer . /public_html/laravel_app/
           quit
           EOF
 
       - name: Ajustar permisos en HostGator
         run: |
-          sudo apt-get install -y lftp
           lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" ftp.ergosanitas.com <<EOF
           chmod -R 775 /public_html/laravel_app/storage
           chmod -R 775 /public_html/laravel_app/bootstrap/cache
           quit
           EOF
-
 
 #      - name: Ejecutar migraciones en HostGator (opcional)
 #        run: php artisan migrate --force
