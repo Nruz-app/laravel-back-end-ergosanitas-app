@@ -32,26 +32,26 @@ jobs:
           chmod -R 775 storage bootstrap/cache
           chmod -R 775 public
 
-      - name: Crear carpetas necesarias en HostGator con FTP
-        run: |
-          sudo apt-get install -y lftp
-          lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" ftp.ergosanitas.com <<EOF
-          set ftp:ssl-allow no
-          set net:max-retries 5
-          set net:timeout 60
-          set mirror:parallel-transfer-count 1
-          set ftp:passive-mode on
-          mkdir -p /public_html/laravel_app
-          mkdir -p /public_html/laravel_app/bootstrap/cache
-          mkdir -p /public_html/laravel_app/storage/framework/sessions
-          mkdir -p /public_html/laravel_app/storage/framework/views
-          mkdir -p /public_html/laravel_app/storage/framework/cache
-          mirror -R . /public_html/laravel_app/
-          quit
-          EOF
+#      - name: Crear carpetas necesarias en HostGator con FTP
+#        run: |
+#          sudo apt-get install -y lftp
+#          lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" ftp.ergosanitas.com <<EOF
+#          set ftp:ssl-allow no
+#          set net:max-retries 5
+#          set net:timeout 60
+#          set mirror:parallel-transfer-count 1
+#          set ftp:passive-mode on
+#          mkdir -p /public_html/laravel_app
+#          mkdir -p /public_html/laravel_app/bootstrap/cache
+#          mkdir -p /public_html/laravel_app/storage/framework/sessions
+#          mkdir -p /public_html/laravel_app/storage/framework/views
+#          mkdir -p /public_html/laravel_app/storage/framework/cache
+#          mirror -R . /public_html/laravel_app/
+#          quit
+#          EOF
 
-      - name: Subir `.env` al servidor
-        run: echo "${{ secrets.LARAVEL_ENV }}" > .env
+#      - name: Subir `.env` al servidor
+#        run: echo "${{ secrets.LARAVEL_ENV }}" > .env
 
-##      - name: Ejecutar migraciones en HostGator (opcional)
-##        run: php artisan migrate --force
+#      - name: Ejecutar migraciones en HostGator (opcional)
+#        run: php artisan migrate --force
