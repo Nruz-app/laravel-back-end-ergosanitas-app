@@ -40,15 +40,15 @@ jobs:
         env:
           NEW_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          docker build -t nruz176/react-front-end-ergosanitas-app:$NEW_VERSION .
-          docker build -t nruz176/react-front-end-ergosanitas-app:latest .
+          docker build -t nruz176/laravel-back-end-ergosanitas-app:$NEW_VERSION .
+          docker build -t nruz176/laravel-back-end-ergosanitas-app:latest .
 
       - name: Push Docker Image
         env:
           NEW_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          docker push nruz176/react-front-end-ergosanitas-app:$NEW_VERSION
-          docker push nruz176/react-front-end-ergosanitas-app:latest
+          docker push nruz176/laravel-back-end-ergosanitas-app:$NEW_VERSION
+          docker push nruz176/laravel-back-end-ergosanitas-app:latest
 
 #      - name: Configurar PHP
 #        uses: shivammathur/setup-php@v2
