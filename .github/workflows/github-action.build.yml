@@ -47,6 +47,7 @@ jobs:
 
       - name: Crear carpetas necesarias en HostGator con FTP
         run: |
+          sudo apt-get install -y lftp
           lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" ftp.ergosanitas.com <<EOF
           set ftp:ssl-allow no
           set net:max-retries 5
@@ -65,6 +66,7 @@ jobs:
 
       - name: Ajustar permisos en HostGator
         run: |
+          sudo apt-get install -y lftp
           lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" ftp.ergosanitas.com <<EOF
           chmod -R 775 /public_html/laravel_app/storage
           chmod -R 775 /public_html/laravel_app/bootstrap/cache
