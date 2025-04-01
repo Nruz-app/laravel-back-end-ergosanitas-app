@@ -24,6 +24,9 @@ jobs:
       - name: Instalar dependencias de Laravel
         run: composer install --no-dev --prefer-dist --no-progress --no-interaction
 
+      - name: Subir `.env` al servidor
+        run: echo "${{ secrets.LARAVEL_ENV }}" > .env
+
       - name: Generar clave de aplicación
         run: php artisan key:generate
 
