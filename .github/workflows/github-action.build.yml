@@ -43,7 +43,7 @@ jobs:
           chmod -R 775 public
 
       - name: Deshabilitar needrestart temporalmente
-        run: sudo sh -c 'echo "I0" > /etc/needrestart/conf.d/no-restart.conf'
+        run: sudo sh -c 'echo "restart = a" | sudo tee /etc/needrestart/conf.d/no-restart.conf'
 
       - name: Crear carpetas necesarias en HostGator con FTP
         run: |
@@ -54,9 +54,11 @@ jobs:
           set net:timeout 60
           set mirror:parallel-transfer-count 5
           set ftp:passive-mode on
-          mkdir -p /public_html/laravel_app/
-          mkdir -p /public_html/laravel_app/bootstrap/cache
-          mkdir -p /public_html/laravel_app/storage/framework/{sessions,views,cache}
+          mkdir /public_html/laravel_app/ || echo "Directorio ya existe, continuando..."
+          mkdir /public_html/laravel_app/bootstrap/cache || echo "Directorio ya existe, continuando..."
+          mkdir /public_html/laravel_app/storage/framework/sessions || echo "Directorio ya existe, continuando..."
+          mkdir /public_html/laravel_app/storage/framework/views || echo "Directorio ya existe, continuando..."
+          mkdir /public_html/laravel_app/storage/framework/cache || echo "Directorio ya existe, continuando..."
           mirror -R --only-newer . /public_html/laravel_app/
           quit
           EOF
