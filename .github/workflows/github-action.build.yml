@@ -5,6 +5,13 @@ on:
     branches:
       - main  # Cambia esto si usas otra rama
 
+concurrency:
+  # Define un grupo de concurrencia basado en la referencia de la rama
+  group: ci-${{ github.ref }}
+  # Cancela cualquier ejecución anterior en progreso para esta rama
+  cancel-in-progress: true
+
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -42,16 +49,13 @@ jobs:
           set ftp:ssl-allow no
           set net:max-retries 5
           set net:timeout 60
-          set mirror:parallel-transfer-count 1
+          set mirror:parallel-transfer-count 5
           set ftp:passive-mode on
-          mkdir -p /public_html/laravel_app
-          mkdir -p /public_html/laravel_app/bootstrap/cache
-          mkdir -p /public_html/laravel_app/storage/framework/sessions
-          mkdir -p /public_html/laravel_app/storage/framework/views
-          mkdir -p /public_html/laravel_app/storage/framework/cache
+          mkdir -p /public_html/laravel_app/{bootstrap/cache,storage/framework/{sessions,views,cache}}
           mirror -R . /public_html/laravel_app/
           quit
           EOF
+
 
 #      - name: Ejecutar migraciones en HostGator (opcional)
 #        run: php artisan migrate --force

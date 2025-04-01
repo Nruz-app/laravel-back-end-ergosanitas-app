@@ -1,5 +1,5 @@
 ---
 #deployment:
 #  tasks:
-#    - export DEPLOY=/home3/ergosan1/public_html/BackEnd/
+#    - export DEPLOY=/home3/ergosan1/public_html/_BackEnd_/
 #    - /bin/rsync -av --exclude=".git" ./ $DEPLOY
