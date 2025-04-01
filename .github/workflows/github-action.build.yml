@@ -18,12 +18,12 @@ jobs:
 
     steps:
       - name: Clonar el repositorio
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
       - name: Configurar PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@v1
         with:
           php-version: '8.2'  # Laravel 11 requiere PHP 8.2
           tools: composer
@@ -47,6 +47,7 @@ jobs:
 
       - name: Crear carpetas necesarias en HostGator con FTP
         run: |
+          sudo apt-get install -y lftp
           lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" ftp.ergosanitas.com <<EOF
           set ftp:ssl-allow no
           set net:max-retries 5
