@@ -8,19 +8,19 @@ use App\Models\ChequeoCardiovascular;
 use Illuminate\Support\Facades\Storage;
 
 
-/****************************** 
-* * Ejecutar Link Simbolico 
+/******************************
+* * Ejecutar Link Simbolico
 * * php artisan storage:link
 *******************************/
 
 class FileUploadController extends Controller {
 
-    /****************************************************************************** 
+    /******************************************************************************
     * * Copia el archivo en el servidor publico pero se debe crear la carpeta
     * * con un archivo  txt, de lo contrario usar funcion "uploadFileStorage"
     ******************************************************************************/
 
-    public function FileUpload(Request $request) {
+    public function FileUploadRes(Request $request) {
 
         $rut  = $request->rut;
 
@@ -29,18 +29,18 @@ class FileUploadController extends Controller {
         ],
         [
             'file.requierd' => 'No Existe Archivo',
-            'file.mines' => 'El Archivo debe ser JPG|PNG'   
+            'file.mines' => 'El Archivo debe ser JPG|PNG'
         ]);
-    
+
 
         switch($_FILES['file']['type']){
 
             case 'image/png':
                 $archivo = time().".png";
                 break;
-            case 'image/jpeg': 
+            case 'image/jpeg':
                 $archivo = time().".jpg";
-                break;        
+                break;
         }
 
         copy($_FILES['file']['tmp_name'],'Electrocardiograma/'.$archivo);
@@ -57,13 +57,13 @@ class FileUploadController extends Controller {
             'message' => 'Archivo subido con éxito.',
         ]);
 
-        
+
     }
 
 
-    /****************************************************************************** 
-    * * Copia el archivo en el servidor publico en la carpeta Storage, para usar esta 
-    * * funcion debes ejecutar el path "/execute-link-simbolik" para realice el 
+    /******************************************************************************
+    * * Copia el archivo en el servidor publico en la carpeta Storage, para usar esta
+    * * funcion debes ejecutar el path "/execute-link-simbolik" para realice el
     * * link simbolico entre las carpetas "storage/app/public" => "public/storge"
     ******************************************************************************/
 
@@ -75,7 +75,7 @@ class FileUploadController extends Controller {
         ],
         [
             'file.requierd' => 'No Existe Archivo',
-            'file.mines' => 'El Archivo debe ser JPG|PNG'   
+            'file.mines' => 'El Archivo debe ser JPG|PNG'
         ]);
 
         $file = $request->file('file');
@@ -101,9 +101,9 @@ class FileUploadController extends Controller {
             'file' => $filePath,
             'message' => 'Archivo subido con éxito.',
         ]);
-       
+
 
     }
-  
-    
+
+
 }

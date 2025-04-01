@@ -54,7 +54,7 @@ Route::post('auth-register/load-logo',[UserController::class,'FileUpload'])
 Route::get('auth-register/user_email',[UserController::class,'ListUserEmail'])
     ->name('ListUserEmail');
 
-Route::get('servicios',[ServiciosController::class,'index'])->name('getService');
+Route::get('servicios',[ServiciosController::class,'getService'])->name('getService');
 
 Route::get('servicios/{name}',[ServiciosController::class,'showService'])->name('showService');
 
@@ -68,8 +68,8 @@ Route::get('agenda-horas/health',[AgendaHorasController::class,'Health'])
 Route::get('agenda-horas',[AgendaHorasController::class,'getAgenda'])
     ->name('getAgenda');
 
-Route::post('agenda-horas',[AgendaHorasController::class,'Store'])
-    ->name('Store');
+Route::post('agenda-horas',[AgendaHorasController::class,'StoreAgenda'])
+    ->name('StoreAgenda');
 
 
 //
@@ -120,8 +120,8 @@ Route::get('chequeo-cardiovascular/estado-general/{user_email}',[ChequeoCardiova
 Route::post('chequeo-cardiovascular/club-deportivo',[ChequeoCardiovascularController::class,'ChequeoUserEmail'])
     ->name('ChequeoUserEmail');
 
-Route::post('file-upload',[FileUploadController::class,'FileUpload'])
-    ->name('FileUpload');
+Route::post('file-upload',[FileUploadController::class,'FileUploadRes'])
+    ->name('FileUploadRes');
 
 /*************************************************************************************************
 * * Se Epone el siguiente path para ejecutar el comando para crear link simbolico para
@@ -155,8 +155,8 @@ Route::post('sam-assistant/as-question',[OpenAIController::class,'AsQuestionUseC
     ->name('AsQuestionUseCase');
 
 
-Route::post('certificado/save-url',[CertificadoUrlController::class,'FileUpload'])
-    ->name('FileUpload');
+Route::post('certificado/save-url',[CertificadoUrlController::class,'FileUploadCer'])
+    ->name('FileUploadCer');
 
 Route::get('certificado/validar/{rut_paciente}',[CertificadoUrlController::class,'ValidarRut'])
     ->name('ValidarRut');

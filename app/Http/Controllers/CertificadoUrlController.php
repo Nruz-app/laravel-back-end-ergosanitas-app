@@ -54,7 +54,7 @@ class CertificadoUrlController extends Controller {
     }
 
 
-    public function FileUpload(Request $request) {
+    public function FileUploadCer(Request $request) {
 
         $rut_paciente   = $request->rut_paciente;
         $id_paciente    = $request->id_paciente;
