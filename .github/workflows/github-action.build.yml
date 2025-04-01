@@ -62,8 +62,7 @@ jobs:
           set net:timeout 60
           set mirror:parallel-transfer-count 1
           set ftp:passive-mode on
-          mkdir -p /public_html/mi_react_app/{files/gallery,files/images}
-          mirror -R dist/ /public_html/mi_react_app/
-          mirror -R . /public_html/mi_laravel_app/
+          mkdir -p /public_html/laravel_app/
+          mirror -R . /public_html/laravel_app/
           quit
           EOF
