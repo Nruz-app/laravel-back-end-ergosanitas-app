@@ -54,17 +54,18 @@ jobs:
           set net:timeout 60
           set mirror:parallel-transfer-count 5
           set ftp:passive-mode on
-          mkdir /public_html/laravel_app/ || echo "Directorio ya existe, continuando..."
-          mkdir /public_html/laravel_app/bootstrap/cache || echo "Directorio ya existe, continuando..."
-          mkdir /public_html/laravel_app/storage/framework/sessions || echo "Directorio ya existe, continuando..."
-          mkdir /public_html/laravel_app/storage/framework/views || echo "Directorio ya existe, continuando..."
-          mkdir /public_html/laravel_app/storage/framework/cache || echo "Directorio ya existe, continuando..."
+          mlist /public_html/laravel_app/ || mkdir /public_html/laravel_app/
+          mlist /public_html/laravel_app/bootstrap/cache || mkdir /public_html/laravel_app/bootstrap/cache
+          mlist /public_html/laravel_app/storage/framework/sessions || mkdir /public_html/laravel_app/storage/framework/sessions
+          mlist /public_html/laravel_app/storage/framework/views || mkdir /public_html/laravel_app/storage/framework/views
+          mlist /public_html/laravel_app/storage/framework/cache || mkdir /public_html/laravel_app/storage/framework/cache
           mirror -R --only-newer . /public_html/laravel_app/
           quit
           EOF
 
       - name: Ajustar permisos en HostGator
         run: |
+          sudo apt-get install -y lftp
           lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" ftp.ergosanitas.com <<EOF
           chmod -R 775 /public_html/laravel_app/storage
           chmod -R 775 /public_html/laravel_app/bootstrap/cache
