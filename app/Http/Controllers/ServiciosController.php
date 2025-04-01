@@ -7,14 +7,14 @@ use Illuminate\Http\Request;
 
 class ServiciosController extends Controller {
 
-    public function index() {
+    public function getService() {
 
         $resServicios = Servicios::where(['activo' => 's'])->firstOrFail();
         $resServicios = $resServicios->orderBy("id","desc")->get();
         return response()->json($resServicios,200);
     }
 
-    public function show(string $nombre)
+    public function showService(string $nombre)
     {
         $resJugadores = Servicios::where(['nombre' => $nombre])->firstOrFail();
 
@@ -35,7 +35,7 @@ class ServiciosController extends Controller {
             $array = array(
                 'status' => 'Bad Request',
                 'mensaje' => 'Http NO trae Datos para Procesar');
-        
+
             return response()->json($array,400);
 
         }
@@ -44,21 +44,21 @@ class ServiciosController extends Controller {
             $textoValue = $request->textoValue;
             //$resServicios = Servicios::where('nombre', 'like', '%' . $textoValue . '%')
             $resServicios = Servicios::
-            whereRaw('LOWER(nombre) LIKE ?', ['%' . strtolower($textoValue) . '%'])    
+            whereRaw('LOWER(nombre) LIKE ?', ['%' . strtolower($textoValue) . '%'])
             ->orderBy('id', 'desc')
             ->get();
 
             return response()->json($resServicios,200);
         }
         catch (\Exception $e) {
-            
+
             $array = array(
                 'status' => 'Error en ejecucion',
                 'mensaje' =>  $e->getMessage());
-        
+
             return response()->json($array,500);
-        
+
         }
     }
-    
+
 }

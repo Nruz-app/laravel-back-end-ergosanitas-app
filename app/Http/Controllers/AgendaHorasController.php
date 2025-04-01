@@ -13,7 +13,7 @@ class AgendaHorasController extends Controller {
         return "Bienvenido a ergosanitas.com";
     }
 
-    public function Index(){
+    public function getAgenda(){
 
         $resAgendaHoras = AgendaHoras::orderBy("id","desc")->get();
         $resArray = array();
@@ -40,7 +40,7 @@ class AgendaHorasController extends Controller {
 
 
     public function Store(Request $request) {
-        
+
         $json = json_decode(file_get_contents('php://input'),true);
 
         if(!is_array($json)) {
@@ -48,7 +48,7 @@ class AgendaHorasController extends Controller {
             $array = array('response' => array(
                 'status' => 'Bad Request',
                 'mensaje' => 'Error en momento de ejecucion!!!'));
-        
+
             return response()->json($array,400);
 
         }
@@ -76,22 +76,22 @@ class AgendaHorasController extends Controller {
 
             $array = array('response' => array(
                 'status' => 'OK',
-                'mensaje' => 'Reserva con Exito'));                                    
-    
+                'mensaje' => 'Reserva con Exito'));
+
             return response()->json($array,201);
-            
+
         }
         catch (\Exception $e) {
-            
+
             // Retorna una respuesta con el error
             $array = array('response' => array(
                 'status' => 'Error en ejecucion',
                 'mensaje' => $e->getMessage()));
-        
+
             return response()->json($array,500);
-        
+
         }
-        
+
 
     }
 }

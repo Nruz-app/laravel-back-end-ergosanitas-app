@@ -54,9 +54,9 @@ Route::post('auth-register/load-logo',[UserController::class,'FileUpload'])
 Route::get('auth-register/user_email',[UserController::class,'ListUserEmail'])
     ->name('ListUserEmail');
 
-Route::get('servicios',[ServiciosController::class,'index'])->name('index');
+Route::get('servicios',[ServiciosController::class,'index'])->name('getService');
 
-Route::get('servicios/{name}',[ServiciosController::class,'show'])->name('show');
+Route::get('servicios/{name}',[ServiciosController::class,'showService'])->name('showService');
 
 Route::post('servicios/like',[ServiciosController::class,'LikeServices'])->name('LikeServices');
 
@@ -65,8 +65,8 @@ Route::post('servicios/like',[ServiciosController::class,'LikeServices'])->name(
 Route::get('agenda-horas/health',[AgendaHorasController::class,'Health'])
     ->name('Health');
 
-Route::get('agenda-horas',[AgendaHorasController::class,'Index'])
-    ->name('Index');
+Route::get('agenda-horas',[AgendaHorasController::class,'getAgenda'])
+    ->name('getAgenda');
 
 Route::post('agenda-horas',[AgendaHorasController::class,'Store'])
     ->name('Store');
@@ -161,8 +161,8 @@ Route::post('certificado/save-url',[CertificadoUrlController::class,'FileUpload'
 Route::get('certificado/validar/{rut_paciente}',[CertificadoUrlController::class,'ValidarRut'])
     ->name('ValidarRut');
 
-Route::get('certificado/{rut_paciente}',[CertificadoUrlController::class,'show'])
-    ->name('show');
+Route::get('certificado/{rut_paciente}',[CertificadoUrlController::class,'showCertificado'])
+    ->name('showCertificado');
 
 Route::post('electro-cardiograma/find-by-rut',[ElectroCardiogramaController::class,'FindByRut'])
     ->name('FindByRut');

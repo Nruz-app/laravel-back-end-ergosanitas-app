@@ -30,7 +30,7 @@ class CertificadoUrlController extends Controller {
 
     }
 
-    public function show(string $rut_paciente) {
+    public function showCertificado(string $rut_paciente) {
 
         try {
 
