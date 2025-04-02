@@ -6,6 +6,7 @@ ARG user=laravel
 ARG uid=1000
 
 # Actualiza la lista de paquetes e instala dependencias necesarias
+# Instala las extensiones de PHP necesarias
 RUN apt-get update && apt-get install -y \
     git \
     curl \
@@ -13,7 +14,9 @@ RUN apt-get update && apt-get install -y \
     libonig-dev \
     libxml2-dev \
     zip \
-    unzip
+    unzip \
+    libzip-dev && \
+    docker-php-ext-install zip pdo_mysql mbstring exif pcntl bcmath gd
 
 # Limpia la caché de paquetes de apt para reducir el tamaño de la imagen
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
