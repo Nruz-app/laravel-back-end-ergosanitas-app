@@ -28,11 +28,14 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 RUN echo "Creando usuario con UID=${uid} y nombre=${user}" && \
     useradd -u ${uid} -ms /bin/bash -g www-data ${user}
 
-# Copia los archivos de la aplicación al contenedor en /var/www
-COPY . /var/www
+# Crea el directorio /var/www/public si no existe
+RUN mkdir -p /var/www/public
 
-# Copia los archivos con el usuario y grupo adecuados
+# Copia los archivos de la aplicación al contenedor en /var/www con los permisos adecuados
 COPY --chown=$user:www-data . /var/www
+
+# Asegúrate de que el directorio /var/www/public existe
+RUN mkdir -p /var/www/public
 
 # Cambia el usuario por defecto para ejecutar procesos con el usuario creado
 USER $user
