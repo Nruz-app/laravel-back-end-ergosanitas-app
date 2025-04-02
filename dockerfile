@@ -12,12 +12,16 @@ RUN apt-get update && apt-get install -y \
     libpng-dev \
     libonig-dev \
     libxml2-dev \
-    zip \
+    libzip-dev \
     unzip \
-    libzip-dev && \
-    docker-php-ext-configure zip && \
-    docker-php-ext-install zip pdo_mysql mbstring exif pcntl bcmath gd opcache && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+    zip \
+    redis \
+    && docker-php-ext-configure zip \
+    && docker-php-ext-install zip pdo_mysql mbstring exif pcntl bcmath gd opcache intl sockets \
+    && pecl install redis \
+    && docker-php-ext-enable redis zip \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copia Composer desde su imagen oficial y lo instala en el contenedor
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
