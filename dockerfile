@@ -6,7 +6,6 @@ ARG user=laravel
 ARG uid=1000
 
 # Actualiza la lista de paquetes e instala dependencias necesarias
-# Instala las extensiones de PHP necesarias
 RUN apt-get update && apt-get install -y \
     git \
     curl \
@@ -14,9 +13,7 @@ RUN apt-get update && apt-get install -y \
     libonig-dev \
     libxml2-dev \
     zip \
-    unzip \
-    libzip-dev && \
-    docker-php-ext-install zip pdo_mysql mbstring exif pcntl bcmath gd
+    unzip
 
 # Limpia la caché de paquetes de apt para reducir el tamaño de la imagen
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -38,8 +35,8 @@ WORKDIR /var/www
 # Copia solo composer.json y composer.lock primero para mejorar la caché
 COPY composer.json composer.lock /var/www/
 
-# Instala las dependencias de Laravel con Composer antes de copiar el resto del código
-RUN COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader
+# Instala las dependencias de Laravel con Composer
+RUN composer install --no-dev --optimize-autoloader
 
 # Copia los archivos de la aplicación al contenedor en /var/www con los permisos adecuados
 COPY --chown=$user:www-data . /var/www
