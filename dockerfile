@@ -16,10 +16,8 @@ RUN apt-get update && apt-get install -y \
     unzip \
     libzip-dev && \
     docker-php-ext-configure zip && \
-    docker-php-ext-install zip pdo_mysql mbstring exif pcntl bcmath gd
-
-# Limpia la caché de paquetes de apt para reducir el tamaño de la imagen
-RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+    docker-php-ext-install zip pdo_mysql mbstring exif pcntl bcmath gd opcache && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Copia Composer desde su imagen oficial y lo instala en el contenedor
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -31,17 +29,17 @@ RUN echo "Creando usuario con UID=${uid} y nombre=${user}" && \
 # Crea el directorio de la aplicación y asigna los permisos correctos
 WORKDIR /var/www
 
-# Copia solo composer.json y composer.lock primero para mejorar la caché
+# Copia los archivos completos de la aplicación al contenedor en /var/www
+COPY --chown=$user:www-data . /var/www
+
+# Copia composer.json y composer.lock primero para aprovechar la caché
 COPY composer.json composer.lock /var/www/
 
 # Verifica las extensiones de PHP antes de instalar dependencias
 RUN php -m | grep -i zip || (echo "❌ ZIP NO ESTÁ INSTALADO" && exit 1)
 
 # Instala las dependencias de Laravel con Composer
-RUN COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --verbose
-
-# Copia los archivos de la aplicación al contenedor en /var/www con los permisos adecuados
-COPY --chown=$user:www-data . /var/www
+RUN COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --ignore-platform-reqs
 
 # Ajusta los permisos para evitar problemas de acceso
 RUN chown -R $user:www-data /var/www
