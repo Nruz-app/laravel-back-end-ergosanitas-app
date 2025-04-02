@@ -13,13 +13,13 @@ RUN apt-get update && apt-get install -y \
     libonig-dev \
     libxml2-dev \
     zip \
-    unzip
+    unzip \
+    libzip-dev && \
+    docker-php-ext-configure zip && \
+    docker-php-ext-install zip pdo_mysql mbstring exif pcntl bcmath gd
 
 # Limpia la caché de paquetes de apt para reducir el tamaño de la imagen
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Instala extensiones de PHP necesarias
-RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
 
 # Copia Composer desde su imagen oficial y lo instala en el contenedor
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -28,15 +28,17 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 RUN echo "Creando usuario con UID=${uid} y nombre=${user}" && \
     useradd -u ${uid} -ms /bin/bash -g www-data ${user}
 
-
 # Crea el directorio de la aplicación y asigna los permisos correctos
 WORKDIR /var/www
 
 # Copia solo composer.json y composer.lock primero para mejorar la caché
 COPY composer.json composer.lock /var/www/
 
+# Verifica las extensiones de PHP antes de instalar dependencias
+RUN php -m | grep -i zip || (echo "❌ ZIP NO ESTÁ INSTALADO" && exit 1)
+
 # Instala las dependencias de Laravel con Composer
-RUN composer install --no-dev --optimize-autoloader
+RUN COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --verbose
 
 # Copia los archivos de la aplicación al contenedor en /var/www con los permisos adecuados
 COPY --chown=$user:www-data . /var/www
