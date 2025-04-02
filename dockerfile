@@ -32,14 +32,17 @@ RUN echo "Creando usuario con UID=${uid} y nombre=${user}" && \
 # Crea el directorio de la aplicación y asigna los permisos correctos
 WORKDIR /var/www
 
-# Instala las dependencias de Laravel con Composer
-RUN composer install --no-dev --optimize-autoloader
+# Copia solo composer.json y composer.lock primero para mejorar la caché
+COPY composer.json composer.lock /var/www/
 
-# Ajusta los permisos para evitar problemas de acceso
-RUN chown -R $user:www-data /var/www
+# Instala las dependencias de Laravel con Composer antes de copiar el resto del código
+RUN COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader
 
 # Copia los archivos de la aplicación al contenedor en /var/www con los permisos adecuados
 COPY --chown=$user:www-data . /var/www
+
+# Ajusta los permisos para evitar problemas de acceso
+RUN chown -R $user:www-data /var/www
 
 # Cambia el usuario por defecto para ejecutar procesos con el usuario creado
 USER $user
