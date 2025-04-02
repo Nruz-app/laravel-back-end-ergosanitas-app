@@ -1,4 +1,4 @@
-# Usa la imagen oficial de PHP 8.3 con FastCGI Process Manager (FPM)
+# Usa la imagen oficial de PHP 8.2 con FastCGI Process Manager (FPM)
 FROM php:8.2-fpm
 
 # Define argumentos para el usuario y su ID (se pueden pasar al construir la imagen)
@@ -39,10 +39,10 @@ COPY --chown=$user:www-data . /var/www
 # Copia composer.json y composer.lock primero para aprovechar la caché
 COPY composer.json composer.lock /var/www/
 
-# Verifica las extensiones de PHP antes de instalar dependencias
+# Verifica que la extensión ZIP está habilitada
 RUN php -m | grep -i zip || (echo "❌ ZIP NO ESTÁ INSTALADO" && exit 1)
 
-# Instala las dependencias de Laravel con Composer
+# Instala las dependencias de Composer, deshabilita la validación de plataforma
 RUN COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --ignore-platform-reqs
 
 # Ajusta los permisos para evitar problemas de acceso
