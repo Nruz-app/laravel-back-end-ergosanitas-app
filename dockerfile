@@ -1,5 +1,5 @@
 # Usa la imagen oficial de PHP 8.3 con FastCGI Process Manager (FPM)
-FROM php:8.3-fpm
+FROM php:8.2-fpm
 
 # Define argumentos para el usuario y su ID (se pueden pasar al construir la imagen)
 ARG user=laravel
