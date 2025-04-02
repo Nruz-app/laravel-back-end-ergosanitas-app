@@ -28,8 +28,15 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 RUN echo "Creando usuario con UID=${uid} y nombre=${user}" && \
     useradd -u ${uid} -ms /bin/bash -g www-data ${user}
 
-# Crea el directorio /var/www/public si no existe
-RUN mkdir -p /var/www
+
+# Crea el directorio de la aplicación y asigna los permisos correctos
+WORKDIR /var/www
+
+# Instala las dependencias de Laravel con Composer
+RUN composer install --no-dev --optimize-autoloader
+
+# Ajusta los permisos para evitar problemas de acceso
+RUN chown -R $user:www-data /var/www
 
 # Copia los archivos de la aplicación al contenedor en /var/www con los permisos adecuados
 COPY --chown=$user:www-data . /var/www
