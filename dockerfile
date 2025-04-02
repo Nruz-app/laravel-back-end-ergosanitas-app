@@ -2,8 +2,8 @@
 FROM php:8.3-fpm
 
 # Define argumentos para el usuario y su ID (se pueden pasar al construir la imagen)
-ARG user
-ARG uid
+ARG user=laravel
+ARG uid=1000
 
 # Actualiza la lista de paquetes e instala dependencias necesarias
 RUN apt-get update && apt-get install -y \
