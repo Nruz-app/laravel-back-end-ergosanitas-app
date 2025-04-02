@@ -29,13 +29,10 @@ RUN echo "Creando usuario con UID=${uid} y nombre=${user}" && \
     useradd -u ${uid} -ms /bin/bash -g www-data ${user}
 
 # Crea el directorio /var/www/public si no existe
-RUN mkdir -p /var/www/public
+RUN mkdir -p /var/www
 
 # Copia los archivos de la aplicación al contenedor en /var/www con los permisos adecuados
 COPY --chown=$user:www-data . /var/www
-
-# Asegúrate de que el directorio /var/www/public existe
-RUN mkdir -p /var/www/public
 
 # Cambia el usuario por defecto para ejecutar procesos con el usuario creado
 USER $user
