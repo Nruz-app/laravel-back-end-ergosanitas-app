@@ -31,7 +31,8 @@ return new class extends Migration
             $table->string("enfermedadesAnteriores",250);
             $table->string("Recuperacion",250);
             $table->string("gradoIncidenciaPosterio",250);
-            $table->timestamps();
+            $table->timestamp('created_at')->useCurrent();
+            $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
         });
     }
 

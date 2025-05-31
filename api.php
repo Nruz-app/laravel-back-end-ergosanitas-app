@@ -53,7 +53,7 @@ Route::post('auth-register',[UserController::class,'AuthRegister'])
 Route::post('auth-register/load-logo',[UserController::class,'FileUpload'])
     ->name('FileUpload');
 
-Route::get('auth-register/user_email/{perfil}',[UserController::class,'ListUserEmail'])
+Route::get('auth-register/user_email',[UserController::class,'ListUserEmail'])
     ->name('ListUserEmail');
 
 Route::post('user-save',[UserController::class,'userSave'])

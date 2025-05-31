@@ -8,8 +8,14 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
 use App\Models\UsersMetadata;
+use App\Services\UserMetadataService;
 
 class UserController extends Controller {
+
+
+    public function __construct(private UserMetadataService $userMetadataService) {
+    }
+
 
     public function AuthRegister(Request $request) {
 
@@ -116,12 +122,62 @@ class UserController extends Controller {
 
     }
 
-    public function ListUserEmail() {
+    public function ListUserEmail(int $perfil) {
         $responseUser = UsersMetadata::where('status', 'S')  // Verifica que 's' sea el valor correcto
-        ->where('perfiles_id', 3)
+        ->where('perfiles_id', $perfil)
         ->select('users_id','user_email', 'user_name')
         ->get(); // Devuelve una colección de resultados
 
     return response()->json($responseUser, 200);
+    }
+
+    public function userSave(Request $request) {
+
+        try {
+
+            $name        = $request->nombre_user;
+            $email       = $request->email_user;
+            $password    = $request->password_user;
+            $perfiles_id = $request->perfil_user;
+
+            $this->userMetadataService->userSave($name,$email,$password,$perfiles_id);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'OK'
+            ],200);
+
+        }
+        catch (\Exception $e) {
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ],500);
+        }
+    }
+
+    public function UserUpdatePassowrd(Request $request) {
+
+        try {
+
+            $password_user  = $request->password_user;
+            $email_user     = $request->email_user;
+
+            $this->userMetadataService->UserUpdatePassowrd($password_user,$email_user);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'OK'
+            ],200);
+
+        }
+        catch (\Exception $e) {
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ],500);
+        }
     }
 }

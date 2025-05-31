@@ -20,32 +20,40 @@ class EstadisticasController extends Controller
 
         try {
             $user_email           = $request->user_email;
-
-            $results = ChequeoCardiovascular::SP_estadistica_IMC($user_email);
-
-            // Convertir el resultado a un objeto (si es necesario)
-            $resultadoJson = json_decode($results[0]->resultado_json);
-
-            return $resultadoJson;
+            $responseService = $this->estadisticasService->EstadisticaIMC($user_email);
+            return response()->json($responseService,200);
         }
         catch (\Exception $e) {
-
             // Retorna una respuesta con el error
             $array = array('response' => array(
                 'status' => 'Error en ejecucion',
                 'mensaje' => $e->getMessage()));
 
             return response()->json($array,500);
-
         }
 
     }
     public function EstadisticaPresion(Request $request) {
+        try {
+            $user_email = $request->user_email;
+            $responseService = $this->estadisticasService->EstadisticaPresion($user_email);
+            return response()->json($responseService,200);
+        }
+        catch (\Exception $e) {
+            // Retorna una respuesta con el error
+            $array = array('response' => array(
+                'status' => 'Error en ejecucion',
+                'mensaje' => $e->getMessage()));
 
+            return response()->json($array,500);
+        }
+    }
+
+    public function EstadisticaHemoglucotest(Request $request) {
         try {
 
             $user_email = $request->user_email;
-            $responseService = $this->estadisticasService->EstadisticaPresion($user_email);
+            $responseService = $this->estadisticasService->SP_estadistica_hemoglucotest($user_email);
             return response()->json($responseService,200);
         }
         catch (\Exception $e) {
@@ -60,4 +68,22 @@ class EstadisticasController extends Controller
         }
     }
 
+    public function EstadisticaSaturacion(Request $request) {
+        try {
+
+            $user_email = $request->user_email;
+            $responseService = $this->estadisticasService->SP_estadistica_saturacion($user_email);
+            return response()->json($responseService,200);
+        }
+        catch (\Exception $e) {
+
+            // Retorna una respuesta con el error
+            $array = array('response' => array(
+                'status' => 'Error en ejecucion',
+                'mensaje' => $e->getMessage()));
+
+            return response()->json($array,500);
+
+        }
+    }
 }

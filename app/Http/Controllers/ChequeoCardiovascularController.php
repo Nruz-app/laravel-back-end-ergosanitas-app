@@ -3,8 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\ChequeoCardiovascular;
-use App\Models\ElectroCardiograma;
-
 use Illuminate\Http\Request;
 
 use Mpdf\Mpdf;
@@ -14,23 +12,31 @@ use Illuminate\Support\Facades\DB;
 use App\Services\UserMetadataService;
 use App\Services\ChequeoCardiovascularService;
 use App\Services\ChequeoCardiovascularPDFService;
+use App\Services\ElectroCardiogramaService;
+use App\Services\CertificadoService;
 
 class ChequeoCardiovascularController extends Controller
 {
     protected $userMetadataService;
     protected $chequeoCardiovascularService;
     protected $chequeoCardiovascularPDFService;
+    protected $electroCardiogramaService;
+    protected $certificadoService;
 
 
     // Inyectar servicios a través del constructor
     public function __construct(
         UserMetadataService $userMetadataService,
         ChequeoCardiovascularService $chequeoCardiovascularService,
-        ChequeoCardiovascularPDFService $chequeoCardiovascularPDFService )
+        ChequeoCardiovascularPDFService $chequeoCardiovascularPDFService,
+        ElectroCardiogramaService $electroCardiogramaService,
+        CertificadoService $certificadoService )
     {
         $this->userMetadataService             = $userMetadataService;
         $this->chequeoCardiovascularService    = $chequeoCardiovascularService;
         $this->chequeoCardiovascularPDFService = $chequeoCardiovascularPDFService;
+        $this->electroCardiogramaService       = $electroCardiogramaService;
+        $this->certificadoService              = $certificadoService;
     }
     //
     public function HealthCheck(){
@@ -281,6 +287,7 @@ class ChequeoCardiovascularController extends Controller
         $save->imc_paciente            = $request->imc_paciente;
         $save->division_paciente       = $request->division_paciente;
         $save->medio_pago_paciente     = $request->medio_pago_paciente;
+        $save->email_paciente          = $request->email_paciente;
 
         if($perfilId == 2) {
             $save->fecha_atencion = Carbon::now()->format('Y-m-d H:i:s');
@@ -290,6 +297,7 @@ class ChequeoCardiovascularController extends Controller
         try {
 
             $save->save();
+
             $array = array('response' => array(
                 'status' => 'OK',
                 'mensaje' => 'Reserva con Exito'));
@@ -371,6 +379,13 @@ class ChequeoCardiovascularController extends Controller
 
             }
             $chequeoCardiovascular->save();
+
+            //Actualziar Certificado y CGC
+            if($perfilId == 1) {
+
+                $this->certificadoService->UpdateRutCertificado($id_paciente,$json['rut']);
+                $this->electroCardiogramaService->UpdateRutECG($id_paciente,$json['rut']);
+            }
 
             $array = array(
                 'status' => 'OK',
@@ -513,5 +528,46 @@ class ChequeoCardiovascularController extends Controller
 
         return response()->json($array,200);
     }
+
+    public function SearchChequeo(Request $request)
+    {
+        $json = json_decode(file_get_contents('php://input'),true);
+
+        if(!is_array($json)) {
+
+            $array = array(
+                'status' => 'Bad Request',
+                'mensaje' => 'Http NO trae Datos para Procesar');
+
+            return response()->json($array,400);
+
+        }
+        try {
+
+            $textoValue     = $request->textoValue;
+            $fechaCalendar  = $request->fechaCalendar;
+            $selectClub     = $request->selectClub;
+            $user_email     = $request->user_email;
+
+            $perfilId = $this->userMetadataService->getPerfilIdByEmail($user_email);
+
+            $responseChequeo = $this->chequeoCardiovascularService
+                    ->SearchChequeo($perfilId,$textoValue,$fechaCalendar,$selectClub,$user_email);
+
+            return response()->json($responseChequeo);
+
+        }
+        catch (\Exception $e) {
+
+            $array = array(
+                'status' => 'Error en ejecucion',
+                'mensaje' =>  $e->getMessage());
+
+            return response()->json($array,500);
+
+        }
+
+    }
+
 
 }
