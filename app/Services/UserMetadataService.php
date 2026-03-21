@@ -53,4 +53,22 @@ class UserMetadataService
             return null;
         }
     }
+    public function UserUpdateErgoPass($ergo_pass,$email_user) {
+
+        try {
+            $usersMetadata = UsersMetadata::where('user_email', $email_user)->firstOrFail();
+            $usersMetadata->ergo_pass = $ergo_pass;
+            $usersMetadata->save();
+
+            return true;
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+    public function userFirstErgoPass($email_user){
+
+        return UsersMetadata::where('user_email', $email_user)
+        ->value('ergo_pass');
+    }
 }

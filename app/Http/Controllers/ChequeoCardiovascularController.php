@@ -68,7 +68,18 @@ class ChequeoCardiovascularController extends Controller
                 'cc.*',
                 DB::raw("DATE_FORMAT(cc.fecha_atencion, '%d/%m/%Y') as fecha_atencion"),
                 DB::raw("DATE_FORMAT(cc.created_at, '%d/%m/%Y') as created_at") ,
-                DB::raw("COALESCE(ec.estado_paciente, 'En Revisión') as estado_paciente"),
+                DB::raw("
+                    CASE
+                        WHEN cc.status = 'REVISION MEDICA'
+                            AND MAX(ec.estado_paciente) IS NOT NULL
+                        THEN CONCAT('Diag. Card. - ', MAX(ec.estado_paciente))
+
+                        WHEN cc.status = 'REVISION MEDICA'
+                        THEN 'En Rev. Cardio'
+
+                        ELSE cc.status
+                    END as estado_paciente
+                "),
                 DB::raw("COALESCE(ec.frecuencia_cardiaca_paciente, '-') as frecuencia_cardiaca_paciente"),
                 DB::raw("COALESCE(ec.derivacion_paciente, '-') as derivacion_paciente"),
                 DB::raw("COALESCE(ec.observacion_paciente, '-') as observacion_paciente")
@@ -175,7 +186,18 @@ class ChequeoCardiovascularController extends Controller
                 'cc.*',
                 DB::raw("DATE_FORMAT(cc.fecha_atencion, '%d/%m/%Y') as fecha_atencion") ,
                 DB::raw("DATE_FORMAT(cc.created_at, '%d/%m/%Y') as created_at") ,
-                DB::raw("COALESCE(ec.estado_paciente, 'En Revisión') as estado_paciente"),
+                DB::raw("
+                    CASE
+                        WHEN cc.status = 'REVISION MEDICA'
+                            AND MAX(ec.estado_paciente) IS NOT NULL
+                        THEN CONCAT('Diag. Card. - ', MAX(ec.estado_paciente))
+
+                        WHEN cc.status = 'REVISION MEDICA'
+                        THEN 'En Rev. Cardio'
+
+                        ELSE cc.status
+                    END as estado_paciente
+                "),
                 DB::raw("COALESCE(ec.frecuencia_cardiaca_paciente, '-') as frecuencia_cardiaca_paciente"),
                 DB::raw("COALESCE(ec.derivacion_paciente, '-') as derivacion_paciente"),
                 DB::raw("COALESCE(ec.observacion_paciente, '-') as observacion_paciente")
@@ -548,13 +570,16 @@ class ChequeoCardiovascularController extends Controller
             $fechaCalendar  = $request->fechaCalendar;
             $selectClub     = $request->selectClub;
             $user_email     = $request->user_email;
+            $limit          = $request->get('limit', 20);
+            $page           = $request->get('page', 1);
 
             $perfilId = $this->userMetadataService->getPerfilIdByEmail($user_email);
 
             $responseChequeo = $this->chequeoCardiovascularService
-                    ->SearchChequeo($perfilId,$textoValue,$fechaCalendar,$selectClub,$user_email);
+                    ->SearchChequeo($perfilId,$textoValue,$fechaCalendar,$selectClub,
+                    $user_email,$limit,$page);
 
-            return response()->json($responseChequeo);
+            return response()->json($responseChequeo->original);
 
         }
         catch (\Exception $e) {
@@ -568,6 +593,40 @@ class ChequeoCardiovascularController extends Controller
         }
 
     }
+
+    public function ChequeoEmailAll(Request $request)
+    {
+        try {
+            $json = json_decode(file_get_contents('php://input'), true);
+
+            if (!is_array($json)) {
+                return response()->json([
+                    'status' => 400,
+                    'mensaje' => 'La solicitud no contiene datos válidos para procesar.'
+                ], 400);
+            }
+
+            $user_email = $request->user_email;
+            $perfilId = $this->userMetadataService->getPerfilIdByEmail($user_email);
+            $responseChequeo = $this->chequeoCardiovascularService
+                ->ChequeoEmailAll($user_email, $perfilId);
+
+            return response()->json([
+                'status' => 200,
+                'mensaje' => 'Chequeo obtenido correctamente.',
+                'data' => $responseChequeo
+            ], 200);
+
+        }
+        catch (\Exception $e) {
+            return response()->json([
+                'status' => 500,
+                'mensaje' => 'Error interno: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+
 
 
 }

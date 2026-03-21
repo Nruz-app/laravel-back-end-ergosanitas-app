@@ -30,39 +30,46 @@ class CertificadoUrlController extends Controller {
 
     }
 
-    public function showCertificado(string $rut_paciente) {
-
+    public function showCertificado(string $rut_paciente)
+    {
         try {
 
-            $certificadoURl = CertificadoURl::where(['rut_paciente' => $rut_paciente])
-            ->orderBy('id', 'desc')
-            ->first();
+            $certificado = CertificadoURl::where('rut_paciente', $rut_paciente)
+                ->latest('id')   // ORDER BY id DESC
+                ->first();      // LIMIT 1
 
+            if (!$certificado) {
+                return response()->json([
+                    'status' => 404,
+                    'mensaje' => 'No se encontró certificado para el rut ' . $rut_paciente
+                ], 404);
+            }
 
-            return response()->json($certificadoURl,200);
+            return response()->json($certificado, 200);
 
-        }
-        catch (\Exception $e) {
+        } catch (\Exception $e) {
 
-            $array = array(
-                'status' => 'Error en ejecucion',
-                'mensaje' =>  $e->getMessage());
-
-            return response()->json($array,500);
+            return response()->json([
+                'status' => 'error',
+                'mensaje' => $e->getMessage()
+            ], 500);
 
         }
     }
 
-
     public function FileUploadCer(Request $request) {
 
-        $rut_paciente   = $request->rut_paciente;
-        $id_paciente    = $request->id_paciente;
+        $rut_paciente    = $request->rut_paciente;
+        $id_paciente     = $request->id_paciente;
+        $derivado_medico = $request->derivado_medico;
         $nombre         = ucwords(strtolower($request->nombre_paciente));
 
         // Verificar si el archivo existe
         if ($request->hasFile('file') && $request->file('file')->isValid()) {
 
+            CertificadoURl::where('rut_paciente', $rut_paciente)
+                ->where('id_chequeo', $id_paciente)
+                ->delete();
             // Obtener el archivo
             $file = $request->file('file');
 
@@ -74,7 +81,7 @@ class CertificadoUrlController extends Controller {
 
 
             // Crear el nombre completo con el rut del paciente y la extensión
-            $fileName = $rut_paciente . '.' . $extension;
+            $fileName = $rut_paciente . '-'.$id_paciente. '.' . $extension;
 
             // Mover el archivo al destino
             $file->move($destinationPath, $fileName);
@@ -91,6 +98,7 @@ class CertificadoUrlController extends Controller {
             $save->url_pdf          = $url_pdf;
             $save->name_pdf         = $name_pdf;
             $save->titulo           = $titulo;
+            $save->derivado_medico  = $derivado_medico;
 
             $save->save();
 
@@ -109,4 +117,47 @@ class CertificadoUrlController extends Controller {
 
     }
 
+    public function PathUrlCertificado(Request $request)
+    {
+        $rut_paciente = $request->rut_paciente;
+        $id_paciente  = $request->id_paciente;
+
+        try {
+
+            $query = CertificadoURl::query();
+
+            if ($rut_paciente) {
+                $query->where('rut_paciente', $rut_paciente);
+            }
+
+            if ($id_paciente) {
+                $query->where('id_chequeo', $id_paciente);
+            }
+
+            $certificadoURl = $query
+                ->orderBy('id', 'desc')
+                ->limit(1)
+                ->first();
+
+            if ($certificadoURl) {
+                return response()->json([
+                    'status' => 200,
+                    'url_pdf' => $certificadoURl->url_pdf,
+                    'name_pdf' => $certificadoURl->name_pdf,
+                    'titulo' => $certificadoURl->titulo
+                ]);
+            }
+
+            return response()->json([
+                'status' => 404,
+                'mensaje' => 'No se encontró un certificado con los filtros enviados'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 500,
+                'error' => 'Error en la consulta: ' . $e->getMessage()
+            ]);
+        }
+    }
 }

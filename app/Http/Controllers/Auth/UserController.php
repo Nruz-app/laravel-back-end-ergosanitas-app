@@ -4,12 +4,12 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-
+use App\Models\ChequeoCardiovascular;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
 use App\Models\UsersMetadata;
 use App\Services\UserMetadataService;
-
+use App\Models\User;
 class UserController extends Controller {
 
 
@@ -170,6 +170,112 @@ class UserController extends Controller {
                 'success' => true,
                 'message' => 'OK'
             ],200);
+
+        }
+        catch (\Exception $e) {
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ],500);
+        }
+    }
+
+    public function UserUpdateErgoPass(Request $request) {
+
+        try {
+
+            $ergo_pass  = $request->ergo_pass;
+            $email_user     = $request->email_user;
+
+            $this->userMetadataService->UserUpdateErgoPass($ergo_pass,$email_user);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'OK'
+            ],200);
+
+        }
+        catch (\Exception $e) {
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ],500);
+        }
+    }
+    public function UserFirstErgoPass(Request $request) {
+        try {
+            $email_user = $request->email_user;
+
+            $ergoPass = $this->userMetadataService->userFirstErgoPass($email_user);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'ergo_pass' => $ergoPass
+                ]
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+    public function CreateUser(Request $request) {
+
+        try {
+
+            $rut_paciente   = $request->rut_paciente;
+            $email          = $request->user_email;
+            $password       = $request->user_password;
+
+
+           $resChequeo = ChequeoCardiovascular::select('nombre', 'rut', 'created_at')
+            ->where('rut', $rut_paciente)
+            ->orderBy('created_at', 'desc')
+            ->first();
+
+            ChequeoCardiovascular::where('rut', $rut_paciente)
+                ->update(['email_paciente' => $email]);
+
+            $this->userMetadataService->userSave(
+                ucwords(strtolower($resChequeo->nombre)),
+                $email,
+                $password,
+                5);
+
+            if(Auth::attempt([
+                'email'     =>$email,
+                'password'  =>$password
+            ])){
+
+                //Valida usuario  con la tabla "users_metadata"
+                $usuario = UsersMetadata::where(['users_id'=>Auth::id()])->first();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Inicio de sesión exitoso',
+                    'user' => [
+                        'user_id'      => $usuario->id,
+                        'user_email'   => $usuario->user_email,
+                        'user_name'    => $usuario->user_name,
+                        'user_perfil'  => $usuario->perfiles->nombre,
+                        'user_logo'    => $usuario->user_logo,
+                        'rut_paciente' => $rut_paciente
+                    ],
+                ]);
+            }
+            else
+            {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error Authenticacion',
+                    'user' => [],
+                ],401);
+            }
 
         }
         catch (\Exception $e) {

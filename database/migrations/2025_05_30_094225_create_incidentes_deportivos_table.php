@@ -24,6 +24,8 @@ return new class extends Migration
             $table->string("gravedad",100);
             $table->string("estado",100);
             $table->string("user_email",100);
+            $table->string("liga",100);
+            $table->string("club_deportivo",100);
             $table->timestamps();
         });
     }

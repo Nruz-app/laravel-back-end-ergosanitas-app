@@ -50,6 +50,9 @@ Route::post('auth-login',[GoogleAuthControlle::class,'AuthLogin'])
 Route::post('auth-register',[UserController::class,'AuthRegister'])
     ->name('AuthRegister');
 
+Route::post('login/create-user',[UserController::class,'CreateUser'])
+    ->name('CreateUser');
+
 Route::post('auth-register/load-logo',[UserController::class,'FileUpload'])
     ->name('FileUpload');
 
@@ -61,6 +64,12 @@ Route::post('user-save',[UserController::class,'userSave'])
 
 Route::put('user-update-password',[UserController::class,'UserUpdatePassowrd'])
     ->name('UserUpdatePassowrd');
+
+Route::put('user-update-ergo-pass',[UserController::class,'UserUpdateErgoPass'])
+    ->name('UserUpdateErgoPass');
+
+Route::post('user-first-ergo-pass',[UserController::class,'UserFirstErgoPass'])
+    ->name('UserFirstErgoPass');
 
 Route::get('servicios',[ServiciosController::class,'getService'])->name('getService');
 
@@ -170,6 +179,9 @@ Route::post('sam-assistant/as-question',[OpenAIController::class,'AsQuestionUseC
 Route::post('certificado/save-url',[CertificadoUrlController::class,'FileUploadCer'])
     ->name('FileUploadCer');
 
+Route::post('certificado/path-url',[CertificadoUrlController::class,'PathUrlCertificado'])
+    ->name('PathUrlCertificado');
+
 Route::get('certificado/validar/{rut_paciente}',[CertificadoUrlController::class,'ValidarRut'])
     ->name('ValidarRut');
 
@@ -208,3 +220,38 @@ Route::post('incidencia-deportivos/create',[IncidenciasController::class,'Incide
 Route::get('incidencia-deportivos/find-by-user/{user_email}',[IncidenciasController::class,'FindByUserEmail'])
     ->name('FindByUserEmail');
 
+Route::get('incidencia-deportivos/count-club/{user_email}',[IncidenciasController::class,'CountClub'])
+    ->name('CountClub');
+
+Route::get('incidencia-deportivos/count-gravedad/{user_email}',[IncidenciasController::class,'CountGravedad'])
+    ->name('CountGravedad');
+
+Route::get('incidencia-deportivos/count-liga/{user_email}',[IncidenciasController::class,'CountLiga'])
+    ->name('CountLiga');
+
+Route::get('incidencia-deportivos/count-liga/{user_email}',[IncidenciasController::class,'CountLiga'])
+    ->name('CountLiga');
+
+Route::get('incidencia-deportivos/lesion-frecuente/{user_email}',[IncidenciasController::class,'LesionFrecuente'])
+    ->name('LesionFrecuente');
+
+Route::get('incidencia-deportivos/liga-casos/{user_email}',[IncidenciasController::class,'LigaCasos'])
+    ->name('LigaCasos');
+
+Route::get('incidencia-deportivos/sp_estadistica_liga/{user_email}',[IncidenciasController::class,'sp_estadistica_liga'])
+    ->name('sp_estadistica_liga');
+
+Route::get('incidencia-deportivos/sp_estadistica_categoria/{user_email}',[IncidenciasController::class,'sp_estadistica_categoria'])
+    ->name('sp_estadistica_categoria');
+
+Route::get('incidencia-deportivos/sp_estadistica_lesiones/{user_email}',[IncidenciasController::class,'sp_estadistica_lesiones'])
+    ->name('sp_estadistica_lesiones');
+
+Route::get('incidencia-deportivos/sp_estadistica_parte_cuerpo/{user_email}',[IncidenciasController::class,'sp_estadistica_parte_cuerpo'])
+    ->name('sp_estadistica_parte_cuerpo');
+
+Route::get('incidencia-deportivos/sp_estadistica_lesiones_fechas/{user_email}',[IncidenciasController::class,'sp_estadistica_lesiones_fechas'])
+    ->name('sp_estadistica_lesiones_fechas');
+
+Route::post('chequeo-cardiovascular/chequeo-all',[ChequeoCardiovascularController::class,'ChequeoEmailAll'])
+    ->name('ChequeoEmailAll');
