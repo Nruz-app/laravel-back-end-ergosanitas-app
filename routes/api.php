@@ -182,6 +182,12 @@ Route::post('certificado/save-url',[CertificadoUrlController::class,'FileUploadC
 Route::post('certificado/path-url',[CertificadoUrlController::class,'PathUrlCertificado'])
     ->name('PathUrlCertificado');
 
+Route::post('certificado/valida-certificado',[CertificadoUrlController::class,'ValidaCertificado'])
+    ->name('ValidaCertificado');
+
+Route::post('carga-masiva-ecg',[CertificadoUrlController::class,'CargaMasivaEcg'])
+    ->name('CargaMasivaEcg');
+
 Route::get('certificado/validar/{rut_paciente}',[CertificadoUrlController::class,'ValidarRut'])
     ->name('ValidarRut');
 
@@ -205,6 +211,18 @@ Route::get('estadisticas/estadistica-hemoglucotest/{user_email}',[EstadisticasCo
 
 Route::get('estadisticas/estadistica-saturacion/{user_email}',[EstadisticasController::class,'EstadisticaSaturacion'])
     ->name('EstadisticaSaturacion');
+
+Route::get('estadisticas/estadistica-pago-mensual',[EstadisticasController::class,'EstadisticaPagoMensual'])
+    ->name('EstadisticaPagoMensual');
+
+Route::post('estadisticas/pago-mensual',[EstadisticasController::class,'PagoMensual'])
+    ->name('PagoMensual');
+
+Route::post('estadisticas/delete-pago-mensual',[EstadisticasController::class,'DeletePagoMensual'])
+    ->name('DeletePagoMensual');
+
+Route::post('estadisticas/agenda-mensual',[EstadisticasController::class,'AgendaMensual'])
+    ->name('AgendaMensual');
 
 Route::post('carga-masiva/excel',[CargaMasivaController::class,'CargaMasivaExcel'])
     ->name('CargaMasivaExcel');

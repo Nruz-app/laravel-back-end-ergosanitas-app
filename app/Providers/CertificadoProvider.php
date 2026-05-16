@@ -3,10 +3,8 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
-
 use App\Services\CertificadoService;
-
-/*** NOTA IMPORTANTE : Agregar la clase Provedir al archivo bootstrap/providers.php ***/
+use App\Services\EstadisticasService;
 
 class CertificadoProvider extends ServiceProvider
 {
@@ -15,9 +13,12 @@ class CertificadoProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
         $this->app->singleton(CertificadoService::class, function ($app) {
-            return new CertificadoService();
+
+            return new CertificadoService(
+                $app->make(EstadisticasService::class)
+            );
+
         });
     }
 
@@ -28,5 +29,4 @@ class CertificadoProvider extends ServiceProvider
     {
         //
     }
-
 }

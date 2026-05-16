@@ -3,8 +3,7 @@ namespace App\Services;
 use Carbon\Carbon;
 use App\Models\ChequeoCardiovascular;
 use App\Models\ElectroCardiograma;
-
-
+use App\Models\CertificadoURl;
 class ChequeoCardiovascularPDFService {
 
     public function getPercentil($imc, $edad, $sexo)
@@ -57,11 +56,26 @@ class ChequeoCardiovascularPDFService {
         $electroCardiograma = ElectroCardiograma::where(['id_chequeo' => $id_paciente])
             ->first();
 
+        $certificadoURL = CertificadoURl::where(['id_chequeo' => $id_paciente])
+            ->first();
+
         $percentil = $this->getPercentil(
                 $chequeoCardiovascular->imc_paciente,
                 $chequeoCardiovascular->edad,
                 $chequeoCardiovascular->sexo_paciente);
 
+        if($certificadoURL->derivado_medico == 'SI') {
+            $firmaDoc = public_path('firma_cardiologo.jpeg');
+        }
+
+        $certificadoNoVigente = false;
+
+        if(isset($electroCardiograma->created_at)) {
+
+            $certificadoNoVigente = Carbon::parse(
+                $electroCardiograma->created_at
+            )->addMonths(3)->lt(now());
+        }
 
         $stylesheet="";
         $stylesheet .= "<style>";
@@ -75,6 +89,7 @@ class ChequeoCardiovascularPDFService {
         $stylesheet .= " .footer { text-align: center;margin-top: 20px;font-size: 12px;}";
         $stylesheet .= "</style>";
 
+
         $html = "";
         $html .= "<html>";
         $html .= "<head>";
@@ -82,7 +97,18 @@ class ChequeoCardiovascularPDFService {
         $html .= "</head>";
         $html .= "<body>";
 
+        if($certificadoNoVigente) {
 
+            $html .= "
+            <div style='position: fixed;
+                top: 150px;
+                left: 20px;
+                z-index: 9999;
+                opacity: 0.15;'>
+                <img src='".public_path('watermark.png')."'
+                    style='width:700px;'>
+            </div>";
+        }
 
         $html .= "<div class='container'>";
 
@@ -127,11 +153,12 @@ class ChequeoCardiovascularPDFService {
         $html .= "<li >Temperatura (°C): <span style='border-bottom: 1px solid black;'>".$chequeoCardiovascular->temperatura."</span></li>";
         $html .= "<li >Hemoglucotest (mg/dL): <span style='border-bottom: 1px solid black;'>".$chequeoCardiovascular->hemoglucotest."</span></li>";
         $html .= "<li >Índice Masa Corporal (IMC): <span style='border-bottom: 1px solid black;'>".$chequeoCardiovascular->imc_paciente." (".$percentil.") </span></li>";
-        $html .= "<li >Presencia de Enf. Crónicas y medicamentos: <span style='border-bottom: 1px solid black;'>".$chequeoCardiovascular->enfermedadesCronicas."</span></li>";
-        $html .= "<li >Sistema Osteoarticular:  <span style='border-bottom: 1px solid black;'>".$chequeoCardiovascular->sistemaOsteoarticular."</span></li>";
-        $html .= "<li >Sistema cardiovascular:  <span style='border-bottom: 1px solid black;'>".$chequeoCardiovascular->sistemaCardiovascular."</span></li>";
-        $html .= "<li >Presencia de enfermedades anteriores que afecten la actividad física :  <span style='border-bottom: 1px solid black;'>".$chequeoCardiovascular->enfermedadesAnteriores."</span></li>";
-        $html .= "<li >Recuperación lograda en los casos anteriores y grado de incidencia posterior : <span style='border-bottom: 1px solid black;'>".$chequeoCardiovascular->gradoIncidenciaPosterio."</span></li>";
+        $html .= "<li >Presencia de Enf. Crónicas: <span style='border-bottom: 1px solid black;'>".($chequeoCardiovascular->enfermedadesCronicas ?? 'No Presenta')."</span></li>";
+        $html .= "<li >Uso de Medicamentos: <span style='border-bottom: 1px solid black;'>".($chequeoCardiovascular->medicamentosDiarios ?? 'No Presenta')."</span></li>";
+        $html .= "<li >Sistema Osteoarticular:  <span style='border-bottom: 1px solid black;'>".($chequeoCardiovascular->sistemaOsteoarticular ?? 'Sin Alteraciones')."</span></li>";
+        $html .= "<li >Sistema cardiovascular:  <span style='border-bottom: 1px solid black;'>".($chequeoCardiovascular->sistemaCardiovascular ?? 'Sin Alteraciones')."</span></li>";
+        $html .= "<li >Presencia de enfermedades anteriores que afecten la actividad física :  <span style='border-bottom: 1px solid black;'>".($chequeoCardiovascular->enfermedadesAnteriores ?? 'Sin Alteraciones')."</span></li>";
+        $html .= "<li >Recuperación lograda en los casos anteriores y grado de incidencia posterior : <span style='border-bottom: 1px solid black;'>".($chequeoCardiovascular->gradoIncidenciaPosterio ?? 'Sin Alteraciones')."</span></li>";
 
         $html .= "</ul>";
         $html .= "</div>";
@@ -156,13 +183,13 @@ class ChequeoCardiovascularPDFService {
         $html .= "</table>";
 
         if (isset($electroCardiograma->estado_paciente) && $electroCardiograma->estado_paciente == 'Alterado')
-            $html .= " <span style='font-weight: bold; font-size: 11px;'>Se deriva a ".$chequeoCardiovascular->nombre." a unidad ".$electroCardiograma->derivacion_paciente.".</span>";
+            $html .= " <span style='font-weight: bold; font-size: 11px;'>Se deriva a ".$chequeoCardiovascular->nombre." ".$electroCardiograma->derivacion_paciente.".</span>";
         else {
             $html .= "<span style='font-weight: bold; font-size: 11px;'>Certifico que hasta la presente fecha " . $chequeoCardiovascular->nombre . " se encuentra apto para la realización de actividades físicas y/o deportivas.</span>";
             $html .= "<br /><br /><span style='font-weight: bold; font-size: 11px;'>Se extiende el presente certificado para centro deportivo.</span>";
         }
 
-        if(isset($electroCardiograma->rut_paciente)) {
+        if(isset($electroCardiograma->rut_paciente) && $certificadoNoVigente == false) {
 
             $html .= "<table>";
             $html .= "<tr><td ><br />";
@@ -198,7 +225,5 @@ class ChequeoCardiovascularPDFService {
 
         return $html;
     }
-
-
 
 }

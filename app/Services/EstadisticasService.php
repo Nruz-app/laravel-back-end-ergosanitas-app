@@ -2,6 +2,8 @@
 namespace App\Services;
 
 use App\Models\ChequeoCardiovascular;
+use App\Models\PagoMensual;
+use Illuminate\Support\Facades\Log;
 
 class EstadisticasService {
 
@@ -44,5 +46,31 @@ class EstadisticasService {
 
         return $resultadoJson;
 
+    }
+
+
+    public function PagoMensual($periodo,$user_email, $valor_ecg,$modo) {
+
+        $results = ChequeoCardiovascular::PagoMensual($periodo,$user_email, $valor_ecg,$modo);
+        $resultadoJson = json_decode($results[0]->resultado);
+        return $resultadoJson;
+    }
+
+
+    public function EstadisticaPagoMensual() {
+
+        $results = ChequeoCardiovascular::SP_estadistica_monto();
+
+        $resultadoJson = json_decode($results[0]->resultado);
+
+        return $resultadoJson;
+    }
+    public function AgendaMensual($periodo) {
+
+        $results = PagoMensual::AgendaMensual($periodo);
+
+        $resultadoJson = json_decode($results[0]->resultado);
+
+        return $resultadoJson;
     }
 }

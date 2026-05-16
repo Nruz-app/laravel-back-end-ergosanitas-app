@@ -4,11 +4,17 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\ElectroCardiograma;
-
+use App\Models\Params;
 use App\Models\ChequeoCardiovascular;
-
+use App\Services\EstadisticasService;
 class ElectroCardiogramaController extends Controller
 {
+    protected $estadisticasService;
+
+    public function __construct(EstadisticasService $estadisticasService) {
+        $this->estadisticasService = $estadisticasService;
+    }
+
     //
     public function FindByRut(Request $request) {
 
@@ -73,6 +79,23 @@ class ElectroCardiogramaController extends Controller
             $chequeoCardiovascular = ChequeoCardiovascular::where(['id' => $request->id_paciente])->firstOrFail();
             $chequeoCardiovascular->status         = 'REVISION MEDICA';
             $chequeoCardiovascular->save();
+
+
+            $param = Params::where(
+                'descripcion',
+                'VALOR-ECG'
+            )->firstOrFail();
+
+            $valor_ecg = (float) $param->valor;
+
+            $periodo = date('Y-m-d');
+
+            $this->estadisticasService->PagoMensual(
+                $periodo,
+                $chequeoCardiovascular->user_email,
+                $valor_ecg,
+                "ADD"
+            );
 
 
             $array = array('response' => array(

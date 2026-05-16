@@ -3,13 +3,24 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-
+use App\Models\Params;
 use App\Models\CertificadoURl;
-
+use App\Services\EstadisticasService;
+use App\Services\CertificadoService;
 use App\Models\ChequeoCardiovascular;
 
 class CertificadoUrlController extends Controller {
 
+    protected $estadisticasService;
+    protected $certificadoService;
+
+    public function __construct(
+        EstadisticasService $estadisticasService,
+        CertificadoService $certificadoService
+    ){
+        $this->estadisticasService = $estadisticasService;
+        $this->certificadoService = $certificadoService;
+    }
     public function ValidarRut(string $rut_paciente) {
 
         try {
@@ -106,7 +117,6 @@ class CertificadoUrlController extends Controller {
             $chequeoCardiovascular->status         = 'ECG FOTO';
             $chequeoCardiovascular->save();
 
-
             return response()->json([
                 'success' => true,
                 'message' => 'Archivo subido con éxito.',
@@ -160,4 +170,132 @@ class CertificadoUrlController extends Controller {
             ]);
         }
     }
+    //ValidaCertificado
+    public function ValidaCertificado(Request $request)
+    {
+        $rut_paciente = $request->rut_paciente;
+
+        try {
+
+            $certificado = CertificadoURL::query()
+                ->join('chequeo_cardiovascular as cc', function ($join) {
+                    $join->on('certificado_url.id_chequeo', '=', 'cc.id')
+                        ->on('certificado_url.rut_paciente', '=', 'cc.rut');
+                })
+                ->whereIn('cc.status', ['REVISION MEDICA'])
+                ->when($rut_paciente, function ($query) use ($rut_paciente) {
+                    $query->where('cc.rut', $rut_paciente);
+                })
+                ->orderByDesc('cc.id')
+                ->select(
+                    'certificado_url.url_pdf',
+                    'certificado_url.name_pdf',
+                    'certificado_url.titulo'
+                )
+                ->first();
+
+            if ($certificado) {
+                return response()->json([
+                    'status' => 200,
+                    'url_pdf' => $certificado->url_pdf,
+                    'name_pdf' => $certificado->name_pdf,
+                    'titulo' => $certificado->titulo
+                ]);
+            }
+
+            return response()->json([
+                'status' => 404,
+                'mensaje' => 'No se encontró un certificado con los filtros enviados'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 500,
+                'error' => 'Error en la consulta: ' . $e->getMessage()
+            ]);
+        }
+    }
+    public function CargaMasivaEcg(Request $request)
+    {
+        try {
+
+            $request->validate([
+                'files'   => 'required|array',
+                'files.*' => 'required|file'
+            ]);
+
+            $procesados = [];
+
+            foreach ($request->file('files') as $file) {
+
+                try {
+                    //18222333-1.pdf
+                    $nombreOriginal = $file->getClientOriginalName();
+
+                    $rut_paciente = pathinfo($nombreOriginal,PATHINFO_FILENAME);
+
+                    $chequeo = ChequeoCardiovascular::where('rut',$rut_paciente)
+                        ->latest('id')
+                        ->first();
+
+                    if (!$chequeo) {
+
+                        $procesados[] = [
+                            'archivo'      => $nombreOriginal,
+                            'rut'          => '-',
+                            'id_chequeo'   => '-',
+                            'nombre'       => '-',
+                            'status'       => '-',
+                            'resultado'    => 'ERROR',
+                            'mensaje'      => 'No existe chequeo para el rut'
+                        ];
+
+                        continue;
+                    }
+
+                    //SUBIR ARCHIVO
+
+                    $this->certificadoService->subirCertificado($file, $rut_paciente,
+                        $chequeo->id,$request->derivado_medico);
+
+                    $procesados[] = [
+                        'archivo'      => $nombreOriginal,
+                        'rut'          => $chequeo->rut,
+                        'id_chequeo'   => $chequeo->id,
+                        'nombre'       => $chequeo->nombre,
+                        'status'       => 'ECG FOTO',
+                        'resultado'    => 'OK',
+                        'mensaje'      => 'Archivo cargado correctamente'
+                    ];
+
+                }
+                catch (\Exception $e) {
+
+                    $procesados[] = [
+                        'archivo'      => $nombreOriginal ?? '-',
+                        'rut'          => $rut_paciente ?? '-',
+                        'id_chequeo'   => '-',
+                        'nombre'       => '-',
+                        'status'       => '-',
+                        'resultado'    => 'ERROR',
+                        'mensaje'      => $e->getMessage()
+                    ];
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'total' => count($procesados),
+                'procesados' => $procesados
+            ]);
+
+        } catch (\Exception $e) {
+
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
 }

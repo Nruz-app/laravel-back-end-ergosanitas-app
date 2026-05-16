@@ -268,164 +268,232 @@ class ChequeoCardiovascularController extends Controller
         }
     }
 
-    public function Store(Request $request) {
+    public function Store(Request $request)
+    {
+        // Validar request vacío
+        if (empty($request->all())) {
 
-        $json = json_decode(file_get_contents('php://input'),true);
-
-        if(!is_array($json)) {
-
-            $array = array('response' => array(
-                'status' => 'Bad Request',
-                'mensaje' =>  'Ingrese Valores'));
-
-            return response()->json($array,400);
-
+            return response()->json([
+                'response' => [
+                    'status'  => 'Bad Request',
+                    'mensaje' => 'Ingrese Valores'
+                ]
+            ], 400);
         }
-        $perfilId = $this->userMetadataService->getPerfilIdByEmail($request->user_email);
 
-        $save = new ChequeoCardiovascular;
-        $save->nombre                  = ucwords(strtolower($request->nombre));
-        $save->rut                     = $request->rut;
-        $save->edad                    = $request->edad;
-        $save->estatura                = str_replace(',','.',$request->estatura);
-        $save->peso                    = $request->peso;
-        $save->hemoglucotest           = $request->hemoglucotest;
-        $save->pulso                   = $request->pulso;
-        $save->presionArterial         = $request->presionArterial;
-        $save->saturacionOxigeno       = $request->saturacionOxigeno;
-        $save->temperatura             = $request->temperatura;
-        $save->presion_sistolica       = $request->presion_sistolica;
-        $save->enfermedadesCronicas    = $request->enfermedadesCronicas;
-        $save->medicamentosDiarios     = $request->medicamentosDiarios;
-        $save->sistemaOsteoarticular   = $request->sistemaOsteoarticular;
-        $save->sistemaCardiovascular   = $request->sistemaCardiovascular;
-        $save->enfermedadesAnteriores  = $request->enfermedadesAnteriores;
-        $save->Recuperacion            = $request->Recuperacion;
-        $save->gradoIncidenciaPosterio = $request->gradoIncidenciaPosterio;
-        $save->fechaNacimiento         = $request->fechaNacimiento;
-        $save->user_email              = $request->user_email;
-        $save->user_email_update       = $request->user_email_perfil;
-        $save->sexo_paciente           = $request->sexo_paciente;
-        $save->imc_paciente            = $request->imc_paciente;
-        $save->division_paciente       = $request->division_paciente;
-        $save->medio_pago_paciente     = $request->medio_pago_paciente;
-        $save->email_paciente          = $request->email_paciente;
-
-        if($perfilId == 2) {
-            $save->fecha_atencion = Carbon::now()->format('Y-m-d H:i:s');
-            $save->status         = 'Testiado';
-        }
+        // Validaciones básicas
+        $request->validate([
+            'nombre'     => 'required|string',
+            'rut'        => 'required|string',
+            'user_email' => 'required|email'
+        ]);
 
         try {
+
+            $perfilId = $this->userMetadataService
+                ->getPerfilIdByEmail($request->user_email);
+
+            $save = new ChequeoCardiovascular;
+
+            $save->nombre                = ucwords(strtolower(trim((string) $request->nombre)));
+            $save->rut                   = trim((string) $request->rut);
+            $save->edad                  = $request->edad;
+            $save->estatura              = str_replace(',', '.', (string) $request->estatura);
+            $save->peso                  = $request->peso;
+            $save->hemoglucotest         = $request->hemoglucotest;
+            $save->pulso                 = $request->pulso;
+            $save->presionArterial       = $request->presionArterial;
+            $save->saturacionOxigeno     = $request->saturacionOxigeno;
+            $save->temperatura           = $request->temperatura;
+            $save->presion_sistolica     = $request->presion_sistolica;
+
+            // Valores con default
+            $save->enfermedadesCronicas = filled($request->enfermedadesCronicas)
+                ? trim((string) $request->enfermedadesCronicas)
+                : 'No Presenta';
+
+            $save->medicamentosDiarios = filled($request->medicamentosDiarios)
+                ? trim((string) $request->medicamentosDiarios)
+                : 'No Presenta';
+
+            $save->sistemaOsteoarticular = filled($request->sistemaOsteoarticular)
+                ? trim((string) $request->sistemaOsteoarticular)
+                : 'Sin Alteraciones';
+
+            $save->sistemaCardiovascular = filled($request->sistemaCardiovascular)
+                ? trim((string) $request->sistemaCardiovascular)
+                : 'Sin Alteraciones';
+
+            $save->enfermedadesAnteriores = filled($request->enfermedadesAnteriores)
+                ? trim((string) $request->enfermedadesAnteriores)
+                : 'Sin Alteraciones';
+
+            $save->Recuperacion = filled($request->Recuperacion)
+                ? trim((string) $request->Recuperacion)
+                : 'Sin Alteraciones';
+
+            $save->gradoIncidenciaPosterio = filled($request->gradoIncidenciaPosterio)
+                ? trim((string) $request->gradoIncidenciaPosterio)
+                : 'Sin Alteraciones';
+
+            $save->fechaNacimiento       = $request->fechaNacimiento;
+            $save->user_email            = $request->user_email;
+            $save->user_email_update     = $request->user_email_perfil;
+            $save->sexo_paciente         = $request->sexo_paciente;
+            $save->imc_paciente          = $request->imc_paciente;
+            $save->division_paciente     = $request->division_paciente;
+            $save->medio_pago_paciente   = $request->medio_pago_paciente;
+            $save->email_paciente        = $request->email_paciente;
+
+            // Perfil testiado
+            if ($perfilId == 2) {
+
+                $save->fecha_atencion = Carbon::now()->format('Y-m-d H:i:s');
+                $save->status         = 'Testiado';
+            }
 
             $save->save();
 
-            $array = array('response' => array(
-                'status' => 'OK',
-                'mensaje' => 'Reserva con Exito'));
+            return response()->json([
+                'response' => [
+                    'status'  => 'OK',
+                    'mensaje' => 'Reserva con Exito'
+                ]
+            ], 201);
 
-            return response()->json($array,201);
+        } catch (\Exception $e) {
 
+            return response()->json([
+                'response' => [
+                    'status'  => 'Error en ejecucion',
+                    'mensaje' => $e->getMessage()
+                ]
+            ], 500);
         }
-        catch (\Exception $e) {
-
-            // Retorna una respuesta con el error
-            $array = array('response' => array(
-                'status' => 'Error en ejecucion',
-                'mensaje' =>  $e->getMessage()));
-
-            return response()->json($array,500);
-
-        }
-
     }
+    public function Update(Request $request, int $id_paciente, string $user_email)
+    {
+        // Validar request vacío
+        if (empty($request->all())) {
 
-    public function Update(Request $request, int $id_paciente,string $user_email) {
-
-        $json = json_decode(file_get_contents('php://input'),true);
-
-        if(!is_array($json)) {
-
-            $array = array(
-                'status' => 'Bad Request',
-                'mensaje' => 'Http NO trae Datos para Procesar');
-
-            return response()->json($array,400);
-
+            return response()->json([
+                'status'  => 'Bad Request',
+                'mensaje' => 'Http NO trae Datos para Procesar'
+            ], 400);
         }
 
         try {
 
-            $perfilId = $this->userMetadataService->getPerfilIdByEmail($user_email);
-
+            $perfilId = $this->userMetadataService
+                ->getPerfilIdByEmail($user_email);
 
             $chequeoCardiovascular = ChequeoCardiovascular::where('id', $id_paciente)
-            ->firstOrFail();
+                ->firstOrFail();
 
-            $chequeoCardiovascular->nombre                  = ucwords(strtolower($json['nombre']));
-            $chequeoCardiovascular->edad                    = $json['edad'];
-            $chequeoCardiovascular->estatura                = str_replace(',','.',$json['estatura']);
-            $chequeoCardiovascular->peso                    = $json['peso'];
-            $chequeoCardiovascular->pulso                   = $json['pulso'];
-            $chequeoCardiovascular->presionArterial         = $json['presionArterial'];
-            $chequeoCardiovascular->saturacionOxigeno       = $json['saturacionOxigeno'];
-            $chequeoCardiovascular->temperatura             = $json['temperatura'];
-            $chequeoCardiovascular->presion_sistolica       = $json['presion_sistolica'];
-            $chequeoCardiovascular->enfermedadesCronicas    = $json['enfermedadesCronicas'];
-            $chequeoCardiovascular->medicamentosDiarios     = $json['medicamentosDiarios'];
-            $chequeoCardiovascular->sistemaOsteoarticular   = $json['sistemaOsteoarticular'];
-            $chequeoCardiovascular->sistemaCardiovascular   = $json['sistemaCardiovascular'];
-            $chequeoCardiovascular->enfermedadesAnteriores  = $json['enfermedadesAnteriores'];
-            $chequeoCardiovascular->Recuperacion            = $json['Recuperacion'];
-            $chequeoCardiovascular->gradoIncidenciaPosterio = $json['gradoIncidenciaPosterio'];
-            $chequeoCardiovascular->fechaNacimiento         = $json['fechaNacimiento'];
-            $chequeoCardiovascular->hemoglucotest           = $json['hemoglucotest'];
-            $chequeoCardiovascular->user_email_update       = $json['user_email_perfil'];
-            $chequeoCardiovascular->sexo_paciente           = $json['sexo_paciente'];
-            $chequeoCardiovascular->imc_paciente            = $json['imc_paciente'];
-            $chequeoCardiovascular->division_paciente       = $json['division_paciente'];
-            $chequeoCardiovascular->medio_pago_paciente     = $json['medio_pago_paciente'];
+            // Datos básicos
+            $chequeoCardiovascular->nombre = filled($request->nombre)
+                ? ucwords(strtolower(trim((string) $request->nombre)))
+                : $chequeoCardiovascular->nombre;
 
-            if($perfilId == 2) {
-                $chequeoCardiovascular->fecha_atencion = Carbon::now()->format('Y-m-d H:i:s');
-                $chequeoCardiovascular->status         = 'Testiado';
+            $chequeoCardiovascular->edad                = $request->edad;
+            $chequeoCardiovascular->estatura            = str_replace(',', '.', (string) $request->estatura);
+            $chequeoCardiovascular->peso                = $request->peso;
+            $chequeoCardiovascular->pulso               = $request->pulso;
+            $chequeoCardiovascular->presionArterial     = $request->presionArterial;
+            $chequeoCardiovascular->saturacionOxigeno   = $request->saturacionOxigeno;
+            $chequeoCardiovascular->temperatura         = $request->temperatura;
+            $chequeoCardiovascular->presion_sistolica   = $request->presion_sistolica;
+            $chequeoCardiovascular->fechaNacimiento     = $request->fechaNacimiento;
+            $chequeoCardiovascular->hemoglucotest       = $request->hemoglucotest;
+            $chequeoCardiovascular->user_email_update   = $request->user_email_perfil;
+            $chequeoCardiovascular->sexo_paciente       = $request->sexo_paciente;
+            $chequeoCardiovascular->imc_paciente        = $request->imc_paciente;
+            $chequeoCardiovascular->division_paciente   = $request->division_paciente;
+            $chequeoCardiovascular->medio_pago_paciente = $request->medio_pago_paciente;
+
+            // Campos con valores default
+            $chequeoCardiovascular->enfermedadesCronicas = filled($request->enfermedadesCronicas)
+                ? trim((string) $request->enfermedadesCronicas)
+                : 'No Presenta';
+
+            $chequeoCardiovascular->medicamentosDiarios = filled($request->medicamentosDiarios)
+                ? trim((string) $request->medicamentosDiarios)
+                : 'No Presenta';
+
+            $chequeoCardiovascular->sistemaOsteoarticular = filled($request->sistemaOsteoarticular)
+                ? trim((string) $request->sistemaOsteoarticular)
+                : 'Sin Alteraciones';
+
+            $chequeoCardiovascular->sistemaCardiovascular = filled($request->sistemaCardiovascular)
+                ? trim((string) $request->sistemaCardiovascular)
+                : 'Sin Alteraciones';
+
+            $chequeoCardiovascular->enfermedadesAnteriores = filled($request->enfermedadesAnteriores)
+                ? trim((string) $request->enfermedadesAnteriores)
+                : 'Sin Alteraciones';
+
+            $chequeoCardiovascular->Recuperacion = filled($request->Recuperacion)
+                ? trim((string) $request->Recuperacion)
+                : 'Sin Alteraciones';
+
+            $chequeoCardiovascular->gradoIncidenciaPosterio = filled($request->gradoIncidenciaPosterio)
+                ? trim((string) $request->gradoIncidenciaPosterio)
+                : 'Sin Alteraciones';
+
+            // Perfil testiado
+            if ($perfilId == 2) {
+
+                $chequeoCardiovascular->fecha_atencion = Carbon::now()
+                    ->format('Y-m-d H:i:s');
+
+                $chequeoCardiovascular->status = 'Testiado';
             }
 
-            if($perfilId == 1) {
-                $chequeoCardiovascular->rut            = $json['rut'];
-                $chequeoCardiovascular->user_email     = $json['user_email'];
-                $chequeoCardiovascular->status         = $json['status'];
-                if (isset($json['fecha_atencion']) && !empty($json['fecha_atencion'])) {
-                    $chequeoCardiovascular->fecha_atencion = Carbon::parse($json['fecha_atencion'])->format('Y-m-d H:i:s');
+            // Perfil administrador
+            if ($perfilId == 1) {
+
+                $chequeoCardiovascular->rut        = $request->rut;
+                $chequeoCardiovascular->user_email = $request->user_email;
+                $chequeoCardiovascular->status     = $request->status;
+
+                if (filled($request->fecha_atencion)) {
+
+                    $chequeoCardiovascular->fecha_atencion = Carbon::parse(
+                        $request->fecha_atencion
+                    )->format('Y-m-d H:i:s');
                 }
-
             }
+
             $chequeoCardiovascular->save();
 
-            //Actualziar Certificado y CGC
-            if($perfilId == 1) {
+            // Actualizar Certificado y ECG
+            if ($perfilId == 1) {
 
-                $this->certificadoService->UpdateRutCertificado($id_paciente,$json['rut']);
-                $this->electroCardiogramaService->UpdateRutECG($id_paciente,$json['rut']);
+                $this->certificadoService->UpdateRutCertificado(
+                    $id_paciente,
+                    $request->rut
+                );
+
+                $this->electroCardiogramaService->UpdateRutECG(
+                    $id_paciente,
+                    $request->rut
+                );
             }
 
-            $array = array(
-                'status' => 'OK',
-                'mensaje' => 'Modificado con exito');
+            return response()->json([
+                'status'  => 'OK',
+                'mensaje' => 'Modificado con exito'
+            ], 200);
 
-            return response()->json($array,200);
+        } catch (\Exception $e) {
+
+            return response()->json([
+                'response' => [
+                    'status'  => 'Error en ejecucion',
+                    'mensaje' => $e->getMessage()
+                ]
+            ], 500);
         }
-        catch (\Exception $e) {
-
-            // Retorna una respuesta con el error
-            $array = array('response' => array(
-                'status' => 'Error en ejecucion',
-                'mensaje' =>  $e->getMessage()));
-
-            return response()->json($array,500);
-
-        }
-
     }
 
     public function FilterCalendar(Request $request){

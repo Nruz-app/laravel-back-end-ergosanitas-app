@@ -3,6 +3,7 @@
 return [
     App\Providers\AppServiceProvider::class,
     App\Providers\CertificadoProvider::class,
+    App\Providers\CertificadoServiceProvider::class,
     App\Providers\ChequeoCardiovascularPDFProvider::class,
     App\Providers\ChequeoCardiovascularProvider::class,
     App\Providers\ElectroCardiogramaProvider::class,
