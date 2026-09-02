@@ -73,4 +73,27 @@ class EstadisticasService {
 
         return $resultadoJson;
     }
+    public function EstadisticaPagoMDC() {
+
+        $results = PagoMensual::SP_estadistica_monto_mdc();
+
+        $resultadoJson = json_decode($results[0]->resultado);
+
+        return $resultadoJson;
+    }
+
+
+    public function UpdatePagoMensual($periodo) {
+
+        $results = PagoMensual::SP_update_pago_mensual($periodo);
+
+        $resultadoJson = json_decode($results[0]->resultado);
+
+        return $resultadoJson;
+    }
+    public function ChequeoPrompt($search) {
+        $results = PagoMensual::SP_chequeos_prompt($search);
+        $resultadoJson = json_decode($results[0]->resultado_json);
+        return $resultadoJson;
+    }
 }

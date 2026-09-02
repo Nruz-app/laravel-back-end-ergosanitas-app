@@ -265,11 +265,11 @@ class ChequeoCardiovascularService
 
         // Perfil médico → solo derivados
         if ($perfilId == 6) {
-            $query->leftJoin('certificado_url as cu', function ($join) {
+            $query->join('certificado_url as cu', function ($join) {
                 $join->on('cc.rut', '=', 'cu.rut_paciente')
-                    ->on('cc.id', '=', 'cu.id_chequeo')
-                    ->where('cu.derivado_medico', 'SI'); // ✅ FIX aquí
-            });
+                    ->on('cc.id', '=', 'cu.id_chequeo');
+            })
+            ->where('cu.derivado_medico', 'SI');
         }
 
         return $query->get();

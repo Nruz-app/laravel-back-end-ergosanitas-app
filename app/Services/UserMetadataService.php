@@ -16,7 +16,7 @@ class UserMetadataService
             ->value('perfiles_id'); // Obtiene directamente el valor
     }
 
-    public function userSave($name,$email,$password,$perfiles_id) {
+    public function userSave($name,$email,$password,$perfiles_id,$rut_paciente) {
 
 
         $user           = new User;
@@ -34,6 +34,7 @@ class UserMetadataService
         $userMetadata->user_email  =  $email;
         $userMetadata->status      =  'S';
         $userMetadata->password    =  $password;
+        $userMetadata->rut_paciente  =  $rut_paciente;
         $userMetadata->save();
     }
     public function UserUpdatePassowrd($password_user,$email_user) {

@@ -64,7 +64,7 @@ class ChequeoCardiovascularPDFService {
                 $chequeoCardiovascular->edad,
                 $chequeoCardiovascular->sexo_paciente);
 
-        if($certificadoURL->derivado_medico == 'SI') {
+        if ($certificadoURL && $certificadoURL->derivado_medico === 'SI') {
             $firmaDoc = public_path('firma_cardiologo.jpeg');
         }
 
@@ -76,6 +76,14 @@ class ChequeoCardiovascularPDFService {
                 $electroCardiograma->created_at
             )->addMonths(3)->lt(now());
         }
+
+        $fechaNacimiento = $chequeoCardiovascular->fechaNacimiento;
+        if(str_contains($fechaNacimiento, '/')) {
+            $fechaNacimiento = Carbon::createFromFormat('d/m/Y',$fechaNacimiento);
+        } else {
+            $fechaNacimiento = Carbon::parse($fechaNacimiento);
+        }
+        $fechaNacimiento = $fechaNacimiento->format('d-m-Y');
 
         $stylesheet="";
         $stylesheet .= "<style>";
@@ -129,7 +137,7 @@ class ChequeoCardiovascularPDFService {
         $html .= "<tr>";
         $html .= "<td style='font-size: 11px;width: 40%;'><strong>Nombre : </strong>". ucwords(strtolower($chequeoCardiovascular->nombre))."</td>";
         $html .= "<td style='font-size: 11px;width: 30%;'><strong>R.U.T : </strong>". $chequeoCardiovascular->rut."</td>";
-        $html .= "<td style='font-size: 11px;width: 30%;'><strong>Fecha de Nacimiento : </strong>".Carbon::parse($chequeoCardiovascular->fechaNacimiento)->format('d-m-Y')."</td>";
+        $html .= "<td style='font-size: 11px;width: 30%;'><strong>Fecha de Nacimiento : </strong>".$fechaNacimiento."</td>";
         $html .= "</tr>";
         $html .= "</table>";
 
@@ -138,7 +146,15 @@ class ChequeoCardiovascularPDFService {
         $html .= "<td style='font-size: 11px; width: 25%;'><strong>Edad</strong> : ".$chequeoCardiovascular->edad." Años</td>";
         $html .= "<td style='font-size: 11px; width: 22%;'><strong>Estatura (cm)</strong> : ".$chequeoCardiovascular->estatura."</td>";
         $html .= "<td style='font-size: 11px; width: 24.6%;'><strong>Peso  (kg) : </strong>".$chequeoCardiovascular->peso."</td>";
-        $html .= "<td style='font-size: 11px;'><strong>Fecha de Atención : </strong>".Carbon::parse($chequeoCardiovascular->fecha_atencion)->format('d-m-Y')."</td>";
+        $fechaAtencion = $chequeoCardiovascular->fecha_atencion;
+        if(is_null($fechaAtencion) || $fechaAtencion == '' ) {
+            $fechaAtencion = $chequeoCardiovascular->created_at;
+        }
+
+        $html .= "<td style='font-size: 11px;'>
+            <strong>Fecha de Atención : </strong>".
+            Carbon::parse($fechaAtencion)->format('d-m-Y').
+        "</td>";
         $html .= "</tr>";
         $html .= "</table>";
         $html .= "</div>";

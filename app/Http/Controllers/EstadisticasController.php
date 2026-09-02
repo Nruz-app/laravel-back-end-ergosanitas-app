@@ -164,6 +164,41 @@ class EstadisticasController extends Controller
             return response()->json($array,500);
 
         }
+    }
+    public function EstadisticaPagoMDC() {
+        try {
+             $responseService = $this->estadisticasService->EstadisticaPagoMDC();
+             return response()->json($responseService,200);
+        }
+        catch (\Exception $e) {
+
+            // Retorna una respuesta con el error
+            $array = array('response' => array(
+                'status' => 'Error en ejecucion',
+                'mensaje' => $e->getMessage()));
+
+            return response()->json($array,500);
+
+        }
+
+    }
+
+    public function UpdatePagoMensual(Request $request) {
+        try {
+             $periodo = $request->periodo;
+             $responseService = $this->estadisticasService->UpdatePagoMensual($periodo);
+             return response()->json($responseService,200);
+        }
+        catch (\Exception $e) {
+
+            // Retorna una respuesta con el error
+            $array = array('response' => array(
+                'status' => 'Error en ejecucion',
+                'mensaje' => $e->getMessage()));
+
+            return response()->json($array,500);
+
+        }
 
     }
 }

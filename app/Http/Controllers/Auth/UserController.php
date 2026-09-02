@@ -50,11 +50,12 @@ class UserController extends Controller {
                     'success' => true,
                     'message' => 'Inicio de sesión exitoso',
                     'user' => [
-                        'user_id'     => $usuario->id,
-                        'user_email'  => $usuario->user_email,
-                        'user_name'   => $usuario->user_name,
-                        'user_perfil' => $usuario->perfiles->nombre,
-                        'user_logo'   => $usuario->user_logo
+                        'user_id'      => $usuario->id,
+                        'user_email'   => $usuario->user_email,
+                        'user_name'    => $usuario->user_name,
+                        'user_perfil'  => $usuario->perfiles->nombre,
+                        'user_logo'    => $usuario->user_logo,
+                        'rut_paciente' => $usuario->rut_paciente
                     ],
                 ]);
             }
@@ -140,7 +141,12 @@ class UserController extends Controller {
             $password    = $request->password_user;
             $perfiles_id = $request->perfil_user;
 
-            $this->userMetadataService->userSave($name,$email,$password,$perfiles_id);
+            $this->userMetadataService->userSave(
+                $name,
+                $email,
+                $password,
+                $perfiles_id,
+                null);
 
             return response()->json([
                 'success' => true,
@@ -245,7 +251,8 @@ class UserController extends Controller {
                 ucwords(strtolower($resChequeo->nombre)),
                 $email,
                 $password,
-                5);
+                5,
+                $rut_paciente);
 
             if(Auth::attempt([
                 'email'     =>$email,

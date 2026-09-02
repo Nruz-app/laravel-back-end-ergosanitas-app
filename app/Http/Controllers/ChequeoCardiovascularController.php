@@ -306,7 +306,6 @@ class ChequeoCardiovascularController extends Controller
             $save->saturacionOxigeno     = $request->saturacionOxigeno;
             $save->temperatura           = $request->temperatura;
             $save->presion_sistolica     = $request->presion_sistolica;
-
             // Valores con default
             $save->enfermedadesCronicas = filled($request->enfermedadesCronicas)
                 ? trim((string) $request->enfermedadesCronicas)
@@ -344,6 +343,7 @@ class ChequeoCardiovascularController extends Controller
             $save->division_paciente     = $request->division_paciente;
             $save->medio_pago_paciente   = $request->medio_pago_paciente;
             $save->email_paciente        = $request->email_paciente;
+            $save->created_at            = now();
 
             // Perfil testiado
             if ($perfilId == 2) {
@@ -462,6 +462,9 @@ class ChequeoCardiovascularController extends Controller
                         $request->fecha_atencion
                     )->format('Y-m-d H:i:s');
                 }
+            }
+            else {
+                 $chequeoCardiovascular->fecha_atencion = $chequeoCardiovascular->created_at;
             }
 
             $chequeoCardiovascular->save();

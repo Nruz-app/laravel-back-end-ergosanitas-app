@@ -37,6 +37,10 @@ use App\Http\Controllers\ChequeoCardiovascularWordController;
 
 use App\Http\Controllers\IncidenciasController;
 
+use App\Http\Controllers\BioimpedanciaController;
+
+use App\Http\Controllers\FichaClinicaController;
+
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
@@ -175,6 +179,16 @@ Route::post('email/reserva-hora',[EmailController::class,'EmailReservaHora'])
 Route::post('sam-assistant/as-question',[OpenAIController::class,'AsQuestionUseCase'])
     ->name('AsQuestionUseCase');
 
+Route::post('sam-assistant/reset-patient',[OpenAIController::class,'ResetPatient'])
+    ->name('ResetPatient');
+
+Route::post('GPT/asistente-voz',[OpenAIController::class,'AsistenteVoz'])
+    ->name('AsistenteVoz');
+
+
+Route::post('GPT/analisis-ecg',[OpenAIController::class,'AnalisisEcg'])
+    ->name('AnalisisEcg');
+
 
 Route::post('certificado/save-url',[CertificadoUrlController::class,'FileUploadCer'])
     ->name('FileUploadCer');
@@ -215,6 +229,9 @@ Route::get('estadisticas/estadistica-saturacion/{user_email}',[EstadisticasContr
 Route::get('estadisticas/estadistica-pago-mensual',[EstadisticasController::class,'EstadisticaPagoMensual'])
     ->name('EstadisticaPagoMensual');
 
+Route::get('estadisticas/estadistica-pago-mdc',[EstadisticasController::class,'EstadisticaPagoMDC'])
+    ->name('EstadisticaPagoMDC');
+
 Route::post('estadisticas/pago-mensual',[EstadisticasController::class,'PagoMensual'])
     ->name('PagoMensual');
 
@@ -223,6 +240,9 @@ Route::post('estadisticas/delete-pago-mensual',[EstadisticasController::class,'D
 
 Route::post('estadisticas/agenda-mensual',[EstadisticasController::class,'AgendaMensual'])
     ->name('AgendaMensual');
+
+Route::post('/estadisticas/update-pago-mensual',[EstadisticasController::class,'UpdatePagoMensual'])
+    ->name('UpdatePagoMensual');
 
 Route::post('carga-masiva/excel',[CargaMasivaController::class,'CargaMasivaExcel'])
     ->name('CargaMasivaExcel');
@@ -273,3 +293,22 @@ Route::get('incidencia-deportivos/sp_estadistica_lesiones_fechas/{user_email}',[
 
 Route::post('chequeo-cardiovascular/chequeo-all',[ChequeoCardiovascularController::class,'ChequeoEmailAll'])
     ->name('ChequeoEmailAll');
+
+Route::post('bioimpedancia/form-upload',[BioimpedanciaController::class,'FormUpload'])
+    ->name('FormUpload');
+
+Route::get('bioimpedancia/list-all',[BioimpedanciaController::class,'ListBio'])
+    ->name('ListBio');
+
+Route::post('bioimpedancia/first-rut',[BioimpedanciaController::class,'FirstRut'])
+    ->name('FirstRut');
+
+Route::get('bioimpedancia/pdfRut/{rut_paciente}',[BioimpedanciaController::class,'BioPDFRut'])
+    ->name('BioPDFRut');
+
+Route::post('bioimpedancia/create-bio',[BioimpedanciaController::class,'CreateBio'])
+    ->name('CreateBio');
+
+
+Route::get('ficha-clinica/{rut_paciente}',[FichaClinicaController::class,'FichaClinica'])
+    ->name('FichaClinica');

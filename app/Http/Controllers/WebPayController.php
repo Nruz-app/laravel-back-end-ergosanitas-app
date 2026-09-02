@@ -17,7 +17,7 @@ class WebPayController extends Controller {
 
 
     public function WebPayRequest(Request $request) {
-        
+
         try {
 
             $date = Carbon::now()->format('Ymd');
@@ -43,10 +43,10 @@ class WebPayController extends Controller {
 
                 $array = array('Response' => array(
                     'data' => 'Error al intentar pagar con WebPay'));
-                
+
                 return response()->json($array,500);
-            }            
-            
+            }
+
             $datos = json_decode($response);
 
             return response()->json($datos,200);
@@ -56,11 +56,11 @@ class WebPayController extends Controller {
 
             $saveLogs = new LogsApi;
             $saveLogs->rutaWeb = 'WebPayRequest';
-            $saveLogs->mensaje = Str::limit($e->getMessage(), 240);  
+            $saveLogs->mensaje = Str::limit($e->getMessage(), 240);
             $saveLogs->save();
-        }  
+        }
 
-        
+
     }
 
     public function WebPayResponse() {
@@ -68,18 +68,18 @@ class WebPayController extends Controller {
         try {
 
             $tokenWs = $_GET['token_ws'];
-        
+
             $response = Http::withHeaders([
                 'Content-Type' => 'application/json',
                 'Tbk-Api-Key-Id' => env ('WEBPAY_ID'),
                 'Tbk-Api-Key-Secret' => env ('WEBPAY_SECRET')
             ])->put(env('WEBPAY_URL')."/".$tokenWs,[]);
 
-           
+
             $datos =  json_decode($response);
 
             $webPayInfo = new WebPayInfo;
-        
+
             $webPayInfo->vci                 = $datos->vci;
             $webPayInfo->amount              = $datos->amount;
             $webPayInfo->status              = $datos->status;
@@ -92,29 +92,28 @@ class WebPayController extends Controller {
             $webPayInfo->payment_type_code   = $datos->payment_type_code;
             $webPayInfo->response_code       = $datos->response_code;
             $webPayInfo->installments_number = $datos->installments_number;
-            $webPayInfo->tokenWs             = $tokenWs; 
+            $webPayInfo->tokenWs             = $tokenWs;
             $webPayInfo->rut_paciente        = $datos->session_id;
-            $webPayInfo->save();    
+            $webPayInfo->save();
 
             $rut_paciente =  $webPayInfo->rut_paciente;
-            $agendaHoras = AgendaHoras::where(['rut' => $rut_paciente])->firstOrFail(); 
-            
+            $agendaHoras = AgendaHoras::where(['rut_paciente' => $rut_paciente])->firstOrFail();
             $agendaHoras->pagado_paciente = 'PAGADO';
-            $agendaHoras->save();    
+            $agendaHoras->save();
 
-            return redirect()->away('https://ergosanitas.com'); 
+            return redirect()->away('https://ergosanitas.com');
             //return redirect()->intended('/');
             // return redirect()->route('loginForm');
-              
+
         }
         catch (\Exception $e) {
 
             $saveLogs = new LogsApi;
             $saveLogs->rutaWeb = 'WebPayResponse';
-            $saveLogs->mensaje = Str::limit($e->getMessage(), 240);  
+            $saveLogs->mensaje = Str::limit($e->getMessage(), 240);
             $saveLogs->save();
-        }  
-          
+        }
+
     }
-    
+
 }

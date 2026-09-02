@@ -3,6 +3,7 @@ namespace App\Services;
 use App\Models\CertificadoURl;
 use App\Models\ChequeoCardiovascular;
 use App\Services\EstadisticasService;
+use App\Models\Params;
 
 class CertificadoService {
 
@@ -66,6 +67,22 @@ class CertificadoService {
 
         $chequeoCardiovascular->status = 'ECG FOTO';
         $chequeoCardiovascular->save();
+
+         $param = Params::where(
+                'descripcion',
+                'VALOR-ECG'
+        )->firstOrFail();
+
+        $valor_ecg = (float) $param->valor;
+
+        $periodo = date('Y-m-d');
+
+        $this->estadisticasService->PagoMensual(
+            $periodo,
+            $chequeoCardiovascular->user_email,
+            $valor_ecg,
+            "ADD"
+        );
 
         return [
             'success' => true,

@@ -74,11 +74,11 @@ class AgendaHorasController extends Controller {
 
             $agendaHoras->save();
 
-            $array = array('response' => array(
+            return response()->json([
+                'data' => $agendaHoras,
                 'status' => 'OK',
-                'mensaje' => 'Reserva con Exito'));
-
-            return response()->json($array,201);
+                'mensaje' => 'Reserva con Exito'
+            ], 201);
 
         }
         catch (\Exception $e) {
