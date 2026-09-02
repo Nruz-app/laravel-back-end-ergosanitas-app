@@ -325,7 +325,7 @@ Los prompts de sistema viven como clases estáticas en `app/IA/` y **no deben in
 | `AsistenteChatPacientePrompt::system($patient, $data)` | Asistente conversacional con contexto clínico del paciente |
 | `AsistenteVozPrompt` | Asistente por voz |
 
-En `app/IA/` existen copias antiguas con sufijo `_OLD` y con paréntesis en el nombre de archivo (`AnalisisBioimpedanciaPrompt().php`). No son código activo y no deben tomarse como referencia.
+Cada prompt debe vivir en **un único archivo**. Duplicar el archivo para conservar una versión anterior provoca que dos archivos declaren la misma clase, lo que genera una colisión en el classmap que produce `composer install --optimize-autoloader` durante el build de producción: cuál de los dos se carga queda indeterminado. Para versionar un prompt, usa git.
 
 ### Flujo del asistente clínico
 

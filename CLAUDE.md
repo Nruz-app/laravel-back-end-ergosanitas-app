@@ -78,7 +78,9 @@ La autorización es por `perfiles_id`, obtenido con `UserMetadataService::getPer
 
 ### Integración OpenAI
 
-Usa `openai-php/laravel` (facade `OpenAI::chat()`). Los prompts de sistema viven como clases estáticas en `app/IA/` (`AnalisisECGPrompt::system()`, `AsistenteChatPacientePrompt::system($patient, $data)`, `AnalisisBioimpedanciaPrompt`, `AnalisisRutBioimpedanciaPrompt`, `AsistenteVozPrompt`) — mantén los prompts ahí, no incrustados en controladores. Hay varias copias con sufijos `_OLD` y con `()` en el nombre de archivo; ignóralas y no las tomes como referencia.
+Usa `openai-php/laravel` (facade `OpenAI::chat()`). Los prompts de sistema viven como clases estáticas en `app/IA/` (`AnalisisECGPrompt::system()`, `AsistenteChatPacientePrompt::system($patient, $data)`, `AnalisisBioimpedanciaPrompt`, `AnalisisRutBioimpedanciaPrompt`, `AsistenteVozPrompt`) — mantén los prompts ahí, no incrustados en controladores.
+
+Cada prompt debe vivir en **un solo archivo**: dos archivos que declaren la misma clase en `app/IA/` colisionan en el classmap que genera `composer install --optimize-autoloader` (lo que hace el `dockerfile` de producción), y cuál gana queda indeterminado. Para versionar un prompt, usa git, no copias del archivo.
 
 El chat clínico (`POST api/sam-assistant/as-question`) funciona así: `OpenAIService::resolveSession()` crea/recupera una `ChatSessions` por `sessionId` y extrae el identificador del paciente del prompt (regex de RUT y, si falla, una llamada a `gpt-4o-mini` en `PatientHelper::extractPatient()`). Sin paciente resuelto responde `status: needs_identifier`. Con paciente, `handle()` recupera los últimos 20 mensajes de `chat_history` y `EstadisticasService::ChequeoPrompt()` (→ `SP_chequeos_prompt`) aporta los datos clínicos.
 
@@ -100,7 +102,7 @@ Todo en `routes/api.php`, plano y sin agrupar, con prefijo automático `/api`. O
 - **`users_metadata` y `electro_cardiogranas` no tienen migración.** Existen solo en la base de datos, igual que los procedimientos almacenados. `php artisan migrate` sobre una base vacía deja el esquema incompleto.
 - El nombre real de la tabla de ECG es **`electro_cardiogranas`** (con "n"): es un typo consolidado en producción, respétalo en las queries.
 - `api.php` en la raíz del proyecto es una copia obsoleta y sin uso de `routes/api.php`. El archivo real es `routes/api.php`.
-- En `app/IA/` hay copias antiguas con sufijo `_OLD` y con paréntesis en el nombre (`AnalisisBioimpedanciaPrompt().php`). No son código activo.
+- No dupliques archivos en `app/IA/` para conservar versiones anteriores de un prompt: declararían la misma clase y colisionarían en el classmap optimizado (ver "Integración OpenAI").
 
 ## Despliegue
 
