@@ -24,3 +24,6 @@ yarn-error.log
 /.vscode
 /.zed
 /.git
+
+# Volcados de crash de Cygwin/Git Bash en Windows
+*.stackdump

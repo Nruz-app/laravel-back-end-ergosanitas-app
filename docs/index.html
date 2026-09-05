@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ergosanitas — API REST</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.17.14/swagger-ui.min.css">
+  <style>
+    body { margin: 0; background: #fafafa; }
+    .topbar { display: none; }
+    #aviso {
+      font: 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #fff8e1;
+      border-bottom: 1px solid #ffe082;
+      color: #5d4037;
+      padding: 12px 20px;
+      line-height: 1.5;
+    }
+    #aviso strong { color: #bf360c; }
+    #aviso code {
+      background: rgba(0, 0, 0, .06);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div id="aviso">
+    <strong>Ninguna ruta de negocio de esta API tiene middleware de autenticación.</strong>
+    El filtrado por perfil (<code>user_email</code> &rarr; <code>perfiles_id</code>) es una regla de
+    presentación, no un control de acceso. Antes de probar, revisa que el
+    <code>server</code> seleccionado no sea producción: hay endpoints que
+    <strong>facturan</strong> (<code>/certificado/save-url</code>,
+    <code>/electro-cardiograma/save</code>, <code>/carga-masiva-ecg</code>,
+    <code>/estadisticas/pago-mensual</code>) y uno que <strong>borra facturación</strong>
+    (<code>/estadisticas/delete-pago-mensual</code>).
+  </div>
+  <div id="swagger-ui"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.17.14/swagger-ui-bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.17.14/swagger-ui-standalone-preset.min.js"></script>
+  <script>
+    window.onload = function () {
+      SwaggerUIBundle({
+        url: 'openapi.yaml',
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        docExpansion: 'none',
+        defaultModelsExpandDepth: 1,
+        tryItOutEnabled: true,
+        persistAuthorization: true,
+        filter: true,
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIStandalonePreset
+        ],
+        layout: 'StandaloneLayout'
+      });
+    };
+  </script>
+</body>
+</html>

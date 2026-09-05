@@ -19,6 +19,8 @@ use App\Http\Controllers\WebPayController;
 
 use App\Http\Controllers\EmailController;
 
+use App\Http\Controllers\ClubAssistantController;
+
 use App\Http\Controllers\OpenAIController;
 
 use App\Http\Controllers\Auth\GoogleAuthControlle;
@@ -181,6 +183,14 @@ Route::post('sam-assistant/as-question',[OpenAIController::class,'AsQuestionUseC
 
 Route::post('sam-assistant/reset-patient',[OpenAIController::class,'ResetPatient'])
     ->name('ResetPatient');
+
+//CHAT POR CLUB
+
+Route::post('sam-assistant-club/as-question',[ClubAssistantController::class,'AsQuestionClubUseCase'])
+    ->name('AsQuestionClubUseCase');
+
+Route::post('sam-assistant-club/reset-search',[ClubAssistantController::class,'ResetSearch'])
+    ->name('ResetSearch');
 
 Route::post('GPT/asistente-voz',[OpenAIController::class,'AsistenteVoz'])
     ->name('AsistenteVoz');

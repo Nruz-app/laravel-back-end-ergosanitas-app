@@ -16,10 +16,14 @@ El proyecto es exclusivamente backend: no hay frontend propio. Todos los recurso
 - [Comandos habituales](#comandos-habituales)
 - [Arquitectura](#arquitectura)
 - [Modelo de datos](#modelo-de-datos)
+- [Formatos de respuesta](#formatos-de-respuesta)
+- [Ciclo de vida del chequeo y facturación](#ciclo-de-vida-del-chequeo-y-facturación)
 - [Procedimientos almacenados](#procedimientos-almacenados)
 - [Autenticación y perfiles](#autenticación-y-perfiles)
 - [Integración con OpenAI](#integración-con-openai)
 - [Generación de documentos](#generación-de-documentos)
+- [Trampas conocidas](#trampas-conocidas)
+- [Contrato OpenAPI (Swagger)](#contrato-openapi-swagger)
 - [Endpoints](#endpoints)
 - [Despliegue](#despliegue)
 
@@ -213,7 +217,11 @@ Los nombres de provider son históricamente inconsistentes (`CertificadoProvider
 
 - El código, los comentarios y los mensajes de error están en **español**.
 - Los métodos de controlador usan `PascalCase` (`FindByEmail`, `ChequeoPDFRut`, `EstadisticaIMC`), a diferencia de la convención Laravel por defecto.
-- Las respuestas de error siguen la forma `{"success": false, "message": "...", "error": "..."}` con el código HTTP correspondiente.
+- No hay un formato de respuesta único: conviven dos sobres incompatibles. Ver [Formatos de respuesta](#formatos-de-respuesta).
+
+### Sin middleware ni manejador de excepciones
+
+`bootstrap/app.php` deja vacíos los closures de middleware y de excepciones, y **no existe `app/Http/Middleware/`**. No hay un handler global que convierta las excepciones en respuestas JSON: por eso cada acción envuelve su cuerpo en `try/catch` y arma el sobre a mano. Al escribir un endpoint nuevo hay que hacer lo mismo, o la excepción saldrá como el error HTML de Laravel.
 
 ### Directorios propios
 
@@ -247,14 +255,105 @@ Tablas principales del dominio:
 | `agenda_horas` | `AgendaHoras` | Reservas de hora |
 | `servicios` | `Servicios` | Catálogo de servicios ofrecidos |
 | `web_pay_info` | `WebPayInfo` | Transacciones de WebPay |
+| `pago_mensual` | `PagoMensual` | Facturación mensual por club (`club`, `periodo`, monto) |
+| `params` | `Params` | Parámetros de negocio clave/valor (hoy solo `VALOR-ECG`) |
 | `chat_sessions` | `ChatSessions` | Sesiones del asistente clínico (paciente activo por `session_id`) |
 | `chat_history` | `ChatHistory` | Historial de mensajes por paciente |
-| `logs_api` | `LogsApi` | Registro de llamadas a la API |
+| `chat_club_sessions` | `ChatClubSessions` | Sesiones del asistente por club (filtro activo por `session_id`) |
+| `chat_club_history` | `ChatClubHistory` | Historial de mensajes por sesión de club |
+| `logs_api` | `LogsApi` | Errores de WebPay (es el único dominio que persiste errores) |
 
-Dos advertencias sobre este esquema:
+Tres advertencias sobre este esquema:
 
-- **`users_metadata` y `electro_cardiogranas` no tienen migración** en `database/migrations/`. Existen solo en la base de datos, igual que los procedimientos almacenados. Una base recién migrada quedará incompleta.
+- **`users_metadata`, `params`, `electro_cardiogranas` y `pago_mensual` no tienen migración** en `database/migrations/`. Existen solo en la base de datos, igual que casi todos los procedimientos almacenados. Una base recién migrada quedará incompleta.
 - El nombre de la tabla de electrocardiogramas es `electro_cardiogranas` (con "n"). Es un typo consolidado en producción; respétalo en las queries.
+- `App\Models\FichaClinica` y `App\Models\ChequeoClubPrompt` tienen el `$table` comentado **a propósito**: no mapean ninguna tabla, son solo envoltorios de `SP_ficha_clinica` y `SP_chequeos_club_prompt`.
+
+### El RUT como clave de negocio
+
+El identificador que cruza todos los dominios no es un id numérico, sino el **RUT del paciente**: `chequeo_cardiovascular.rut`, `certificado_url.rut_paciente`, `bioimpedancia.rut`, `electro_cardiogranas.rut_paciente`, `agenda_horas.rut_paciente` y el parámetro de `SP_ficha_clinica`.
+
+- Formato esperado: `12345678-9` — 7 u 8 dígitos, guion y dígito verificador (`0-9`, `k` o `K`), sin puntos.
+- `App\Imports\ChequeoImport` lo normaliza con `preg_replace` y lo valida contra `/^\d{7,8}-[0-9kK]$/`, **sin verificar el dígito verificador**. Las filas del Excel con RUT inválido se descartan en silencio: el importador acumula el conteo en `getCantInser()` y el último error en `getErrorMsg()`.
+- `BioimpedanciaController` normaliza aparte: quita los puntos y pasa la `K` a minúscula antes de guardar.
+- Varias tablas se relacionan por el par `(rut_paciente, id_chequeo)` **sin foreign key**. Cambiar el RUT de un chequeo sin propagarlo deja los certificados y los ECG huérfanos; por eso el perfil 1 dispara `CertificadoService::UpdateRutCertificado()` y `ElectroCardiogramaService::UpdateRutECG()` al editar.
+
+### Configuración de negocio en la tabla `params`
+
+Los valores de negocio —no los de infraestructura— viven en la tabla `params` y se leen así:
+
+```php
+$valor = Params::where('descripcion', 'VALOR-ECG')->firstOrFail()->valor;
+```
+
+Hoy solo se usa `VALOR-ECG`, en `CertificadoService`, `CertificadoUrlController` y `ElectroCardiogramaController`. Si un valor tarifario parece hardcodeado y ausente, búscalo aquí antes que en `.env`. Al ser `firstOrFail()`, **una fila faltante en `params` tumba el endpoint con un 500**.
+
+---
+
+## Formatos de respuesta
+
+No hay un sobre canónico. Cada controlador usa el suyo y **cambiarlo rompe a los clientes que ya lo consumen**. Al tocar un endpoint, respeta el formato que ya devuelve.
+
+| Formato | Forma | Controladores |
+|---|---|---|
+| **A** — `success` | `{"success": true, "message": "...", "data": {...}}` | `Auth/UserController`, `Auth/GoogleAuthControlle`, `BioimpedanciaController`, `CertificadoUrlController`, `FichaClinicaController`, `FileUploadController`, `IncidenciasController`, `OpenAIController` |
+| **B** — `response` | `{"response": {"status": "OK", "mensaje": "..."}}` | `AgendaHorasController`, `ChequeoCardiovascularController`, `ElectroCardiogramaController`, `EmailController`, `EstadisticasController` |
+
+`OpenAIController` y `GoogleAuthControlle` mezclan ambos dentro del mismo archivo. Además, muchos endpoints devuelven directamente el array u objeto de datos, **sin sobre alguno**: `GET /api/chequeo-cardiovascular`, `GET /api/servicios` y todas las estadísticas basadas en procedimientos almacenados.
+
+### Códigos HTTP que no siguen la convención
+
+Conviene conocerlos antes de integrar un cliente:
+
+- Los tres endpoints de consulta de certificados (`certificado/validar/{rut}`, `certificado/path-url`, `certificado/valida-certificado`) responden **siempre HTTP 200**; el resultado real va en un campo `status` dentro del cuerpo.
+- `IncidenciasController` devuelve **201 Created también en las lecturas** (GET). Y como evalúa el resultado del servicio con un `if` simple, un conteo de `0` o una lista vacía se traducen en **500 "Error al listar las incidencias"** aunque no haya fallado nada.
+- `POST /api/electro-cardiograma/find-by-rut` no propaga el error: si la consulta falla, el `catch` devuelve 200 con un objeto de placeholders (`estado_paciente: "N/A"`, `frecuencia_cardiaca_paciente: 0`).
+- `WebPayController` **no devuelve respuesta cuando falla**: graba en `logs_api` y termina con cuerpo vacío.
+- Los errores de cliente suelen salir como **500** con el mensaje crudo de la excepción (`$e->getMessage()`), y los controladores de IA añaden `file` y `line`. No expongas esas respuestas al usuario final sin filtrarlas.
+
+---
+
+## Ciclo de vida del chequeo y facturación
+
+### Estados
+
+`chequeo_cardiovascular.status` es texto libre y avanza así:
+
+```
+ingresado  ->  Testiado  ->  ECG FOTO  ->  REVISION MEDICA
+```
+
+| Estado | Quién lo escribe |
+|---|---|
+| `ingresado` | Default de la columna, al crear el chequeo desde un perfil distinto de 2 |
+| `Testiado` | `ChequeoCardiovascularController` cuando el perfil es 2 (tester en terreno) |
+| `ECG FOTO` | `CertificadoService::subirCertificado()`, al subir el certificado |
+| `REVISION MEDICA` | `ElectroCardiogramaController::Save()`, al guardar la lectura del cardiólogo |
+
+En los listados el `status` se transforma en un campo derivado `estado_paciente`:
+
+- `REVISION MEDICA` con ECG cargado → `Diag. Card. - Normal` / `Diag. Card. - Alterado`
+- `REVISION MEDICA` sin ECG → `En Rev. Cardio`
+- cualquier otro caso → el `status` tal cual
+
+Para el perfil 3 la búsqueda se ordena con `FIELD(cc.status, 'ECG FOTO', 'REVISION MEDICA', 'Testiado', 'ingresado')`.
+
+### Subir un documento factura el mes del club
+
+Es el efecto cruzado más fácil de pasar por alto del proyecto. `CertificadoService::subirCertificado()` y `ElectroCardiogramaController::Save()` hacen, además de guardar:
+
+1. Borran el registro previo del par `(rut, id_chequeo)` — solo en el caso del certificado.
+2. Marcan el chequeo (`ECG FOTO` o `REVISION MEDICA`).
+3. Leen `params.VALOR-ECG`.
+4. Llaman a `EstadisticasService::PagoMensual($periodo, $club, $valor_ecg, "ADD")` → `SP_pago_mensual`.
+
+Tres consecuencias prácticas:
+
+- **No hay idempotencia: cada subida vuelve a facturar.** Reintentar una carga fallida, o corregir la lectura de un ECG, suma otro cargo al mes del club.
+- `POST /api/carga-masiva-ecg` aplica lo mismo **por archivo**: un lote de 200 PDF genera 200 cargos.
+- Si falta la fila `VALOR-ECG` en `params`, el `firstOrFail()` responde 500 **después** de haber movido el archivo, guardado la fila y cambiado el estado del chequeo.
+
+Los endpoints que escriben facturación directamente son `POST /api/estadisticas/pago-mensual` y `POST /api/estadisticas/update-pago-mensual`; `POST /api/estadisticas/delete-pago-mensual` la **borra físicamente**, sin confirmación y sin control de acceso.
 
 ---
 
@@ -268,9 +367,19 @@ Una parte importante de las estadísticas se resuelve en MySQL, no en PHP. Los m
 | `IncidentesDeportivos` | `SP_estadistica_liga`, `SP_estadistica_categoria`, `SP_estadistica_lesiones`, `SP_estadistica_parte_cuerpo`, `SP_estadistica_lesiones_fechas` |
 | `PagoMensual` | `SP_agenda_mensual`, `SP_estadistica_monto_mdc`, `SP_update_pago_mensual`, `SP_chequeos_prompt` |
 | `FichaClinica` | `SP_ficha_clinica` (devuelve una columna `resultado_json` que el servicio decodifica) |
+| `ChequeoClubPrompt` | `SP_chequeos_club_prompt` |
 | `Bioimpedancia` | `SP_bioimpedacia_rut` |
 
-**Estos procedimientos no están versionados en el repositorio ni en las migraciones.** Viven únicamente en la base de datos. Al cambiar su firma o su lógica hay que actualizarlos directamente en MySQL, y una base recién migrada no los tendrá.
+Todos devuelven una única columna —`resultado_json` o `resultado`— que el servicio decodifica antes de responder. Como la forma del JSON la define el procedimiento y no el código PHP, **el contrato de los endpoints de estadística depende del SP instalado en la base**.
+
+**Salvo una excepción, estos procedimientos no están versionados en el repositorio ni en las migraciones.** Viven únicamente en la base de datos: al cambiar su firma o su lógica hay que actualizarlos directamente en MySQL, y una base recién migrada no los tendrá.
+
+La excepción es `base_datos/references/sp/SP_chequeos_club_prompt.sql`, que sí está en el repo como referencia. Es el camino a seguir para los SP nuevos.
+
+### Dos cosas que conviene verificar contra la base
+
+- `EstadisticasService::SP_estadistica_saturacion()` llama a `ChequeoCardiovascular::SP_estadistica_saturacion()`, **un método que no está declarado en el modelo**. Si `GET /api/estadisticas/estadistica-saturacion/{user_email}` se usa desde el cliente, hoy responde 500 con `Call to undefined method`.
+- `SP_chequeos_club_prompt` arma la presión como `CONCAT(presionArterial, '/', presion_sistolica)`, y la columna `presionArterial` guarda la **diastólica**: el JSON llega como `"70/130"`, al revés de la convención médica. `ClubAssistantService::normalizarPresion()` invierte los componentes antes de enviarlos al modelo para que no lea una presión normal como una crisis hipertensiva. Si escribes otro consumidor de ese SP, aplica la misma corrección.
 
 ---
 
@@ -295,7 +404,7 @@ Los usuarios se reparten entre dos tablas que deben mantenerse sincronizadas:
 
 ### Autorización por perfil
 
-La autorización se resuelve consultando `perfiles_id` con `UserMetadataService::getPerfilIdByEmail()`. El patrón recurrente en los servicios es:
+La autorización se resuelve consultando `perfiles_id` con `UserMetadataService::getPerfilIdByEmail()`, a partir del email que envía el propio cliente. El patrón recurrente en los servicios es:
 
 ```php
 $perfilId = $this->userMetadataService->getPerfilIdByEmail($user_email);
@@ -305,7 +414,18 @@ if ($perfilId == 3) {
 }
 ```
 
-El **perfil 3 (club deportivo)** solo puede ver sus propios registros; el resto de perfiles ve la totalidad.
+| Perfil | Rol | Efecto |
+|---|---|---|
+| 1 | Administrador | Ve todo. En `PUT /api/chequeo-cardiovascular/{id}/{email}` es el único que puede cambiar `rut`, `user_email`, `status` y `fecha_atencion`, y el que propaga el cambio de RUT a `certificado_url` y `electro_cardiogranas`. |
+| 2 | Tester en terreno | Al crear o actualizar un chequeo, fija `fecha_atencion = now()` y `status = 'Testiado'`. |
+| 3 | Club deportivo | `WHERE cc.user_email = :user_email` — solo ve sus propios registros, e **ignora el filtro `selectClub`**. |
+| 5 | Paciente | Perfil que asigna `POST /api/login/create-user` en el autoregistro. |
+| 6 | Médico | Solo ve derivados: join con `certificado_url` por `(rut, id_chequeo)` y `cu.derivado_medico = 'SI'`; en la búsqueda, además, `cc.status = 'ECG FOTO'`. |
+| otros | — | Ven todo. |
+
+> Este patrón está **duplicado en tres métodos** de `ChequeoCardiovascularService`: `filterCalendar()`, `SearchChequeo()` y `ChequeoEmailAll()`. Si cambia la regla, hay que cambiarla en los tres.
+
+Como las rutas no llevan middleware y el `user_email` lo envía el cliente, este filtrado es una **regla de presentación, no un control de acceso**: cualquiera que conozca la URL puede pedir los datos de otro club cambiando el email del cuerpo.
 
 ---
 
@@ -323,7 +443,27 @@ Los prompts de sistema viven como clases estáticas en `app/IA/` y **no deben in
 | `AnalisisBioimpedanciaPrompt` | Análisis de una medición de bioimpedancia |
 | `AnalisisRutBioimpedanciaPrompt` | Análisis histórico de bioimpedancia por RUT |
 | `AsistenteChatPacientePrompt::system($patient, $data)` | Asistente conversacional con contexto clínico del paciente |
-| `AsistenteVozPrompt` | Asistente por voz |
+| `AsistenteChatClubPrompt::system($email, $search, $pacientes, $total, $truncado)` | Asistente conversacional sobre los pacientes de un club |
+| `AsistenteVozPrompt` | Asistente de digitación por voz |
+
+Los modelos en uso son `gpt-4o-mini` (chat clínico, chat por club, extracción del paciente) y `gpt-4.1-mini` (ECG, voz, bioimpedancia).
+
+Dónde se hace la llamada es **inconsistente**; sigue el patrón del dominio que toques:
+
+| Dominio | Dónde vive la llamada |
+|---|---|
+| Chat clínico | `OpenAIService`, invocado desde `OpenAIController::AsQuestionUseCase` |
+| Chat por club | `ClubAssistantController::AsQuestionClubUseCase` (el service solo prepara los datos) |
+| ECG y asistente de voz | `OpenAI::chat()` directo en `OpenAIController` |
+| Bioimpedancia | `OpenAI::chat()` en `BioimpedanciaController::FormUpload` y en `BioimpedanciaService` |
+
+### Contratos de salida de los prompts
+
+Tres prompts devuelven JSON cuyas claves **son contrato con el cliente y con la base de datos**. No las renombres ni cambies su orden sin coordinar:
+
+- `AsistenteVozPrompt` — 26 campos, siempre presentes aunque vayan vacíos. Sus nombres coinciden con las columnas de `chequeo_cardiovascular` y `electro_cardiogranas`, de modo que la respuesta se puede reenviar casi tal cual a `POST /api/chequeo-cardiovascular`. Los campos no dictados van a `""`; la excepción es `frecuencia_cardiaca_paciente`, que va a `null`.
+- `AnalisisECGPrompt` — 20 campos de texto. Aplica los Criterios Internacionales de ECG en deportistas (2017) y el patrón juvenil pediátrico, porque la población es mayoritariamente menor de 18 años: bradicardia sinusal, repolarización precoz o inversión de onda T en V1-V3 en menores de 16 se informan como **normales** para esta población. Es un apoyo al tamizaje, no un informe final, y su resultado **no se guarda**: la lectura oficial se registra con `POST /api/electro-cardiograma/save`.
+- `AnalisisBioimpedanciaPrompt` — sus claves corresponden una a una con las columnas de la tabla `bioimpedancia` (ver `BioimpedanciaService::mapBioimpedancia()`).
 
 Cada prompt debe vivir en **un único archivo**. Duplicar el archivo para conservar una versión anterior provoca que dos archivos declaren la misma clase, lo que genera una colisión en el classmap que produce `composer install --optimize-autoloader` durante el build de producción: cuál de los dos se carga queda indeterminado. Para versionar un prompt, usa git.
 
@@ -338,6 +478,29 @@ Cada prompt debe vivir en **un único archivo**. Duplicar el archivo para conser
 5. `EstadisticasService::ChequeoPrompt($search)` (→ `SP_chequeos_prompt`) aporta los datos clínicos, que se inyectan en el prompt de sistema.
 
 `POST /api/sam-assistant/reset-patient` limpia únicamente `patient_identifier` de la sesión, conservando el historial.
+
+> El historial se guarda **por paciente**, no por sesión: dos sesiones distintas que hablen del mismo paciente comparten la conversación.
+
+### Flujo del asistente por club
+
+`POST /api/sam-assistant-club/as-question` es un flujo paralelo al anterior, construido sin tocarlo. En vez de girar en torno a un paciente, responde sobre **el conjunto de pacientes en `REVISION MEDICA` de un club**.
+
+1. `ClubAssistantService::resolveSession($sessionId, $email, $search)` crea o recupera la fila de `chat_club_sessions`. `club_email` es `NOT NULL` sin default y la base corre en `STRICT_TRANS_TABLES`, así que se pasa en la creación.
+2. `datosClub()` ejecuta `SP_chequeos_club_prompt($search, $club)`, corrige el orden de la presión arterial y **trunca en 120 pacientes** (`ClubAssistantService::MAX_PACIENTES`). El prompt recibe el total real y una marca de truncado para que el asistente avise cuando está viendo solo una parte.
+3. Sin pacientes que devolver, la respuesta es `{"status": "sin_datos"}` con HTTP 200.
+4. `handle()` persiste el mensaje en `chat_club_history` y recupera los **20 mensajes más recientes de la sesión**, desempatando por `id` cuando comparten `created_at`.
+
+La semántica del campo `search` es el detalle importante para el cliente, porque se **persiste en la sesión**:
+
+| Cómo se envía | Efecto |
+|---|---|
+| El campo no viene en el JSON | Se conserva el `search_actual` que ya tenía la sesión |
+| `"search": ""` | Reset explícito: el chat pasa a hablar de todo el club |
+| `"search": "Fuentes"` | Se guarda ese filtro y el chat queda acotado a ese paciente |
+
+`POST /api/sam-assistant-club/reset-search` equivale a enviar `"search": ""`. Como el asistente de paciente, no borra el historial.
+
+Es además el **único controlador que captura `ValidationException` por separado** y responde un 422 correcto; en el resto, la excepción de validación cae en el `catch (\Exception)` genérico y sale como 500.
 
 ---
 
@@ -363,6 +526,64 @@ Los archivos subidos se mueven con `$file->move()` a subdirectorios de `public/`
 | `public/Bioimpedancia` | Informes de bioimpedancia |
 
 Las URL públicas se componen con `env('API_PATH_CER')` y `env('API_PATH_LOGO')`.
+
+> **En producción estos archivos no sobreviven a un redeploy.** `dockerHub/docker-compose.yml` monta volúmenes para `storage/` y `bootstrap/cache`, **pero no para `public/`**: lo subido vive en la capa escribible del contenedor y se pierde al desplegar `:latest`. Tenlo presente antes de proponer que algo nuevo se guarde en `public/`.
+
+Además, la validación de estas subidas es desigual: `POST /api/carga-masiva/excel` y `POST /api/GPT/analisis-ecg` validan tipo y tamaño, mientras que `POST /api/certificado/save-url` y `POST /api/auth-register/load-logo` **no validan nada**, y si no llega un archivo válido no retornan nada (respuesta 200 con cuerpo vacío).
+
+---
+
+## Trampas conocidas
+
+Comportamientos del proyecto que no se deducen leyendo un solo archivo y que rompen cosas si se ignoran:
+
+- **No ejecutes `php artisan config:cache`.** Varios controladores y servicios leen `env()` fuera de `config/`: `API_PATH_CER` (`CertificadoService`, `CertificadoUrlController`), `API_PATH_LOGO` (`Auth/UserController`), `WEBPAY_URL|ID|SECRET|RETURN` (`WebPayController`) y `GOOGLE_CLIENT_ID|SECRET` (`GoogleAuthControlle`). Con la config cacheada devuelven `null` y se rompen certificados, logos, pagos y login de Google. Por eso `dockerHub/entrypoint.sh` hace `config:clear` en cada arranque.
+- **`.env.example` está incompleto**: define `API_PATH_CER` pero no `API_PATH_LOGO`, que el código sí usa.
+- **El orden de `routes/api.php` importa.** Las rutas específicas (`chequeo-cardiovascular/pdf/{id}`) deben declararse antes que las genéricas (`chequeo-cardiovascular/{id_paciente}`).
+- **Hay rutas duplicadas**: `/user` (líneas 7 y 44) e `incidencia-deportivos/count-liga` (líneas 267 y 270). Laravel se queda con la última declaración; al editar una, asegúrate de tocar la que realmente se resuelve.
+- **Typos consolidados que no se corrigen sin actualizar rutas y clientes**: el controlador de Google se llama `GoogleAuthControlle` (sin la "r" final), `UserController` expone `UserUpdatePassowrd`, la tabla de ECG es `electro_cardiogranas` y la columna es `gradoIncidenciaPosterio`.
+- **Archivos muertos versionados**: `api.php` en la raíz es una copia obsoleta de `routes/api.php`, y `app/Http/Controllers/bootstrap/` es una copia muerta del `bootstrap/` real que nunca se carga. Los archivos que importan son `routes/api.php`, `bootstrap/app.php` y `bootstrap/providers.php`.
+- **`vendor/bin/pint` sin argumentos reformatea medio repositorio.** No hay `pint.json`, así que aplica el preset `laravel`, que el código existente no cumple. Usa siempre `--dirty` o rutas explícitas.
+- **`PUT /api/chequeo-cardiovascular/{id}/{email}` borra datos clínicos si el formulario llega incompleto**: los campos vacíos vuelven a sus valores por defecto (`No Presenta` / `Sin Alteraciones`) aunque antes tuvieran contenido.
+- **`POST /api/electro-cardiograma/save` borra todos los ECG previos** del chequeo antes de insertar: solo se conserva la última lectura, no hay historial.
+- **`DELETE /api/chequeo-cardiovascular/{id}` no borra en cascada** los certificados ni los ECG asociados, y no revierte la facturación que ese chequeo ya generó.
+
+---
+
+## Contrato OpenAPI (Swagger)
+
+El contrato completo de la API vive en **[`docs/openapi.yaml`](docs/openapi.yaml)** (OpenAPI 3.0.3): las 81 operaciones de `routes/api.php`, con esquemas, parámetros, ejemplos de request y de respuesta para cada código de estado, y las particularidades reales del proyecto (los dos formatos de sobre incompatibles, los endpoints que facturan, los que devuelven 200 en caso de error, el filtrado por perfil).
+
+Las tablas de la sección [Endpoints](#endpoints) son el índice rápido; el YAML es la referencia detallada.
+
+### Ver la documentación en el navegador
+
+`docs/index.html` trae un visor Swagger UI ya configurado. Sirve la carpeta por HTTP (el navegador no carga el YAML desde `file://`):
+
+```bash
+php -S localhost:8080 -t docs
+# y abre http://localhost:8080
+```
+
+### Validar el contrato
+
+```bash
+# Parseo del YAML con el componente que ya trae el proyecto
+php -r 'require "vendor/autoload.php"; Symfony\Component\Yaml\Yaml::parseFile("docs/openapi.yaml"); echo "OK\n";'
+
+# Validación estructural OpenAPI (requiere Node)
+npx @redocly/cli lint
+```
+
+`redocly.yaml`, en la raíz, apunta al contrato y deja documentado qué reglas de estilo están desactivadas y por qué (por ejemplo `operation-4xx-response`: esta API devuelve 500 donde otra devolvería un 4xx, así que exigir respuestas 4xx obligaría a documentar códigos que nunca se emiten). Hoy el contrato pasa el lint **sin errores ni advertencias**.
+
+### Mantenerlo al día
+
+`docs/openapi.yaml` se escribe a mano: **no hay generación automática desde el código**, ni anotaciones de L5-Swagger en los controladores. Al agregar o cambiar una ruta en `routes/api.php` hay que actualizar el YAML en el mismo commit. Para comprobar que no falta ninguna:
+
+```bash
+php artisan route:list --json
+```
 
 ---
 
@@ -481,6 +702,8 @@ Todas las rutas están definidas en `routes/api.php` y llevan el prefijo `/api`.
 |---|---|---|
 | `POST` | `sam-assistant/as-question` | Chat clínico con contexto de paciente |
 | `POST` | `sam-assistant/reset-patient` | Reiniciar el paciente de la sesión |
+| `POST` | `sam-assistant-club/as-question` | Chat sobre los pacientes de un club |
+| `POST` | `sam-assistant-club/reset-search` | Reiniciar el filtro de paciente de la sesión |
 | `POST` | `GPT/asistente-voz` | Asistente por voz |
 | `POST` | `GPT/analisis-ecg` | Análisis de ECG a partir de imagen |
 
