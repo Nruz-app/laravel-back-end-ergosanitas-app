@@ -6,6 +6,7 @@ return [
     App\Providers\CertificadoProvider::class,
     App\Providers\ChequeoCardiovascularPDFProvider::class,
     App\Providers\ChequeoCardiovascularProvider::class,
+    App\Providers\ClubAssistantServiceProvider::class,
     App\Providers\ElectroCardiogramaProvider::class,
     App\Providers\EstadisticasProvider::class,
     App\Providers\FichaClinicaServiceProvider::class,
