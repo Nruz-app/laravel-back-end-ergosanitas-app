@@ -1,0 +1,27 @@
+# Configuración de Redocly CLI para validar el contrato de la API.
+#
+#   npx @redocly/cli lint docs/openapi.yaml
+#
+# Las reglas desactivadas abajo NO son deuda del documento: son reglas de estilo de
+# Redocly que chocan con el comportamiento real de esta API. Si se desactiva alguna más,
+# deja aquí el motivo.
+
+apis:
+  ergosanitas:
+    root: docs/openapi.yaml
+
+extends:
+  - recommended
+
+rules:
+  # La API devuelve 500 (con el mensaje crudo de la excepción) allí donde otra API
+  # devolvería un 4xx, y varios endpoints de certificados responden 200 con un `status`
+  # interno. Documentar 4xx inventados sería mentir sobre el comportamiento real.
+  operation-4xx-response: off
+
+  # El segundo servidor es el entorno Docker local (nginx en el puerto 6162) declarado a
+  # propósito para que el equipo pueda probar contra su contenedor.
+  no-server-example.com: off
+
+  # La licencia es de uso interno; no hay identificador SPDX aplicable.
+  info-license-strict: warn

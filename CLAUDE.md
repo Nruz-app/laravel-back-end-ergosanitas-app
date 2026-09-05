@@ -8,7 +8,9 @@ API REST en Laravel 11 (PHP 8.2) para **Ergosanitas**: gestión de chequeos card
 
 El código y los comentarios están en español. Los métodos de controlador van en `PascalCase` (`FindByEmail`, `ChequeoPDFRut`), a diferencia de la convención Laravel por defecto.
 
-`README.md` documenta el stack, la instalación y el catálogo de endpoints. Este archivo cubre lo que no se deduce leyendo un solo archivo.
+`README.md` documenta el stack, la instalación y el catálogo de endpoints. `docs/openapi.yaml` es el contrato OpenAPI 3.0.3 con las 81 operaciones detalladas (request, respuestas por código y ejemplos); `docs/index.html` lo muestra con Swagger UI. Este archivo cubre lo que no se deduce leyendo un solo archivo.
+
+El contrato **se mantiene a mano**: no hay generación automática ni anotaciones L5-Swagger. Al agregar o modificar una ruta en `routes/api.php`, actualiza `docs/openapi.yaml` en el mismo commit y contrasta con `php artisan route:list --json`.
 
 ## Comandos
 
