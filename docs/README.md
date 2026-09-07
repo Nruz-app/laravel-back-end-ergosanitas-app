@@ -12,6 +12,7 @@ Esta carpeta contiene el contrato de la API y los diagramas del sistema. La docu
 | [`flujos.md`](flujos.md) | 12 diagramas de secuencia, uno por flujo de negocio end-to-end |
 | [`diagrama-clases.md`](diagrama-clases.md) | Clases UML por dominio: controladores, servicios, modelos y prompts |
 | [`modelo-datos.md`](modelo-datos.md) | ERD de las 18 tablas, máquina de estados del chequeo, autorización por perfil y catálogo de procedimientos almacenados |
+| [`diagramas/arquitectura.html`](diagramas/arquitectura.html) | Mapa de componentes explorable: zoom, búsqueda, vistas guiadas y exportación. Generado con archify desde `diagramas/arquitectura.architecture.json` |
 
 ## Por dónde empezar
 
@@ -41,6 +42,7 @@ Nada de esto se genera automáticamente: **no hay anotaciones L5-Swagger ni extr
 | Una ruta en `routes/api.php` | `openapi.yaml` (contrasta con `php artisan route:list --json`) y el catálogo del README |
 | Un flujo de negocio | El diagrama de secuencia correspondiente en `flujos.md` |
 | Un servicio, controlador o provider | `diagrama-clases.md` y, si cambia el cableado, `arquitectura.md` |
+| Un componente que salga en el mapa explorable | `diagramas/arquitectura.architecture.json`, y vuelve a generar el HTML (ver abajo) |
 | Una tabla, un `status` o un procedimiento almacenado | `modelo-datos.md` |
 
 ### Validar antes de commitear
@@ -57,3 +59,18 @@ php artisan route:list --json
 ```
 
 `redocly.yaml`, en la raíz, deja documentado qué reglas de estilo están desactivadas y por qué.
+
+### Regenerar el mapa explorable
+
+`diagramas/arquitectura.html` es **generado**: no lo edites a mano. La fuente es
+`diagramas/arquitectura.architecture.json`. Tras cambiarlo, desde la raíz del repo:
+
+```bash
+cd .claude/skills/archify
+node bin/archify.mjs validate architecture ../../../docs/diagramas/arquitectura.architecture.json --quality showcase --json
+node bin/archify.mjs deliver  architecture ../../../docs/diagramas/arquitectura.architecture.json ../../../docs/diagramas/arquitectura.html --quality showcase --json
+node bin/archify.mjs visual-check ../../../docs/diagramas/arquitectura.html --json
+```
+
+Un pase válido son **9 checks en verde con 0 errores y 0 warnings**. `visual-check` deja
+capturas PNG y un recibo `.json` junto al HTML; requiere Chrome y Node ≥ 18.
