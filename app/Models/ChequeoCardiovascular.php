@@ -29,6 +29,10 @@ class ChequeoCardiovascular extends Model
         return DB::select('CALL SP_estadistica_hemoglucotest(?)', [$param1]);
     }
 
+    public static function SP_estadistica_saturacion($param1) {
+        return DB::select('CALL SP_estadistica_saturacion(?)', [$param1]);
+    }
+
     public static function SP_estadistica_monto() {
         return DB::select('CALL SP_estadistica_monto()');
     }
