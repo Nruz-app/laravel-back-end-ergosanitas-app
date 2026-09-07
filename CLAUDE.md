@@ -10,7 +10,9 @@ El código y los comentarios están en español. Los métodos de controlador van
 
 `README.md` documenta el stack, la instalación y el catálogo de endpoints. `docs/openapi.yaml` es el contrato OpenAPI 3.0.3 con las 81 operaciones detalladas (request, respuestas por código y ejemplos); `docs/index.html` lo muestra con Swagger UI. Este archivo cubre lo que no se deduce leyendo un solo archivo.
 
-El contrato **se mantiene a mano**: no hay generación automática ni anotaciones L5-Swagger. Al agregar o modificar una ruta en `routes/api.php`, actualiza `docs/openapi.yaml` en el mismo commit y contrasta con `php artisan route:list --json`.
+La vista gráfica vive en cuatro documentos Mermaid: `docs/arquitectura.md` (componentes, capas, providers, despliegue), `docs/flujos.md` (12 diagramas de secuencia end-to-end), `docs/diagrama-clases.md` (clases UML por dominio) y `docs/modelo-datos.md` (ERD, máquina de estados, autorización por perfil, catálogo de SP). `docs/README.md` los indexa.
+
+El contrato y los diagramas **se mantienen a mano**: no hay generación automática ni anotaciones L5-Swagger. Al agregar o modificar una ruta en `routes/api.php`, actualiza `docs/openapi.yaml` en el mismo commit y contrasta con `php artisan route:list --json`. Si cambia un flujo, una clase o el esquema, actualiza también el `.md` de diagramas correspondiente.
 
 ## Comandos
 
@@ -58,18 +60,23 @@ Cada dominio sigue el mismo patrón de tres capas, cableado a mano:
 
 `bootstrap/app.php` no registra middleware ni manejadores de excepción (ambos closures están vacíos) y **no existe `app/Http/Middleware`**. Por eso cada acción envuelve su cuerpo en `try/catch` y arma el sobre a mano: no hay handler global que lo haga por ti.
 
-**Conviven dos formatos de respuesta incompatibles.** No hay uno canónico; sigue el que ya usa el controlador que estás tocando:
+**Conviven siete formatos de respuesta incompatibles.** No hay uno canónico, y varios controladores mezclan más de uno según el método y según si es el camino feliz o el `catch`. **Mira qué devuelve hoy el método que estás tocando**, no lo deduzcas del controlador:
 
-- `{success, message, data}` / `{success: false, message, error}` con status 500 — `Auth/UserController`, `Auth/GoogleAuthControlle`, `BioimpedanciaController`, `CertificadoUrlController`, `FichaClinicaController`, `FileUploadController`, `IncidenciasController`, `OpenAIController`.
-- `{response: {status, mensaje}}` (status `'OK'` / `'Error en ejecucion'`) — `AgendaHorasController`, `ChequeoCardiovascularController`, `ElectroCardiogramaController`, `EmailController`, `EstadisticasController`.
+- `{success, message, data}` / `{success: false, message, error}` — `Auth/UserController`, `Auth/GoogleAuthControlle`, `BioimpedanciaController`, `FichaClinicaController`, `FileUploadController`, y en `CertificadoUrlController` y `OpenAIController` solo algunos métodos.
+- `{response: {status, mensaje}}` anidado — `EmailController`, `ElectroCardiogramaController::Save`, `ChequeoCardiovascularController::Store`; en `AgendaHorasController`, `EstadisticasController` y `ChequeoCardiovascularController::Update`, **solo en el `catch`**.
+- `{status, mensaje}` plano, con `status` unas veces texto (`'OK'`) y otras entero (`200`) — buena parte de `ChequeoCardiovascularController` y `CertificadoUrlController`, `EstadisticasController::deletePagoMensual`, `CargaMasivaController`.
+- `{status: 'success', message, data}` — `IncidenciasController`, que además responde **201 también en los GET**.
+- Payload crudo sin sobre — `ChequeoCardiovascularController::Index`/`FindByEmail`/`ChequeoRut`/`EstadoGeneral`, `ServiciosController`, `AgendaHorasController::getAgenda`, `ElectroCardiogramaController::FindByRut`, todos los éxitos de `EstadisticasController`.
+- Sobre de chat `{sessionId, patient|club, search?, response, status?}` — `OpenAIController` y `ClubAssistantController`.
+- No JSON: PDF binario, `streamDownload` de Word, `redirect()->away` en `WebPayResponse`, texto plano en los `health`.
 
-`OpenAIController` y `GoogleAuthControlle` mezclan ambos dentro del mismo archivo. Si el cliente ya consume un endpoint, cambiarle el sobre lo rompe.
+Si el cliente ya consume un endpoint, cambiarle el sobre lo rompe. La tabla completa está en `README.md` § Formatos de respuesta.
 
 **Cada servicio necesita su propio ServiceProvider registrado manualmente en `bootstrap/providers.php`** — no hay auto-discovery para ellos. Al crear un servicio nuevo hay que: crear `app/Services/XService.php`, crear `app/Providers/XServiceProvider.php` con un `singleton()`, y añadirlo a `bootstrap/providers.php`. Los nombres de provider son inconsistentes (`CertificadoProvider` vs `BioimpedanciaServiceProvider`); sigue el existente del dominio que toques.
 
 `CertificadoProvider` es el único que inyecta una dependencia entre servicios (`CertificadoService` recibe `EstadisticasService`).
 
-Si un servicio no está registrado, Laravel igualmente lo resuelve por autowiring cuando su constructor no tiene dependencias — pero deja de ser singleton. Registra siempre el provider.
+Si un servicio no está registrado, Laravel igualmente lo resuelve por autowiring cuando puede construir sus dependencias — pero deja de ser singleton. Registra siempre el provider. **`ChequeoCardiovascularWordService` es la excepción que ya existe en el código**: no tiene provider ni aparece en `bootstrap/providers.php`, así que se instancia de nuevo en cada request. Es el ejemplo de qué pasa si te saltas ese paso, no el patrón a copiar.
 
 ### El RUT como clave de negocio
 
@@ -79,7 +86,18 @@ Varias tablas se relacionan por el par `(rut_paciente, id_chequeo)` en vez de po
 
 ### Estado del chequeo y perfiles
 
-`chequeo_cardiovascular.status` avanza por valores de texto libre: `ingresado` → `Testiado` → `ECG FOTO` → `REVISION MEDICA`. El único punto del código PHP que **escribe** un status es `CertificadoService::subirCertificado()` (pone `ECG FOTO`); el resto de las transiciones ocurre en los `UPDATE` del cliente o en procedimientos almacenados. `ChequeoCardiovascularService` los ordena con `orderByRaw("FIELD(cc.status, 'ECG FOTO', 'REVISION MEDICA', 'Testiado', 'ingresado')")`.
+`chequeo_cardiovascular.status` avanza por valores de texto libre: `ingresado` → `Testiado` → `ECG FOTO` → `REVISION MEDICA`. **Seis puntos del código PHP lo escriben**, así que al cambiar la regla hay que revisarlos todos:
+
+| Dónde | Valor | Condición |
+|---|---|---|
+| `ChequeoCardiovascularController::Store()` | `Testiado` | `perfilId == 2`; fija además `fecha_atencion` |
+| `ChequeoCardiovascularController::Update()` | `Testiado` | `perfilId == 2` |
+| `ChequeoCardiovascularController::Update()` | **el que venga en el request** | `perfilId == 1` |
+| `CertificadoService::subirCertificado()` | `ECG FOTO` | siempre |
+| `CertificadoUrlController::FileUploadCer()` | `ECG FOTO` | duplica a mano la lógica del servicio |
+| `ElectroCardiogramaController::Save()` | `REVISION MEDICA` | siempre |
+
+`ChequeoImport` no escribe `status` (queda el default de la base). Ninguna transición valida el estado previo. El resto de los cambios ocurre en los `UPDATE` del cliente o en procedimientos almacenados. `ChequeoCardiovascularService` los ordena con `orderByRaw("FIELD(cc.status, 'ECG FOTO', 'REVISION MEDICA', 'Testiado', 'ingresado')")`.
 
 La autorización es por `perfiles_id`, obtenido con `UserMetadataService::getPerfilIdByEmail()`. **Dos perfiles tienen tratamiento especial y hay que respetar ambos** al escribir queries nuevas sobre chequeos:
 
@@ -87,7 +105,7 @@ La autorización es por `perfiles_id`, obtenido con `UserMetadataService::getPer
 - **Perfil 6 (médico)**: solo ve derivados — join contra `certificado_url` por `(rut, id_chequeo)` con `->where('cu.derivado_medico', 'SI')`, y en la búsqueda además `->where('cc.status', 'ECG FOTO')`.
 - Cualquier otro perfil ve todo.
 
-Ese patrón está duplicado en `ChequeoCardiovascularService::filterCalendar()`, `SearchChequeo()` y `ChequeoEmailAll()`; si cambias la regla hay que cambiarla en los tres.
+Ese patrón está duplicado en `ChequeoCardiovascularService::filterCalendar()`, `SearchChequeo()` y `ChequeoEmailAll()`; si cambias la regla hay que cambiarla en los tres. **Ojo: hoy las tres copias no son idénticas** — `filterCalendar()` no aplica el perfil 6, y solo `SearchChequeo()` añade el filtro `status = 'ECG FOTO'`. Antes de unificarlas, decide si la divergencia es intencional.
 
 ### Procedimientos almacenados
 
@@ -129,7 +147,9 @@ Dónde ocurre cada llamada (es inconsistente; sigue el patrón del dominio que t
 
 Modelos en uso: `gpt-4o-mini` (extracción de paciente, chat) y `gpt-4.1-mini` (ECG, voz, bioimpedancia).
 
-El chat clínico (`POST api/sam-assistant/as-question`) funciona así: `OpenAIService::resolveSession()` crea/recupera una `ChatSessions` por `sessionId` y extrae el identificador del paciente del prompt (regex de RUT y, si falla, una llamada a `gpt-4o-mini` en `PatientHelper::extractPatient()`). Sin paciente resuelto responde `status: needs_identifier`. Con paciente, `handle()` recupera los últimos 20 mensajes de `chat_history` y `EstadisticasService::ChequeoPrompt()` (→ `SP_chequeos_prompt`) aporta los datos clínicos. `POST api/sam-assistant/reset-patient` suelta el paciente de la sesión.
+El chat clínico (`POST api/sam-assistant/as-question`) funciona así: `OpenAIService::resolveSession()` crea/recupera una `ChatSessions` por `sessionId` y extrae el identificador del paciente del prompt (regex de RUT y, si falla, una llamada a `gpt-4o-mini` en `PatientHelper::extractPatient()`). Sin paciente resuelto responde `status: needs_identifier`. Con paciente, `handle()` recupera 20 mensajes de `chat_history` y `EstadisticasService::ChequeoPrompt()` (→ `SP_chequeos_prompt`) aporta los datos clínicos. `POST api/sam-assistant/reset-patient` suelta el paciente de la sesión.
+
+Dos detalles del historial que no se ven en el nombre del método: la consulta es `orderBy('created_at', 'asc')->limit(20)`, así que trae los **20 mensajes más antiguos**, no los más recientes (el asistente por club sí usa `desc` + `reverse`); y `chat_history` se agrupa por `patient_identifier` y **no guarda `session_id`**, así que dos sesiones sobre el mismo paciente comparten la conversación.
 
 ### Pagos WebPay (Transbank)
 
@@ -160,7 +180,7 @@ Todo en `routes/api.php`, plano y sin agrupar, con prefijo automático `/api`. O
 - El nombre real de la tabla de ECG es **`electro_cardiogranas`** (con "n"): es un typo consolidado en producción, respétalo en las queries.
 - Hay **rutas duplicadas** en `routes/api.php`: `/user` (líneas 7 y 44) e `incidencia-deportivos/count-liga` (líneas 267 y 270). Laravel se queda con la última declaración; al editar una de ellas asegúrate de tocar la que realmente se resuelve, o elimina la duplicada.
 - `api.php` en la raíz del proyecto es una copia obsoleta y sin uso de `routes/api.php`. El archivo real es `routes/api.php`.
-- `app/Http/Controllers/bootstrap/` (con `app.php`, `providers.php` y `cache/`) es otra copia versionada y muerta del `bootstrap/` real; nunca se carga. Los archivos que importan son `bootstrap/app.php` y `bootstrap/providers.php`. `src/` y `base_datos/` están vacíos.
+- `app/Http/Controllers/bootstrap/` (con `app.php`, `providers.php` y `cache/`) es otra copia versionada y muerta del `bootstrap/` real; nunca se carga. Los archivos que importan son `bootstrap/app.php` y `bootstrap/providers.php`. `src/` está vacío; `base_datos/` solo contiene `references/sp/SP_chequeos_club_prompt.sql`, el único procedimiento almacenado versionado en el repo.
 - El controlador de Google OAuth se llama `GoogleAuthControlle` (sin la "r" final), tanto el archivo como la clase; y `UserController` expone `UserUpdatePassowrd`. Son typos consolidados: no los "corrijas" sin actualizar `routes/api.php` y los clientes.
 - `App\Models\FichaClinica` tiene el `$table` comentado a propósito: solo es un envoltorio de `SP_ficha_clinica`, no mapea una tabla.
 - No dupliques archivos en `app/IA/` para conservar versiones anteriores de un prompt: declararían la misma clase y colisionarían en el classmap optimizado (ver "Integración OpenAI").
