@@ -1,14 +1,14 @@
 ---
 name: spec-impl-ergo
-description: Implementa una spec aprobada del backend Ergosanitas (Laravel 11 / MySQL 5.7). Valida que el estado signifique "Aprobado" (en cualquier idioma), crea la rama git con el nombre de la spec, cambia a ella y ejecuta el plan paso a paso delegando en los agentes ergosanitas-developer / ergosanitas-laravel / ergosanitas-mysql, con pausas para revisar el diff y el checklist de cierre del repo.
+description: Implementa una spec aprobada del backend Ergosanitas (Laravel 11 / MySQL 5.7). Valida que el estado signifique "Aprobado" (en cualquier idioma), crea la rama git con el nombre de la spec, cambia a ella y ejecuta el plan paso a paso delegando en los agentes ergosanitas-developer / ergosanitas-laravel / ergosanitas-mysql, con pausas para revisar el diff. Cierra con una fase obligatoria de documentación delegada en ergo-docs (contrato OpenAPI y diagramas de docs/) y el checklist de cierre del repo.
 disable-model-invocation: true
 argument-hint: <NN-nombre-spec>
-allowed-tools: Read, Glob, Grep, Edit, Write, AskUserQuestion, Agent, Skill, Bash(git status:*), Bash(git branch:*), Bash(git checkout:*), Bash(git log:*), Bash(git diff:*), Bash(git stash:*), Bash(cat:*), Bash(ls:*), Bash(php:*), Bash(vendor/bin/pint:*), Bash(vendor/bin/phpunit:*), Bash(composer:*)
+allowed-tools: Read, Glob, Grep, Edit, Write, AskUserQuestion, Agent, Skill, Bash(git status:*), Bash(git branch:*), Bash(git checkout:*), Bash(git log:*), Bash(git diff:*), Bash(git stash:*), Bash(cat:*), Bash(ls:*), Bash(php:*), Bash(vendor/bin/pint:*), Bash(vendor/bin/phpunit:*), Bash(composer:*), Bash(npx:*)
 ---
 
 # /spec-impl-ergo — Implementador de specs aprobadas para Ergosanitas
 
-Homólogo de `/spec-impl`, especializado en **este** repositorio: mismo flujo de cuatro fases y mismas reglas de bloqueo, pero la implementación se ejecuta con los agentes y skills de Ergosanitas y termina con el checklist de cierre del proyecto.
+Homólogo de `/spec-impl`, especializado en **este** repositorio: mismas reglas de bloqueo, pero la implementación se ejecuta con los agentes y skills de Ergosanitas, añade una **quinta fase obligatoria de documentación** y termina con el checklist de cierre del proyecto.
 
 ## Contexto de sesión
 
@@ -31,7 +31,7 @@ Providers registrados a mano (un servicio nuevo debe aparecer aquí):
 
 ## Instrucciones
 
-Sigue estas cuatro fases en orden estricto. **No avances a la siguiente fase si la anterior no se completó correctamente.**
+Sigue estas cinco fases en orden estricto. **No avances a la siguiente fase si la anterior no se completó correctamente.**
 
 Responde siempre en el idioma del prompt inicial. El **código, los comentarios y los mensajes** que escribas van en español, sea cual sea ese idioma: es la convención del repo.
 
@@ -205,6 +205,7 @@ Antes de ejecutar un paso, clasifícalo y delega con la herramienta `Agent`. Pas
 | Crear o modificar controlador, service, model, provider, prompt de `app/IA/`, ruta o flujo de negocio                                                          | `ergosanitas-developer` |
 | Duda de framework o lenguaje: contenedor, providers, ciclo de vida, auth (sesión / Sanctum / JWT), validación, colas, correo, PHPUnit, refactor idiomático seguro | `ergosanitas-laravel`   |
 | SQL: queries, joins, `EXPLAIN`, índices, migraciones, procedimientos almacenados, esquema real, tipos y charset                                                | `ergosanitas-mysql`     |
+| Documentación: contrato OpenAPI (`docs/openapi.yaml`) o los diagramas Mermaid de `docs/` (`arquitectura.md`, `flujos.md`, `diagrama-clases.md`, `modelo-datos.md`) | `ergo-docs`             |
 | Paso trivial y acotado (una constante, un texto, un `use`)                                                                                                     | Hazlo tú directamente   |
 
 Reglas de delegación:
@@ -247,7 +248,46 @@ Reglas de delegación:
 - Sugiere anotarlo para la siguiente.
 - No lo implementes en esta rama.
 
-#### Al terminar el último paso
+---
+
+### Fase 5 — Documentación (obligatoria)
+
+Terminado el último paso del plan, **antes** de la verificación de cierre, actualiza la documentación. En este repo nada de `docs/` se genera solo: ni el contrato OpenAPI ni los diagramas. Si la spec se implementa y la documentación no se toca, `docs/` queda mintiendo desde el mismo commit.
+
+Delega en el agente `ergo-docs` con la herramienta `Agent`. Pásale en el prompt:
+
+- La ruta del archivo de la spec y su objetivo.
+- La **lista completa de archivos tocados** en la Fase 4 (sácala de `git status --short` / `git diff --stat`).
+- Los endpoints nuevos o modificados, con el sobre de respuesta real que devuelven.
+- La instrucción explícita de **no commitear** y de **no tocar código** (solo `docs/`, y `README.md` / `CLAUDE.md` si el cambio lo exige).
+
+Qué debe cubrir, según lo que tocó la spec:
+
+| Si la Fase 4 tocó… | `ergo-docs` actualiza |
+| ------------------ | --------------------- |
+| `routes/api.php` | `docs/openapi.yaml` (operación + conteo en `x-generated-from`) y el catálogo de endpoints del `README.md` raíz |
+| Un flujo end-to-end | El diagrama de secuencia de `docs/flujos.md` |
+| Controlador, service, model o prompt de `app/IA/` | `docs/diagrama-clases.md` |
+| Un provider o el cableado de dependencias | `docs/arquitectura.md` |
+| Tabla, columna, `status` o procedimiento almacenado | `docs/modelo-datos.md` |
+
+Reglas de esta fase:
+
+- **Es obligatoria, no opcional.** Si la spec no cambió nada documentable (refactor interno, sin superficie observable nueva), `ergo-docs` debe decirlo explícitamente y no editar nada. Esa respuesta es un resultado válido; saltarse la fase no lo es.
+- Como con el resto de agentes: **el usuario no ve el resultado**. Resume tú qué documentos cambiaron y muestra `git diff --stat docs/`.
+- No te fíes del reporte sin mirar el diff. Si `ergo-docs` dice que validó el contrato con `redocly lint` pero no hay Node en el entorno, corrígelo al reportar.
+- Si `ergo-docs` encuentra una incoherencia en el **código** (una ruta duplicada, un sobre que no cuadra), no la arregla: te la reporta. Decide con el usuario si entra en esta spec o queda anotada para la siguiente.
+
+Muestra al usuario el cierre de la fase y espera confirmación antes de la verificación:
+
+```
+Documentación actualizada. Archivos de docs/ tocados: [lista]
+¿Revisas el diff de docs/ antes de que ejecute la verificación de cierre?
+```
+
+---
+
+#### Verificación de cierre
 
 Ejecuta la verificación de cierre del repo sobre **lo que tocaste** (nunca `config:cache`):
 
@@ -258,6 +298,14 @@ php artisan config:clear && php artisan route:clear && php artisan cache:clear
 php artisan route:list --path=<prefijo>           # 4. la ruta resuelve y no quedó pisada por una duplicada
 php artisan tinker --execute="var_dump(app(App\Services\XService::class) === app(App\Services\XService::class));"
 php artisan test                                  # 6. hoy solo stubs; deben seguir en verde
+```
+
+Y sobre la documentación de la Fase 5:
+
+```bash
+# 7. el contrato parsea y valida (redocly.yaml de la raíz; el lint requiere Node)
+php -r 'require "vendor/autoload.php"; Symfony\Component\Yaml\Yaml::parseFile("docs/openapi.yaml"); echo "OK\n";'
+npx @redocly/cli lint
 ```
 
 Luego repasa el checklist y muestra el cierre:
@@ -274,6 +322,9 @@ Checklist de cierre:
   [ ] Sin config:cache; cachés limpiadas
   [ ] pint --dirty pasado
   [ ] Typos consolidados intactos (GoogleAuthControlle, UserUpdatePassowrd, electro_cardiogranas)
+  [ ] docs/openapi.yaml actualizado (o consta por qué no hacía falta)
+  [ ] Diagramas de docs/ afectados actualizados (flujos, clases, arquitectura, modelo de datos)
+  [ ] El contrato parsea y redocly lint está en verde (o consta que no había Node)
 
 Siguiente paso: verificar los criterios de aceptación de la spec uno por uno.
 Si todos pasan, actualiza el estado de la spec a "Implementado" (o el equivalente
@@ -300,8 +351,10 @@ Reporta con honestidad **qué verificaste de verdad y qué no**: los procedimien
              Lee CLAUDE.md, invoca la skill ergosanitas-dev, identifica el dominio vecino
   Fase 4  →  Implementa paso a paso delegando en ergosanitas-developer /
              ergosanitas-laravel / ergosanitas-mysql, con pausas para revisar el diff
-             Cierra con php -l, pint --dirty, *:clear, route:list, tinker y test,
-             más el checklist de cierre del repo
+  Fase 5  →  Delega en ergo-docs: actualiza docs/openapi.yaml y los diagramas
+             Mermaid afectados (flujos, clases, arquitectura, modelo de datos)
+  Cierre  →  php -l, pint --dirty, *:clear, route:list, tinker, test,
+             validación del contrato y el checklist de cierre del repo
 
 /spec-impl-ergo 04-bioimpedancia-pdf  (estado: Borrador / Draft)
 
@@ -315,9 +368,10 @@ Reporta con honestidad **qué verificaste de verdad y qué no**: los procedimien
 
 ## Diferencias respecto a `/spec-impl`
 
-Mismo esqueleto de cuatro fases, mismas reglas de bloqueo y de no-commit. Lo que añade este comando:
+Mismas reglas de bloqueo y de no-commit, y las mismas cuatro fases de `/spec-impl` más una quinta propia. Lo que añade este comando:
 
 1. **Contexto obligatorio del repo** antes del Paso 1 (Fase 3, punto 5): `CLAUDE.md`, skill `ergosanitas-dev`, dominio vecino y sobre de respuesta.
-2. **Delegación por tipo de paso** a los agentes `ergosanitas-developer`, `ergosanitas-laravel` y `ergosanitas-mysql`.
+2. **Delegación por tipo de paso** a los agentes `ergosanitas-developer`, `ergosanitas-laravel`, `ergosanitas-mysql` y `ergo-docs`.
 3. **Guardas del repo** aplicadas en cada paso (providers a mano, perfiles 3 y 6, facturación de certificados, MySQL 5.7, typos consolidados, nada de `config:cache`).
-4. **Verificación de cierre y checklist** propios de Ergosanitas, más el aviso sobre el bump de versión del CI y el despliegue directo desde `main`.
+4. **Fase 5 de documentación, obligatoria**: `ergo-docs` pone al día el contrato OpenAPI y los diagramas de `docs/` antes del cierre. Nada de esa carpeta se genera solo, así que si no se hace en este commit, `docs/` queda desactualizada.
+5. **Verificación de cierre y checklist** propios de Ergosanitas —código y documentación—, más el aviso sobre el bump de versión del CI y el despliegue directo desde `main`.

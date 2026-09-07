@@ -23,6 +23,15 @@
       border-radius: 3px;
       font-size: 13px;
     }
+    #diagramas {
+      font: 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #eef4fb;
+      border-bottom: 1px solid #c5d9ef;
+      color: #23456b;
+      padding: 10px 20px;
+      line-height: 1.5;
+    }
+    #diagramas a { color: #12508f; }
   </style>
 </head>
 <body>
@@ -35,6 +44,14 @@
     <code>/electro-cardiograma/save</code>, <code>/carga-masiva-ecg</code>,
     <code>/estadisticas/pago-mensual</code>) y uno que <strong>borra facturación</strong>
     (<code>/estadisticas/delete-pago-mensual</code>).
+  </div>
+  <div id="diagramas">
+    Este visor cubre el contrato operación por operación. Para la vista de conjunto —cómo se
+    encadenan los flujos, qué clase llama a cuál y cómo se relacionan las tablas— están los
+    diagramas: <a href="arquitectura.md">arquitectura</a>,
+    <a href="flujos.md">flujos end-to-end</a>,
+    <a href="diagrama-clases.md">clases</a> y
+    <a href="modelo-datos.md">modelo de datos</a>.
   </div>
   <div id="swagger-ui"></div>
 

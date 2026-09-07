@@ -1,0 +1,323 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Ergosanitas — Arquitectura del backend",
+    "output": "arquitectura.html",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "camino-principal",
+        "label": "Camino principal",
+        "focus": [
+          "clientes",
+          "rutas",
+          "controladores",
+          "servicios",
+          "modelos",
+          "mysql"
+        ],
+        "note": "El recorrido de una request: routes/api.php y las tres capas hasta MySQL."
+      },
+      {
+        "id": "integraciones",
+        "label": "Integraciones externas",
+        "focus": [
+          "controladores",
+          "servicios",
+          "openai",
+          "webpay",
+          "smtp"
+        ],
+        "note": "OpenAI se invoca desde dos capas distintas; WebPay habla HTTP crudo."
+      },
+      {
+        "id": "persistencia",
+        "label": "Persistencia y archivos",
+        "focus": [
+          "modelos",
+          "mysql",
+          "procedimientos",
+          "archivos"
+        ],
+        "note": "Las estadisticas viven en procedimientos almacenados, no en PHP."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "clientes",
+      "type": "external",
+      "label": "Clientes",
+      "sublabel": "Web / movil",
+      "pos": [
+        40,
+        100
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "rutas",
+      "type": "backend",
+      "label": "routes/api.php",
+      "sublabel": "81 operaciones bajo /api",
+      "pos": [
+        40,
+        280
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "tag": "sin middleware"
+    },
+    {
+      "id": "controladores",
+      "type": "backend",
+      "label": "18 controladores",
+      "sublabel": "app/Http/Controllers",
+      "pos": [
+        260,
+        280
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "servicios",
+      "type": "backend",
+      "label": "12 servicios",
+      "sublabel": "app/Services",
+      "pos": [
+        480,
+        280
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "modelos",
+      "type": "backend",
+      "label": "21 modelos Eloquent",
+      "sublabel": "app/Models",
+      "pos": [
+        700,
+        280
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "mysql",
+      "type": "database",
+      "label": "MySQL 5.7",
+      "sublabel": "18 tablas de negocio",
+      "pos": [
+        920,
+        280
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "webpay",
+      "type": "external",
+      "label": "Transbank WebPay",
+      "sublabel": "HTTP crudo, sin SDK",
+      "pos": [
+        260,
+        100
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "openai",
+      "type": "external",
+      "label": "OpenAI",
+      "sublabel": "gpt-4o-mini · gpt-4.1-mini",
+      "pos": [
+        480,
+        100
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "smtp",
+      "type": "external",
+      "label": "SMTP",
+      "sublabel": "correo transaccional",
+      "pos": [
+        260,
+        460
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "documentos",
+      "type": "backend",
+      "label": "Documentos",
+      "sublabel": "mPDF · PHPWord · Excel",
+      "pos": [
+        480,
+        460
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "archivos",
+      "type": "database",
+      "label": "public/",
+      "sublabel": "certificados · logos · ECG",
+      "pos": [
+        700,
+        460
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "tag": "sin volumen"
+    },
+    {
+      "id": "procedimientos",
+      "type": "database",
+      "label": "19 procedimientos",
+      "sublabel": "solo 1 versionado",
+      "pos": [
+        920,
+        460
+      ],
+      "size": [
+        150,
+        64
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "clientes-rutas",
+      "from": "clientes",
+      "to": "rutas",
+      "label": "HTTPS /api",
+      "variant": "emphasis",
+      "labelDy": 24
+    },
+    {
+      "id": "rutas-controladores",
+      "from": "rutas",
+      "to": "controladores",
+      "label": "sin auth"
+    },
+    {
+      "id": "controladores-servicios",
+      "from": "controladores",
+      "to": "servicios",
+      "label": "inyeccion por constructor",
+      "labelDy": 56
+    },
+    {
+      "id": "servicios-modelos",
+      "from": "servicios",
+      "to": "modelos"
+    },
+    {
+      "id": "modelos-mysql",
+      "from": "modelos",
+      "to": "mysql",
+      "label": "Eloquent + Query Builder",
+      "labelDy": -30
+    },
+    {
+      "id": "modelos-sp",
+      "from": "modelos",
+      "to": "procedimientos",
+      "label": "CALL SP_*",
+      "labelDy": 24
+    },
+    {
+      "id": "sp-mysql",
+      "from": "procedimientos",
+      "to": "mysql"
+    },
+    {
+      "id": "controladores-webpay",
+      "from": "controladores",
+      "to": "webpay",
+      "label": "Http::withHeaders()"
+    },
+    {
+      "id": "servicios-openai",
+      "from": "servicios",
+      "to": "openai",
+      "label": "prompts de app/IA"
+    },
+    {
+      "id": "controladores-smtp",
+      "from": "controladores",
+      "to": "smtp",
+      "label": "Mail::to()",
+      "labelDy": 24
+    },
+    {
+      "id": "servicios-documentos",
+      "from": "servicios",
+      "to": "documentos"
+    },
+    {
+      "id": "servicios-archivos",
+      "from": "servicios",
+      "to": "archivos",
+      "label": "$file->move()",
+      "labelDy": 24
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Las tres capas",
+      "items": [
+        "Controller entrega a Service y Service a Model",
+        "Seis controladores hablan directo con los modelos"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Sin autenticacion",
+      "items": [
+        "Ninguna ruta de negocio lleva middleware",
+        "user_email y perfiles_id llegan en el request"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Trampas de produccion",
+      "items": [
+        "public/ sin volumen: un redeploy pierde los archivos",
+        "Nunca config:cache: hay env() fuera de config/"
+      ]
+    }
+  ]
+}
