@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Ergosanitas — Ciclo de vida del chequeo",
+    "output": "ciclo-chequeo.html",
+    "viewBox": [
+      1080,
+      566
+    ],
+    "quality_profile": "showcase",
+    "locale": "en",
+    "views": [
+      {
+        "id": "camino",
+        "label": "Camino feliz",
+        "focus": [
+          "ingresado",
+          "testiado",
+          "ecgfoto",
+          "revision"
+        ],
+        "note": "Los cuatro valores de texto libre por los que avanza chequeo_cardiovascular.status."
+      },
+      {
+        "id": "escritores",
+        "label": "Quien escribe el estado",
+        "focus": [
+          "ingresado",
+          "testiado",
+          "ecgfoto",
+          "revision"
+        ],
+        "note": "Seis puntos del codigo PHP escriben status. CertificadoUrlController duplica a mano la logica del servicio."
+      },
+      {
+        "id": "facturacion",
+        "label": "Efecto en la facturacion",
+        "focus": [
+          "ecgfoto",
+          "cobro"
+        ],
+        "note": "Pasar a ECG FOTO factura el mes del club: reintentar la subida vuelve a cobrar."
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "main",
+      "label": "Estados del chequeo"
+    },
+    {
+      "id": "efectos",
+      "label": "Efecto colateral"
+    }
+  ],
+  "states": [
+    {
+      "id": "ingresado",
+      "type": "start",
+      "label": "ingresado",
+      "sublabel": "default de la columna",
+      "lane": "main",
+      "col": 0,
+      "step": "01",
+      "tag": "alta y Excel"
+    },
+    {
+      "id": "testiado",
+      "type": "active",
+      "label": "Testiado",
+      "sublabel": "perfil 2 (tester)",
+      "lane": "main",
+      "col": 1,
+      "step": "02",
+      "tag": "fija fecha"
+    },
+    {
+      "id": "ecgfoto",
+      "type": "active",
+      "label": "ECG FOTO",
+      "sublabel": "subida del certificado",
+      "lane": "main",
+      "col": 2,
+      "step": "03",
+      "tag": "factura"
+    },
+    {
+      "id": "revision",
+      "type": "success",
+      "label": "REVISION MEDICA",
+      "sublabel": "informe del cardiologo",
+      "lane": "main",
+      "col": 3,
+      "step": "04",
+      "tag": "final"
+    },
+    {
+      "id": "cobro",
+      "type": "waiting",
+      "label": "PagoMensual ADD",
+      "sublabel": "factura el mes del club",
+      "lane": "efectos",
+      "col": 0,
+      "tag": "dinero"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "ecgfoto",
+      "to": "cobro",
+      "variant": "security",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Texto libre, sin guardas",
+      "items": [
+        "Ninguna transicion valida el estado previo",
+        "Seis puntos del codigo PHP escriben la columna"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Subir el certificado factura",
+      "items": [
+        "ECG FOTO llama a PagoMensual del club",
+        "Reintentar la subida vuelve a cobrar el mes"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Un escritor duplicado",
+      "items": [
+        "CertificadoUrlController repite a mano la logica",
+        "El SP del juego evalua datos, no el status"
+      ]
+    }
+  ]
+}

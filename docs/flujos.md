@@ -16,6 +16,7 @@ Un diagrama de secuencia por flujo de negocio, con el endpoint que lo dispara y 
 | 10 | [Asistente por club](#10-asistente-por-club) | `POST sam-assistant-club/as-question` |
 | 11 | [Pago WebPay](#11-pago-webpay) | `POST transbank/web-pay-request` |
 | 12 | [Agenda, correo y estadísticas](#12-agenda-correo-y-estadísticas) | `POST agenda-horas` · `POST email/reserva-hora` |
+| 13 | [Juego de cartas por niveles](#13-juego-de-cartas-por-niveles) | `GET juego-cartas/{user_email}` |
 
 ---
 
@@ -565,6 +566,62 @@ sequenceDiagram
 La lista completa de procedimientos y a qué endpoint corresponde cada uno está en [modelo-datos.md](modelo-datos.md#procedimientos-almacenados).
 
 > Los 19 procedimientos que invoca la API están listados en [modelo-datos.md](modelo-datos.md#procedimientos-almacenados). La base declara 23: los cuatro restantes (`SP_cargar_desde_chequeo`, `SP_filtros_dashboard`, `SP_procesar_mes` y `tmp_call_sp`) no los llama ningún endpoint.
+
+---
+
+## 13. Juego de cartas por niveles
+
+Evaluación gamificada por club. Cada paciente se convierte en una **carta** con cuatro atributos comparables 0–100, puntaje, estrellas, badge clínico y barra de completitud. **Nada se persiste**: cada llamada recalcula al vuelo.
+
+Los umbrales y colores no están en el SP sino en la tabla `juego_niveles`, así que se retunean con un `UPDATE` sin tocar el procedimiento ni el código PHP.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Colegio / Club
+    participant C as JuegoCartasController
+    participant S as JuegoCartasService
+    participant M as JuegoCartaClub
+    participant DB as MySQL
+    participant SP as SP_juego_cartas_club
+
+    U->>C: GET juego-cartas/{user_email}?search=
+    C->>S: CartasClub(search, club)
+    S->>M: SP_juego_cartas_club(search, club)
+    M->>DB: CALL SP_juego_cartas_club(?, ?)
+    DB->>SP: ejecuta
+
+    Note over SP: Capa 1 — una carta por RUT<br/>GROUP_CONCAT + SUBSTRING_INDEX<br/>(sin window functions en 5.7)
+    SP->>DB: chequeo_cardiovascular (ultimo por rut)
+    SP->>DB: LEFT JOIN electro_cardiogranas (acotado con MAX(id))
+    SP->>DB: LEFT JOIN bioimpedancia (acotado con MAX(id))
+    SP->>DB: EXISTS certificado_url (bloque de completitud)
+
+    Note over SP: Capa 2 — cuatro atributos 0-100<br/>ROUND(100 * pts / max_presentes)<br/>NULL si no hay ningun sub-indicador
+    Note over SP: Capa 3 — puntaje = AVG(medidos) + bonus<br/>bonus 0-10 por CALIDAD de bioimpedancia
+    Note over SP: Capa 4 — banda -1 si no hay atributos<br/>estrellas = CEIL(puntaje/20)
+
+    SP->>DB: JOIN juego_niveles (tipo=clinico) por banda
+    SP->>DB: JOIN juego_niveles (tipo=completitud) por bloques
+    SP-->>DB: JSON_ARRAYAGG -> resultado_json
+    DB-->>M: 1 fila, 1 columna
+    M-->>S: array
+
+    S->>S: json_decode defensivo
+    Note over S: JSON_ARRAYAGG NO respeta ORDER BY en 5.7:<br/>el usort de PHP es el unico orden determinista
+    S->>S: usort: puntaje DESC, atributos_medidos DESC<br/>sin_evaluar al final
+    S-->>C: array de cartas
+    C-->>U: 200 {success, message, data:{club, search, total, cartas}}
+```
+
+**El efecto que no se ve en el diagrama:** un alumno cargado por Excel (`ChequeoImport` solo puebla nombre, rut, fechaNacimiento, sexo_paciente, edad, division_paciente y user_email) **no tiene ningún signo vital**. Sus cuatro atributos quedan en `null`, el puntaje es `null` y la banda es el centinela `-1` → badge `SIN EVALUAR`. Sin esa regla caería en `BAJO`, que ante el colegio se leería como "este alumno está mal de salud" cuando en realidad significa "nunca lo midieron". Hoy son 201 de 1.554 pacientes.
+
+Los otros dos endpoints reutilizan el mismo procedimiento y el mismo service:
+
+- `GET juego-cartas/detalle/{rut_paciente}` → `SP_juego_cartas_club(rut, NULL)`, **sin filtro de club**. Un RUT inexistente devuelve 200 con `data: null`.
+- `GET juego-cartas/niveles` → no toca el SP: lee `juego_niveles` y `juego_atributos` con Eloquent.
+
+> **El orden de declaración de las rutas es obligatorio.** `juego-cartas/niveles` y `juego-cartas/detalle/{rut}` van **antes** de `juego-cartas/{user_email}` en `routes/api.php`, o `niveles` se resolvería como un club llamado `"niveles"`.
 
 ---
 

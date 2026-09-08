@@ -43,6 +43,8 @@ use App\Http\Controllers\BioimpedanciaController;
 
 use App\Http\Controllers\FichaClinicaController;
 
+use App\Http\Controllers\JuegoCartasController;
+
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
@@ -322,3 +324,15 @@ Route::post('bioimpedancia/create-bio',[BioimpedanciaController::class,'CreateBi
 
 Route::get('ficha-clinica/{rut_paciente}',[FichaClinicaController::class,'FichaClinica'])
     ->name('FichaClinica');
+
+
+// El orden importa: las rutas literales van antes de la que captura {user_email},
+// o juego-cartas/niveles se resolveria con user_email = "niveles".
+Route::get('juego-cartas/niveles',[JuegoCartasController::class,'Niveles'])
+    ->name('Niveles');
+
+Route::get('juego-cartas/detalle/{rut_paciente}',[JuegoCartasController::class,'CartaDetalle'])
+    ->name('CartaDetalle');
+
+Route::get('juego-cartas/{user_email}',[JuegoCartasController::class,'CartasClub'])
+    ->name('CartasClub');

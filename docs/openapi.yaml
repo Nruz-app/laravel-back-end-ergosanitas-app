@@ -3,7 +3,7 @@ openapi: 3.0.3
 info:
   title: Ergosanitas — API REST
   version: "1.0.0"
-  x-generated-from: "routes/api.php — 81 endpoints"
+  x-generated-from: "routes/api.php — 84 endpoints"
   description: |
     API REST en **Laravel 11 / PHP 8.2** de **Ergo SaniTas SpA**: gestión de chequeos
     cardiovasculares deportivos, electrocardiogramas, bioimpedancia, certificados médicos,
@@ -255,6 +255,12 @@ tags:
       certificado en PDF.
   - name: Ficha clínica
     description: Ficha clínica consolidada del paciente, armada íntegramente por `SP_ficha_clinica`.
+  - name: Juego de cartas
+    description: |
+      Convierte a cada paciente de un club en una "carta" con cuatro atributos comparables
+      0-100, puntaje, estrellas, badge clínico y barra de completitud. Todo se calcula al
+      vuelo en `SP_juego_cartas_club`; los umbrales y colores viven en la tabla
+      `juego_niveles` y el catálogo de atributos en `juego_atributos`.
   - name: Incidencias deportivas
     description: Registro de lesiones deportivas y sus estadísticas por liga, categoría y parte del cuerpo.
   - name: Estadísticas y pagos
@@ -965,6 +971,136 @@ components:
     # ------------------------------------------------------------------
     # Resultados de procedimientos almacenados
     # ------------------------------------------------------------------
+
+    JuegoNivel:
+      type: object
+      description: |
+        Fila de `juego_niveles`. Discriminada por `tipo`: `clinico` (badge del puntaje) o
+        `completitud` (etiqueta de la barra de progreso). La banda clínica `sin_evaluar`
+        usa `-1/-1` como centinela: no es un puntaje, marca la carta sin ningún dato.
+      properties:
+        id: { type: integer, example: 2 }
+        tipo: { type: string, enum: [clinico, completitud], example: "clinico" }
+        slug: { type: string, example: "medio" }
+        nombre: { type: string, example: "MEDIO" }
+        valor_min: { type: integer, example: 75 }
+        valor_max: { type: integer, example: 94 }
+        color_fondo: { type: string, example: "#fef3c7" }
+        color_texto: { type: string, example: "#b45309" }
+        orden: { type: integer, example: 2 }
+        activo: { type: boolean, example: true }
+
+    JuegoAtributo:
+      type: object
+      description: |
+        Fila de `juego_atributos`: el catálogo de los cuatro atributos de la carta, para que
+        el front no hardcodee iconos ni etiquetas. Los `slug` coinciden con los del array
+        `atributos` de cada carta.
+      properties:
+        id: { type: integer, example: 1 }
+        slug: { type: string, enum: [corazon, vitalidad, composicion, resistencia], example: "corazon" }
+        nombre: { type: string, example: "Corazon" }
+        icono: { type: string, example: "❤️" }
+        descripcion: { type: string, example: "Electrocardiograma y antecedente cardiovascular" }
+        orden: { type: integer, example: 1 }
+        activo: { type: boolean, example: true }
+
+    JuegoCarta:
+      type: object
+      description: |
+        Una carta de paciente, calculada al vuelo por `SP_juego_cartas_club` sobre su
+        **chequeo más reciente**. No se persiste: cada llamada recalcula.
+
+        Dos ejes independientes, como el HTML de referencia:
+
+        - **Puntaje clínico** (`puntaje`, `estrellas`, `nivel`) — qué tan bien está lo medido.
+        - **Completitud** (`bloques_completos`, `progreso`, `estado`) — cuánto se ha medido.
+
+        Cada atributo vale `ROUND(100 * puntos_obtenidos / puntos_máximos_de_los_presentes)`,
+        o `null` si ningún sub-indicador está informado. `puntaje` es el promedio de los
+        atributos medidos más `bonus`, acotado a 100.
+
+        Si no hay **ningún** atributo medido (típico de un alumno cargado solo por Excel),
+        `puntaje` es `null`, `estrellas` es `0` y el badge es `SIN EVALUAR`: la carta no se
+        clasifica como `BAJO` por falta de datos.
+      properties:
+        rut: { type: string, example: "25527383-3" }
+        nombre: { type: string, example: "Matías Fuentes Rojas" }
+        edad: { type: string, description: "varchar en la base.", example: "16" }
+        sexo:
+          type: string
+          description: "Sale de `chequeo_cardiovascular.sexo_paciente`."
+          example: "Masculino"
+        club:
+          type: string
+          description: "`chequeo_cardiovascular.user_email`."
+          example: "brisas@ergosanitas.com"
+        id_chequeo: { type: integer, example: 3718 }
+        ficha:
+          type: string
+          description: "`CONCAT('#', LPAD(id, 6, '0'))`, para el `Ficha #001` de la UI."
+          example: "#003718"
+        fecha_atencion: { type: string, nullable: true, example: "2026-08-14 10:32:00" }
+        total_chequeos: { type: integer, example: 7 }
+        puntaje:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 100
+          description: "`null` cuando no hay ningún atributo medido."
+          example: 90
+        estrellas:
+          type: integer
+          minimum: 0
+          maximum: 5
+          description: "`CEIL(puntaje / 20)` acotado a 1-5; `0` si la carta está sin evaluar."
+          example: 5
+        nivel:
+          allOf: [{ $ref: '#/components/schemas/JuegoNivel' }]
+          description: "Banda `clinico` de `juego_niveles`. Nunca `null`: las bandas cubren -1 y 0-100 sin huecos."
+        atributos:
+          type: array
+          description: "Siempre los cuatro, en el orden de `juego_atributos`."
+          items:
+            type: object
+            properties:
+              slug: { type: string, example: "corazon" }
+              valor: { type: integer, nullable: true, minimum: 0, maximum: 100, example: 100 }
+              medido:
+                type: boolean
+                description: "`false` equivale a `valor: null`; la UI pinta `––`."
+                example: true
+        atributos_medidos: { type: integer, minimum: 0, maximum: 4, example: 4 }
+        bonus:
+          type: integer
+          minimum: 0
+          maximum: 10
+          description: |
+            Puntos extra por la **calidad** de la bioimpedancia, no por tenerla. `0` si no hay
+            fila en `bioimpedancia`. Queda fuera del 100 para no penalizar al 99,5% de
+            pacientes que no tienen ese examen.
+          example: 0
+        insignia:
+          type: string
+          nullable: true
+          description: "`InBody` cuando el paciente tiene bioimpedancia; `null` si no."
+          example: null
+        bloques_completos: { type: integer, minimum: 1, maximum: 5, example: 4 }
+        progreso:
+          type: integer
+          description: "`bloques_completos * 20`. Mínimo 20: el bloque `chequeo` siempre existe."
+          example: 80
+        estado:
+          allOf: [{ $ref: '#/components/schemas/JuegoNivel' }]
+          description: "Banda `completitud` de `juego_niveles`."
+        completitud:
+          type: object
+          properties:
+            chequeo: { type: boolean, description: "Siempre `true`.", example: true }
+            signos_vitales: { type: boolean, example: true }
+            ecg: { type: boolean, example: true }
+            bioimpedancia: { type: boolean, example: false }
+            certificado: { type: boolean, example: true }
 
     ResultadoSP:
       description: |
@@ -4114,6 +4250,273 @@ paths:
                 success: false
                 message: "Error procesando IA"
                 error: "SQLSTATE[42000]: PROCEDURE ergosanitas.SP_ficha_clinica does not exist"
+
+  # ====================================================================
+  # JUEGO DE CARTAS
+  # ====================================================================
+
+  /juego-cartas/niveles:
+    get:
+      tags: [Juego de cartas]
+      summary: Configuración de las cartas (bandas y catálogo de atributos)
+      operationId: juegoCartasNiveles
+      description: |
+        Devuelve las filas activas de `juego_niveles` agrupadas por eje, más el catálogo de
+        `juego_atributos`. Existe para que el front **no hardcodee** umbrales, colores ni
+        iconos: retunear una banda es un `UPDATE` en la tabla, sin tocar el SP ni el código.
+
+        **Ojo con el orden de las rutas**: esta se declara antes que
+        `/juego-cartas/{user_email}` en `routes/api.php`. Si se invierten, `niveles` se
+        resolvería como un club llamado `"niveles"`.
+      responses:
+        '200':
+          description: Configuración de los dos ejes y de los atributos.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Niveles obtenidos correctamente" }
+                  data:
+                    type: object
+                    properties:
+                      clinico:
+                        type: array
+                        items: { $ref: '#/components/schemas/JuegoNivel' }
+                      completitud:
+                        type: array
+                        items: { $ref: '#/components/schemas/JuegoNivel' }
+                      atributos:
+                        type: array
+                        items: { $ref: '#/components/schemas/JuegoAtributo' }
+              example:
+                success: true
+                message: "Niveles obtenidos correctamente"
+                data:
+                  clinico:
+                    - { id: 1, tipo: clinico, slug: sin_evaluar, nombre: "SIN EVALUAR", valor_min: -1, valor_max: -1, color_fondo: "#f3f4f6", color_texto: "#9ca3af", orden: 0, activo: true }
+                    - { id: 2, tipo: clinico, slug: bajo, nombre: "BAJO", valor_min: 0, valor_max: 74, color_fondo: "#fee2e2", color_texto: "#dc2626", orden: 1, activo: true }
+                    - { id: 3, tipo: clinico, slug: medio, nombre: "MEDIO", valor_min: 75, valor_max: 94, color_fondo: "#fef3c7", color_texto: "#b45309", orden: 2, activo: true }
+                    - { id: 4, tipo: clinico, slug: alto, nombre: "ALTO", valor_min: 95, valor_max: 100, color_fondo: "#dcfce7", color_texto: "#15803d", orden: 3, activo: true }
+                  completitud:
+                    - { id: 5, tipo: completitud, slug: inicial, nombre: "Inicial", valor_min: 0, valor_max: 2, color_fondo: "#e5e7eb", color_texto: "#6b7280", orden: 1, activo: true }
+                    - { id: 6, tipo: completitud, slug: evaluado, nombre: "Evaluado", valor_min: 3, valor_max: 4, color_fondo: "#e0e7ff", color_texto: "#4f46e5", orden: 2, activo: true }
+                    - { id: 7, tipo: completitud, slug: completo, nombre: "Completo", valor_min: 5, valor_max: 5, color_fondo: "#dcfce7", color_texto: "#15803d", orden: 3, activo: true }
+                  atributos:
+                    - { id: 1, slug: corazon, nombre: "Corazon", icono: "❤️", descripcion: "Electrocardiograma y antecedente cardiovascular", orden: 1, activo: true }
+                    - { id: 2, slug: vitalidad, nombre: "Vitalidad", icono: "🫁", descripcion: "Saturacion de oxigeno y presion arterial", orden: 2, activo: true }
+                    - { id: 3, slug: composicion, nombre: "Composicion", icono: "💪", descripcion: "Indice de masa corporal y bioimpedancia", orden: 3, activo: true }
+                    - { id: 4, slug: resistencia, nombre: "Resistencia", icono: "🛡️", descripcion: "Hemoglucotest y antecedentes generales", orden: 4, activo: true }
+        '500':
+          description: Las tablas `juego_niveles` / `juego_atributos` no existen.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SobreErrorA'
+              example:
+                success: false
+                message: "Error obteniendo los niveles"
+                error: "SQLSTATE[42S02]: Base table or view not found: 1146 Table 'ergosan1_bdd.juego_niveles' doesn't exist"
+
+  /juego-cartas/detalle/{rut_paciente}:
+    get:
+      tags: [Juego de cartas]
+      summary: Carta de un paciente por RUT
+      operationId: juegoCartaDetalle
+      description: |
+        `CALL SP_juego_cartas_club(:rut_paciente, NULL)` — **sin filtro de club**: cualquiera
+        que conozca un RUT obtiene la evaluación de ese paciente. Es el mismo modelo de acceso
+        que el resto de `routes/api.php`, que no lleva middleware de autenticación.
+
+        Un RUT que no existe devuelve **200 con `data: null`**, no un 404.
+
+        La carta trae los mismos campos que en el listado, `atributos` incluidos: hay una sola
+        fórmula, no una versión reducida para la grilla.
+      parameters:
+        - $ref: '#/components/parameters/RutPaciente'
+      responses:
+        '200':
+          description: La carta del paciente, o `null` si el RUT no tiene chequeos.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Carta obtenida correctamente" }
+                  data:
+                    allOf: [{ $ref: '#/components/schemas/JuegoCarta' }]
+                    nullable: true
+              examples:
+                encontrada:
+                  summary: Paciente con chequeo
+                  value:
+                    success: true
+                    message: "Carta obtenida correctamente"
+                    data:
+                      rut: "25527383-3"
+                      nombre: "Matías Fuentes Rojas"
+                      edad: "16"
+                      sexo: "Masculino"
+                      club: "brisas@ergosanitas.com"
+                      id_chequeo: 3718
+                      ficha: "#003718"
+                      fecha_atencion: "2026-08-14 10:32:00"
+                      total_chequeos: 7
+                      puntaje: 90
+                      estrellas: 5
+                      nivel: { slug: medio, nombre: "MEDIO", color_fondo: "#fef3c7", color_texto: "#b45309" }
+                      atributos:
+                        - { slug: corazon, valor: 100, medido: true }
+                        - { slug: vitalidad, valor: 60, medido: true }
+                        - { slug: composicion, valor: 100, medido: true }
+                        - { slug: resistencia, valor: 100, medido: true }
+                      atributos_medidos: 4
+                      bonus: 0
+                      insignia: null
+                      bloques_completos: 4
+                      progreso: 80
+                      estado: { slug: evaluado, nombre: "Evaluado", color_fondo: "#e0e7ff", color_texto: "#4f46e5" }
+                      completitud: { chequeo: true, signos_vitales: true, ecg: true, bioimpedancia: false, certificado: true }
+                sin_evaluar:
+                  summary: Alumno cargado solo por Excel, sin ningún signo vital
+                  value:
+                    success: true
+                    message: "Carta obtenida correctamente"
+                    data:
+                      rut: "12799656-3"
+                      nombre: "Alumno Sin Datos"
+                      edad: "14"
+                      sexo: "Masculino"
+                      club: "testing@gmail.com"
+                      id_chequeo: 2201
+                      ficha: "#002201"
+                      fecha_atencion: null
+                      total_chequeos: 1
+                      puntaje: null
+                      estrellas: 0
+                      nivel: { slug: sin_evaluar, nombre: "SIN EVALUAR", color_fondo: "#f3f4f6", color_texto: "#9ca3af" }
+                      atributos:
+                        - { slug: corazon, valor: null, medido: false }
+                        - { slug: vitalidad, valor: null, medido: false }
+                        - { slug: composicion, valor: null, medido: false }
+                        - { slug: resistencia, valor: null, medido: false }
+                      atributos_medidos: 0
+                      bonus: 0
+                      insignia: null
+                      bloques_completos: 1
+                      progreso: 20
+                      estado: { slug: inicial, nombre: "Inicial", color_fondo: "#e5e7eb", color_texto: "#6b7280" }
+                      completitud: { chequeo: true, signos_vitales: false, ecg: false, bioimpedancia: false, certificado: false }
+                inexistente:
+                  summary: RUT sin chequeos registrados
+                  value:
+                    success: true
+                    message: "Paciente sin chequeos registrados"
+                    data: null
+        '500':
+          description: El SP no existe o falló.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SobreErrorA'
+              example:
+                success: false
+                message: "Error obteniendo la carta"
+                error: "SQLSTATE[42000]: PROCEDURE ergosan1_bdd.SP_juego_cartas_club does not exist"
+
+  /juego-cartas/{user_email}:
+    get:
+      tags: [Juego de cartas]
+      summary: Todas las cartas de un club
+      operationId: juegoCartasClub
+      description: |
+        `CALL SP_juego_cartas_club(:search, :user_email)`. Devuelve **una carta por RUT
+        distinto** del club, sobre el chequeo más reciente de cada paciente.
+
+        El orden lo hace el service en PHP, no el SP: en MySQL 5.7 `JSON_ARRAYAGG` **no
+        respeta `ORDER BY`**. Se ordena por `puntaje` descendente, con `atributos_medidos`
+        descendente como desempate (una carta con los cuatro atributos gana a una que empata
+        con solo dos), y las cartas `sin_evaluar` van siempre al final.
+
+        Sin paginación: el club más grande tiene 147 pacientes. Un club inexistente devuelve
+        200 con `total: 0` y `cartas: []`.
+
+        A diferencia del resto del dominio de chequeos, aquí **no** se aplica el filtrado por
+        `perfiles_id` 3/6: el ámbito es siempre el `user_email` recibido en la ruta.
+      parameters:
+        - $ref: '#/components/parameters/UserEmailPath'
+        - name: search
+          in: query
+          required: false
+          description: |
+            Filtro opcional; `LIKE '%search%'` contra `rut` y `nombre`, igual que
+            `SP_chequeos_club_prompt`. Vacío o ausente = sin filtro.
+          schema:
+            type: string
+            example: "25527383-3"
+      responses:
+        '200':
+          description: Cartas del club, ordenadas de mejor a peor.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Cartas obtenidas correctamente" }
+                  data:
+                    type: object
+                    properties:
+                      club: { type: string, example: "brisas@ergosanitas.com" }
+                      search: { type: string, nullable: true, example: null }
+                      total: { type: integer, example: 118 }
+                      cartas:
+                        type: array
+                        items: { $ref: '#/components/schemas/JuegoCarta' }
+              example:
+                success: true
+                message: "Cartas obtenidas correctamente"
+                data:
+                  club: "brisas@ergosanitas.com"
+                  search: null
+                  total: 118
+                  cartas:
+                    - rut: "23509948-9"
+                      nombre: "Alonso David Barrera Osorio"
+                      edad: "16"
+                      sexo: "Masculino"
+                      club: "brisas@ergosanitas.com"
+                      id_chequeo: 3702
+                      ficha: "#003702"
+                      fecha_atencion: "2026-08-14 10:32:00"
+                      total_chequeos: 2
+                      puntaje: 100
+                      estrellas: 5
+                      nivel: { slug: alto, nombre: "ALTO", color_fondo: "#dcfce7", color_texto: "#15803d" }
+                      atributos:
+                        - { slug: corazon, valor: 100, medido: true }
+                        - { slug: vitalidad, valor: 100, medido: true }
+                        - { slug: composicion, valor: 100, medido: true }
+                        - { slug: resistencia, valor: 100, medido: true }
+                      atributos_medidos: 4
+                      bonus: 0
+                      insignia: null
+                      bloques_completos: 4
+                      progreso: 80
+                      estado: { slug: evaluado, nombre: "Evaluado", color_fondo: "#e0e7ff", color_texto: "#4f46e5" }
+                      completitud: { chequeo: true, signos_vitales: true, ecg: true, bioimpedancia: false, certificado: true }
+        '500':
+          description: El SP no existe o falló.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SobreErrorA'
+              example:
+                success: false
+                message: "Error obteniendo las cartas"
+                error: "SQLSTATE[42000]: PROCEDURE ergosan1_bdd.SP_juego_cartas_club does not exist"
 
   # ====================================================================
   # ESTADÍSTICAS Y PAGOS

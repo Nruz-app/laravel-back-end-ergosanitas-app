@@ -1,9 +1,9 @@
 # SPEC 02 — Juego de cartas por niveles (SP_juego_cartas_club)
 
-> **Estado:** Borrador
+> **Estado:** Implementado
 > **Depende de:** —
-> **Fecha:** 2026-09-05
-> **Objetivo:** Exponer tres endpoints GET que conviertan a cada paciente de un club en una "carta" con puntaje clínico 0–100, nivel ALTO/MEDIO/BAJO, estrellas 1–5 y porcentaje de completitud, calculados al vuelo por un procedimiento almacenado nuevo contra umbrales configurables en la tabla `juego_niveles`.
+> **Fecha:** 2026-09-05 · **Reescrita:** 2026-09-07 tras la implementación
+> **Objetivo:** Exponer tres endpoints GET que conviertan a cada paciente de un club en una "carta" con cuatro atributos comparables 0–100, puntaje, nivel, estrellas y porcentaje de completitud, calculados al vuelo por un procedimiento almacenado contra umbrales configurables en la tabla `juego_niveles`.
 
 ---
 
@@ -11,44 +11,46 @@
 
 El HTML de referencia (`references/html/juego_cartas_evaluacion_pacientes.html`) pinta una
 grilla de cartas de paciente con cuatro indicadores visuales que **no son el mismo dato**:
+un badge `ALTO`/`MEDIO`/`BAJO`, un filtro `inicial`/`evaluado`/`completo`, estrellas de 1 a 5
+y una barra de progreso.
 
-- un badge `ALTO` / `MEDIO` / `BAJO`,
-- un filtro `inicial` / `evaluado` / `completo`,
-- estrellas de 1 a 5,
-- una barra de progreso con un porcentaje.
+En el mock esos valores no correlacionan (Ana tiene 55 % y es `BAJO`; Carlos tiene 25 % y es
+`MEDIO`), lo que confirma que son **dos ejes independientes**: uno mide la salud del paciente y
+el otro cuánta información tiene cargada.
 
-En el mock esos valores no correlacionan (Ana tiene 55% y es `BAJO`; Carlos tiene 25% y es
-`MEDIO`), lo que confirma que son **dos ejes independientes**: uno mide la salud del paciente
-y el otro cuánta información tiene cargada. Esta spec fija ambos ejes como cálculos
-deterministas sobre los datos que ya existen, sin inventar tablas de juego ni mecánicas nuevas.
+Lo que el mock no da es la **mecánica de juego**: un puntaje agregado no permite comparar
+alumnos entre sí. Por eso cada carta expone además **cuatro atributos 0–100** —
+❤️ Corazón, 🫁 Vitalidad, 💪 Composición, 🛡️ Resistencia — que sí son comparables carta a carta.
 
 No hay nada equivalente hoy: `SP_ficha_clinica` consolida los datos de **un** paciente pero no
-los evalúa, y `SP_chequeos_club_prompt` lista los de un club pero solo para alimentar al
-asistente de IA. Esta spec toma de `SP_ficha_clinica` el **estilo** (un SP que devuelve una
-única columna `resultado_json`) y de `SP_chequeos_club_prompt` la **firma**
-(`p_search`, `p_club`).
+los evalúa, y `SP_chequeos_club_prompt` lista los de un club solo para alimentar al asistente de
+IA. Esta spec toma de `SP_ficha_clinica` el **estilo** (un SP que devuelve una única columna
+`resultado_json`) y de `SP_chequeos_club_prompt` la **firma** (`p_search`, `p_club`).
 
-### 1.1 Lo que se verificó contra la base real antes de escribir esta spec
+### 1.1 Lo que se verificó contra la base real
 
-Comprobado el 2026-09-05 contra `ergosan1_bdd` (MySQL 5.7.44-48). Estos hallazgos no son
-contexto: condicionan la fórmula del §3.2.
+Comprobado contra `ergosan1_bdd` (MySQL 5.7.44-48) el 2026-09-05 y **reverificado el 2026-09-07**.
+Estos hallazgos condicionan la fórmula del §3.
 
 | Hallazgo | Consecuencia |
 | --- | --- |
-| `cc.imc` está **vacío en 1.635 de 1.635 filas**; el IMC real vive en `imc_paciente` (301 vacíos) | El SP nuevo lee `imc_paciente`. `SP_chequeos_club_prompt` lee `cc.imc`, y por eso ese campo sale siempre vacío en el asistente: bug heredado que aquí no se replica. |
-| `cc.pulso` está **vacío en 1.635 de 1.635 filas** | Se elimina como indicador. |
-| `presionArterial` = 75 y `presion_sistolica` = 121 en la misma fila | Están **invertidos**: `presionArterial` guarda la diastólica y `presion_sistolica` la sistólica. |
-| `bioimpedancia`: 7 filas, 2 de ellas con todos los indicadores en NULL | Con la regla "ausencia = 0" el bloque D da 0 al 99,5% de los pacientes. |
+| `cc.imc` está **vacío en 1.634 de 1.634 filas**; el IMC real vive en `imc_paciente` (298 vacíos) | El SP lee `imc_paciente`. `SP_chequeos_club_prompt` lee `cc.imc`, y por eso ese campo sale siempre vacío en el asistente: bug heredado que aquí no se replica. |
+| `cc.pulso` está **vacío en 1.634 de 1.634 filas** y ningún PHP lo lee | Se elimina como indicador. |
+| `presionArterial` = 75 y `presion_sistolica` = 121 en la misma fila | Están **invertidos**: `presionArterial` guarda la diastólica (rango real 63–83) y `presion_sistolica` la sistólica (110–135). Solo 1 fila anómala en toda la base. |
+| **No existe la columna `sexo`** en `chequeo_cardiovascular`: es `sexo_paciente` (`Masculino` 1.445 / `Femenino` 189) | La carta mapea `sexo` desde `sexo_paciente`. En `bioimpedancia` sí se llama `sexo`, con valores `Hombre`/`Mujer`. |
+| `bioimpedancia`: 10 filas, 9 RUT, y **solo 7 cruzan con un paciente con chequeos** | El bloque de bioimpedancia daría 0 al 99,5 % de los pacientes → se saca del 100 y pasa a ser bonus (§3.3). |
+| `bioimpedancia` es `updateOrCreate` por `rut` → **una fila por RUT** | "La fila más reciente" es indiferente; se acota igual con `MAX(id)` por las 10 filas / 9 RUT. |
 | `incidentes_deportivos`: 15 filas | Excluidas del puntaje por indicación expresa. |
-| `estado_paciente`: `Normal` (2.985) / `Alterado` (393) | Binario limpio, sin valores raros. |
-| `derivacion_paciente`: `na` (2.643), `No requiere` (286), `No` (39), el resto son derivaciones reales | El conjunto de valores "sin derivación" es conocido y cerrado. |
-| Antecedentes: `No Presenta` / `Sin Alteraciones` / `Sin Ateraciones` (typo, 5 filas) = sano; cadena vacía = sin dato | Clasificación en tres estados, no en dos. |
-| 2.065 ECG huérfanos; 1.313 chequeos con ECG; 1.336 con certificado | Justifica el `LEFT JOIN` en vez del `INNER JOIN` del SP hermano. |
-| `estatura` llega a 162 (mezcla metros y centímetros), `temperatura` a 99, `frecuencia_cardiaca_paciente` va de 9 a 800 | Ninguno entra en la fórmula, pero confirma que todo `CAST` necesita rango de validez. |
+| `estado_paciente`: `Normal` (2.998) / `Alterado` (393) | Binario limpio, sin valores raros. |
+| `derivacion_paciente`: `na` (2.656), `No requiere` (286), `No` (39), el resto derivaciones reales | El conjunto de valores "sin derivación" es conocido y cerrado. |
+| 2.065 ECG huérfanos; 3.391 ECG en total | Justifica el `LEFT JOIN` en vez del `INNER JOIN` del SP hermano. |
+| `App\Imports\ChequeoImport` solo puebla nombre, rut, fechaNacimiento, sexo_paciente, edad, division_paciente y user_email | **Un alumno cargado por Excel no tiene ningún signo vital.** Con "ausencia = 0" caería a `BAJO` por un problema administrativo. De ahí el estado `SIN EVALUAR` (§3.4). |
+| Máximo 4 chequeos por RUT, promedio 1,05 | El límite de 1.024 bytes de `GROUP_CONCAT` es inalcanzable aquí. |
+| `estatura` llega a 162 (mezcla metros y centímetros), `frecuencia_cardiaca_paciente` va de 9 a 800 | Ninguno entra en la fórmula, pero confirma que **todo `CAST` necesita rango de validez**. |
 
-**Datos de prueba:** club `brisas@ergosanitas.com` (116 pacientes), RUT `25527383-3`.
-Otros clubes con volumen: `Colegio.altair@ergosanitas.com` (109),
-`cobresal.buin@ergosanitas.com` (86), `ue.colina@ergosanitas.com` (78).
+**Datos de prueba:** club `brisas@ergosanitas.com` (118 pacientes), RUT `25527383-3`.
+Otros clubes con volumen: `Colegio.altair@ergosanitas.com` (147),
+`cobresal.buin@ergosanitas.com` (109), `Colocolo.pa.gabriela@ergosanitas.com` (102).
 
 ---
 
@@ -57,193 +59,151 @@ Otros clubes con volumen: `Colegio.altair@ergosanitas.com` (109),
 **Dentro:**
 
 - `GET api/juego-cartas/{user_email}` — todas las cartas del club, con `?search=` opcional.
-- `GET api/juego-cartas/detalle/{rut_paciente}` — una carta con el desglose de puntos.
-- `GET api/juego-cartas/niveles` — la tabla de configuración, para que el front no hardcodee colores ni umbrales.
-- SP nuevo `SP_juego_cartas_club(p_search, p_club)`, con su copia versionada en `base_datos/references/sp/`.
-- Tabla nueva `juego_niveles` con su migración, incluida la siembra de las 6 filas iniciales.
-- Modelos, service, provider y controlador nuevos siguiendo el vertical slice de `FichaClinica`.
-- Actualización de `docs/openapi.yaml`, `README.md` y `CLAUDE.md` en el mismo commit.
+- `GET api/juego-cartas/detalle/{rut_paciente}` — una carta por RUT.
+- `GET api/juego-cartas/niveles` — la configuración, para que el front no hardcodee nada.
+- SP `SP_juego_cartas_club(p_search, p_club)`, versionado en `base_datos/references/sp/`.
+- Tablas `juego_niveles` (7 filas) y `juego_atributos` (4 filas), sembradas en el `up()`.
+- Modelos, service, provider y controlador siguiendo el vertical slice de `FichaClinica`.
+- Actualización de `docs/openapi.yaml`, `docs/modelo-datos.md`, `README.md` y `CLAUDE.md`.
 
-**Fuera de alcance (para specs futuras):**
+**Fuera de alcance:**
 
 - **Persistir el puntaje**: no hay tabla snapshot ni histórico. Cada llamada recalcula.
-- **Evolución en el tiempo**: graficar cómo cambió el puntaje de un paciente entre chequeos.
-- **Ranking con posición**: no se devuelve `posicion_en_club` ni un top N. El listado va ordenado por puntaje y con eso basta para pintar la grilla.
-- **Incidencias deportivas en el puntaje**: excluidas por indicación expresa. `incidentes_deportivos` no se consulta.
-- **Paginación**: el club más grande tiene 116 pacientes y cabe en una respuesta.
-- **Autenticación**: las rutas quedan públicas como el resto de `routes/api.php`.
-- **Filtrado por `perfiles_id` 3/6**: el ámbito es siempre el `user_email` recibido.
-- **Tests automatizados**: `phpunit.xml` apunta al MySQL remoto y en SQLite no existen los procedimientos almacenados.
-- **Frontend**: el HTML de `references/` es la referencia visual; no se construye ni se versiona una página.
-- **Corregir los bugs heredados detectados en §1.1** (`SP_chequeos_club_prompt` leyendo `cc.imc`, y los nombres invertidos de las columnas de presión). Se documentan y se esquivan; arreglarlos toca endpoints que ya están en producción.
+- **Evolución en el tiempo**, XP y progresión: exigen ese histórico.
+- **Enfrentamiento entre cartas** (duelos, mazos, ranking con posición): los atributos ya viajan
+  en cada carta, así que el front puede comparar; la mecánica es otra spec.
+- **Incidencias deportivas en el puntaje**: indicación expresa, y solo hay 15 filas.
+- **Paginación**: el club más grande tiene 147 pacientes y cabe en una respuesta.
+- **Autenticación** y **filtrado por `perfiles_id` 3/6**: el ámbito es el `user_email` recibido.
+- **Tests automatizados**: `phpunit.xml` apunta al MySQL remoto y en SQLite no hay SP.
+- **Frontend**: el HTML de `references/` es referencia visual, no se versiona una página.
+- **Corregir los bugs heredados** del §1.1 (`SP_chequeos_club_prompt` leyendo `cc.imc`, los
+  nombres invertidos de la presión). Se documentan y se esquivan.
 
 ---
 
-## 3 — Modelo de datos
+## 3 — Modelo de datos y fórmula
 
-### 3.1 Tabla nueva `juego_niveles`
+### 3.1 Tabla `juego_niveles`
 
-Una sola tabla para los **dos** ejes, discriminados por `tipo`. Así hay un único endpoint de
+Una sola tabla para los **dos** ejes, discriminados por `tipo`: un único endpoint de
 configuración y un único lugar donde retunear umbrales sin tocar el SP.
 
-```php
-// create_juego_niveles_table
-Schema::create('juego_niveles', function (Blueprint $table) {
-    $table->id();
-    $table->string('tipo', 20);          // 'clinico' | 'completitud'
-    $table->string('slug', 30);          // clase CSS del HTML de referencia
-    $table->string('nombre', 30);        // etiqueta visible
-    $table->integer('valor_min');        // clinico: 0-100 | completitud: 0-5
-    $table->integer('valor_max');
-    $table->string('color_fondo', 10);
-    $table->string('color_texto', 10);
-    $table->unsignedTinyInteger('orden');
-    $table->boolean('activo')->default(true);
-    $table->timestamps();
-
-    $table->unique(['tipo', 'slug']);
-    $table->index(['tipo', 'valor_min', 'valor_max']);
-});
-```
-
-Filas sembradas por la propia migración (colores tomados del CSS del HTML de referencia):
+Columnas: `id`, `tipo`, `slug`, `nombre`, `valor_min`, `valor_max`, `color_fondo`,
+`color_texto`, `orden`, `activo`, timestamps, con `unique(tipo, slug)` e
+`index(tipo, valor_min, valor_max)`.
 
 | tipo | slug | nombre | valor_min | valor_max | color_fondo | color_texto | orden |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| clinico | bajo | BAJO | 0 | 39 | `#fee2e2` | `#dc2626` | 1 |
-| clinico | medio | MEDIO | 40 | 74 | `#fef3c7` | `#b45309` | 2 |
-| clinico | alto | ALTO | 75 | 100 | `#dcfce7` | `#15803d` | 3 |
+| clinico | sin_evaluar | SIN EVALUAR | -1 | -1 | `#f3f4f6` | `#9ca3af` | 0 |
+| clinico | bajo | BAJO | 0 | 74 | `#fee2e2` | `#dc2626` | 1 |
+| clinico | medio | MEDIO | 75 | 94 | `#fef3c7` | `#b45309` | 2 |
+| clinico | alto | ALTO | 95 | 100 | `#dcfce7` | `#15803d` | 3 |
 | completitud | inicial | Inicial | 0 | 2 | `#e5e7eb` | `#6b7280` | 1 |
 | completitud | evaluado | Evaluado | 3 | 4 | `#e0e7ff` | `#4f46e5` | 2 |
 | completitud | completo | Completo | 5 | 5 | `#dcfce7` | `#15803d` | 3 |
 
-Las bandas clínicas son los cortes "naturales" y se ajustan después con un `UPDATE` viendo la
-distribución real (Paso 10). Ver §7: con la cobertura actual el techo práctico es 75.
+El `-1/-1` de `sin_evaluar` es un **centinela**, no un puntaje: mantiene el badge dentro de la
+tabla, así que `nivel` nunca vuelve `null` y las bandas se siguen retuneando con un `UPDATE`.
 
-### 3.2 Fórmula del puntaje clínico (0–100)
+Los cortes clínicos **no son los "naturales" 0-39/40-74/75-100**: se fijaron sobre la
+distribución real (§7).
 
-Cuatro bloques de **25 puntos** cada uno. **La ausencia de dato puntúa 0** — es la regla que
-define el resto del diseño.
+### 3.2 Tabla `juego_atributos`
 
-**Bloque A — Signos vitales (25 pts, 4 indicadores × 6,25)**
+Catálogo de los cuatro atributos, para que el front no hardcodee iconos ni etiquetas.
+Columnas: `id`, `slug` (unique), `nombre`, `icono`, `descripcion`, `orden`, `activo`, timestamps.
 
-| Indicador | Columna | 6,25 pts | 3,75 pts | 1,25 pts | 0 pts |
-| --- | --- | --- | --- | --- | --- |
-| IMC | `cc.imc_paciente` | 18,5–24,9 | 17,0–18,4 o 25,0–29,9 | resto > 0 | vacío o 0 |
-| Presión | `presion_sistolica` (sist.) / `presionArterial` (diast.) | sist < 120 y diast < 80 | sist 120–129 y diast < 80 | resto > 0 | vacío o 0 |
-| Saturación O₂ | `cc.saturacionOxigeno` | ≥ 95 | 90–94 | > 0 y < 90 | vacío o 0 |
-| Hemoglucotest | `cc.hemoglucotest` | 70–140 | 60–69 o 141–199 | resto > 0 | vacío o 0 |
+| slug | nombre | icono | descripcion |
+| --- | --- | --- | --- |
+| corazon | Corazon | ❤️ | Electrocardiograma y antecedente cardiovascular |
+| vitalidad | Vitalidad | 🫁 | Saturacion de oxigeno y presion arterial |
+| composicion | Composicion | 💪 | Indice de masa corporal y bioimpedancia |
+| resistencia | Resistencia | 🛡️ | Hemoglucotest y antecedentes generales |
 
-`cc.pulso` **no entra**: está vacío en el 100% de las filas.
-`cc.imc` **no se usa**: también está vacío en el 100% de las filas (§1.1).
+Ambas migraciones **siembran en el propio `up()`**. Ninguna otra migración del repo lo hace; es
+una desviación deliberada para que `php artisan migrate` deje un entorno utilizable.
 
-**Bloque B — Electrocardiograma (25 pts)**
+### 3.3 Los cuatro atributos
 
-| Indicador | Regla | Máx |
-| --- | --- | --- |
-| `ec.estado_paciente` | `Normal` → 15 · `Alterado` → 5 · sin fila ECG → 0 | 15 |
-| `ec.derivacion_paciente` | en (`na`, `No`, `No requiere`) o vacío → 10 · cualquier otro texto → 3 · sin fila ECG → 0 | 10 |
+Regla única:
 
-**Bloque C — Antecedentes (25 pts, 5 campos × 5)**
+> **atributo = ROUND(100 × puntos_obtenidos / puntos_máximos_de_los_sub-indicadores presentes)**
+> Sin ningún sub-indicador presente → el atributo es `null` y la carta pinta `––`.
 
-Campos: `enfermedadesCronicas`, `medicamentosDiarios`, `sistemaOsteoarticular`,
-`sistemaCardiovascular`, `enfermedadesAnteriores`.
+Así un alumno con ECG pero sin presión sigue teniendo un Corazón comparable con el de otro.
+"Sano" significa `LOWER(TRIM(...))` en (`no presenta`, `sin alteraciones`, `sin ateraciones`,
+`ninguna`, `no`). `sin ateraciones` es un typo real en la base y se acepta a propósito.
 
-| Valor | Puntos |
-| --- | --- |
-| `No Presenta`, `Sin Alteraciones`, `Sin Ateraciones`, `No presenta`, `Ninguna`, `No` | 5 |
-| cualquier otro texto no vacío (hay un hallazgo) | 2 |
-| NULL o cadena vacía | 0 |
+**❤️ Corazón**
 
-`Sin Ateraciones` es un typo real en la base (5 filas) y se acepta a propósito.
-La comparación es insensible a mayúsculas y con `TRIM`.
-
-**Bloque D — Bioimpedancia (25 pts)**
-
-Se toma la fila más reciente de `bioimpedancia` por `rut`. Sin fila, o con los indicadores en
-NULL, el bloque completo da 0.
-
-| Indicador | 100% del sub-puntaje | 60% | 20% | Máx |
+| Sub-indicador | Columna | Sano | Con hallazgo | Ausente |
 | --- | --- | --- | --- | --- |
-| `puntaje_corporal` | ≥ 80 | 60–79 | > 0 | 7 |
-| `grasa_corporal_pct` | Hombre 10–20 · Mujer 18–28 | ±5 fuera del rango | resto > 0 | 6 |
-| `grasa_visceral` | < 10 | 10–14 | ≥ 15 | 6 |
-| `smi` | Hombre ≥ 7,0 · Mujer ≥ 5,7 | — | > 0 | 6 |
+| Estado ECG | `ec.estado_paciente` | `Normal` → 50 | `Alterado` → 15 | sin fila ECG |
+| Derivación | `ec.derivacion_paciente` | `na`/`no`/`no requiere`/vacío → 30 | otro texto → 8 | sin fila ECG |
+| Antecedente | `cc.sistemaCardiovascular` | 20 | 8 | vacío |
 
-El sexo sale de `bioimpedancia.sexo` (`Hombre` / `Mujer`); si es NULL se usa el rango de Hombre.
+**🫁 Vitalidad**
 
-**Total** = `ROUND(A + B + C + D)`, entero entre 0 y 100.
+| Sub-indicador | Columna | 50 | 30 | 10 | Ausente |
+| --- | --- | --- | --- | --- | --- |
+| Saturación O₂ | `cc.saturacionOxigeno` | ≥ 95 | 90–94 | resto en rango | fuera de 50–100 |
+| Presión | `presion_sistolica` (sist.) / `presionArterial` (diast.) | sist < 120 y diast 30–79 | sist 120–129 y diast 30–79 | resto en rango | sist fuera de 60–250 |
 
-### 3.3 Estrellas
+**💪 Composición** — IMC (`cc.imc_paciente`, rango 10–60): 18,5–24,9 → 100 · 17–18,4 o
+25–29,9 → 60 · resto en rango → 20. Cuando hay bioimpedancia se promedia con sus cuatro
+indicadores (`puntaje_corporal`, `grasa_corporal_pct`, `grasa_visceral`, `smi`, 100 pts c/u),
+con cortes por sexo: el sexo sale de `bioimpedancia.sexo`, con `cc.sexo_paciente` de respaldo y
+el rango de Hombre por defecto.
 
-`estrellas = LEAST(5, GREATEST(1, CEIL(puntaje / 20)))` — entero de 1 a 5, derivado del mismo
-puntaje clínico que da el badge. Un puntaje de 0 muestra 1 estrella, nunca 0.
+**🛡️ Resistencia**
 
-### 3.4 Eje de completitud (0–5 bloques)
+| Sub-indicador | Columna | Sano | Con hallazgo | Ausente |
+| --- | --- | --- | --- | --- |
+| Hemoglucotest | `cc.hemoglucotest` (rango 30–500) | 70–140 → 40 | 60–69 o 141–199 → 24 · resto → 8 | fuera de rango |
+| Enf. crónicas | `cc.enfermedadesCronicas` | 15 | 6 | vacío |
+| Medicamentos | `cc.medicamentosDiarios` | 15 | 6 | vacío |
+| Osteoarticular | `cc.sistemaOsteoarticular` | 15 | 6 | vacío |
+| Enf. anteriores | `cc.enfermedadesAnteriores` | 15 | 6 | vacío |
+
+### 3.4 Puntaje, nivel y estrellas
+
+```
+puntaje = LEAST(100, ROUND(AVG(atributos no nulos)) + bonus)
+```
+
+- **Sin ningún atributo medido** → `puntaje = null`, `banda = -1` → `SIN EVALUAR`, `estrellas = 0`.
+  Es la regla que impide que un alumno cargado por Excel aparezca como `BAJO`.
+- `bonus` = 0–10, proporcional a la **calidad** de la bioimpedancia (no a tenerla); `0` sin fila.
+  La carta lleva además `insignia: "InBody"` cuando existe.
+- `estrellas = LEAST(5, GREATEST(1, CEIL(puntaje / 20)))`, y `0` si `puntaje` es `null`.
+
+Al quedar la bioimpedancia fuera del 100, el techo es 100 real: con la fórmula anterior (cuatro
+bloques de 25 y ausencia = 0) el máximo observable era **75** y 213 pacientes empataban ahí.
+
+### 3.5 Completitud (segundo eje)
 
 | Bloque | Se cuenta cuando |
 | --- | --- |
-| `chequeo` | Siempre — existe la fila de `chequeo_cardiovascular` que origina la carta. |
-| `signos_vitales` | `imc_paciente`, `presion_sistolica`, `presionArterial`, `saturacionOxigeno` y `hemoglucotest` están todos informados y > 0. |
-| `ecg` | Existe fila en `electro_cardiogranas` por `(rut, id_chequeo)` con `estado_paciente` informado. |
-| `bioimpedancia` | Existe fila en `bioimpedancia` con ese `rut`. |
-| `certificado` | Existe fila en `certificado_url` por `(rut_paciente, id_chequeo)`. |
+| `chequeo` | Siempre — existe la fila que origina la carta. |
+| `signos_vitales` | `imc_paciente`, `presion_sistolica`, `presionArterial`, `saturacionOxigeno` y `hemoglucotest` todos > 0. |
+| `ecg` | Hay fila en `electro_cardiogranas` por `(rut, id_chequeo)` con `estado_paciente` informado. |
+| `bioimpedancia` | Hay fila en `bioimpedancia` con ese `rut`. |
+| `certificado` | Hay fila en `certificado_url` por `(rut_paciente, id_chequeo)`. |
 
-`progreso = bloques_completos * 20` (%). El estado (`inicial` / `evaluado` / `completo`) sale de
-`juego_niveles` con `tipo = 'completitud'`. Como el bloque `chequeo` es siempre verdadero, el
-progreso mínimo posible es 20%.
+`progreso = bloques_completos * 20`. Mínimo 20 %, porque `chequeo` siempre es verdadero.
 
-### 3.5 Firma y salida del SP
+### 3.6 Firma del SP y elección de la fila
 
 ```sql
 SP_juego_cartas_club(IN p_search VARCHAR(255), IN p_club VARCHAR(255))
 ```
 
-- `p_club` informado → solo pacientes de ese `cc.user_email`.
-- `p_club` NULL → sin filtro de club. **Existe únicamente para el endpoint de detalle por rut**; no se expone ningún listado global.
-- `p_search` NULL o vacío → sin filtro; si no, `LIKE '%search%'` contra `cc.rut` y `cc.nombre`, igual que `SP_chequeos_club_prompt`.
+`p_club` informado → solo ese `cc.user_email`; `p_club` NULL → sin filtro de club (existe
+únicamente para el detalle por RUT). `p_search` NULL o vacío → sin filtro; si no, `LIKE
+'%search%'` contra `cc.rut` y `cc.nombre`.
 
-Devuelve **una fila** con la columna `resultado_json`: un array (posiblemente vacío por el
-`COALESCE(..., JSON_ARRAY())`) donde cada elemento es una carta:
-
-```json
-{
-  "rut": "23503714-9",
-  "nombre": "Matías Fuentes Rojas",
-  "edad": "16",
-  "sexo": "Masculino",
-  "club": "brisas@ergosanitas.com",
-  "id_chequeo": 1842,
-  "ficha": "#001842",
-  "fecha_atencion": "2026-08-14 10:32:00",
-  "total_chequeos": 7,
-  "puntaje": 62,
-  "estrellas": 4,
-  "nivel": { "slug": "medio", "nombre": "MEDIO", "color_fondo": "#fef3c7", "color_texto": "#b45309" },
-  "bloques_completos": 3,
-  "progreso": 60,
-  "estado": { "slug": "evaluado", "nombre": "Evaluado", "color_fondo": "#e0e7ff", "color_texto": "#4f46e5" },
-  "completitud": {
-    "chequeo": true, "signos_vitales": true, "ecg": true,
-    "bioimpedancia": false, "certificado": false
-  },
-  "desglose": {
-    "signos_vitales": { "obtenido": 18.75, "maximo": 25 },
-    "ecg":            { "obtenido": 25,    "maximo": 25 },
-    "antecedentes":   { "obtenido": 18,    "maximo": 25 },
-    "bioimpedancia":  { "obtenido": 0,     "maximo": 25 }
-  }
-}
-```
-
-`ficha` es `CONCAT('#', LPAD(cc.id, 6, '0'))`, para el `Ficha #001` del HTML.
-`total_chequeos` es el `COUNT(*)` de chequeos de ese rut, para el pie `📋 7 chequeos`.
-El `desglose` va en **todas** las cartas, no solo en el detalle: es una sola fórmula.
-
-### 3.6 Cómo elige el SP la fila de cada paciente
-
-Una carta por RUT, sobre su **chequeo más reciente**. MySQL 5.7 no tiene funciones de ventana,
-así que se usa el idioma clásico:
+Una carta por RUT, sobre su chequeo más reciente. Sin funciones de ventana en 5.7:
 
 ```sql
 INNER JOIN (
@@ -258,153 +218,65 @@ INNER JOIN (
 ) ult ON ult.id_ultimo = cc.id
 ```
 
-ECG y bioimpedancia entran con `LEFT JOIN` acotado por un `MAX(id)` correlacionado, para no
-duplicar cartas cuando hay más de una fila por chequeo o por rut:
-
-```sql
-LEFT JOIN electro_cardiogranas ec
-    ON ec.id_chequeo = cc.id
-   AND ec.rut_paciente = cc.rut
-   AND ec.id = (SELECT MAX(e2.id) FROM electro_cardiogranas e2
-                 WHERE e2.id_chequeo = cc.id AND e2.rut_paciente = cc.rut)
-```
-
-La clasificación contra `juego_niveles` va en el `SELECT` exterior, sobre una tabla derivada que
-ya trae `puntaje` y `bloques_completos` calculados: en MySQL 5.7 no se puede referenciar un
-alias del `SELECT` dentro de un `JOIN` del mismo nivel.
+ECG y bioimpedancia entran con `LEFT JOIN` acotado por un `MAX(id)` correlacionado. La
+clasificación contra `juego_niveles` va en el `SELECT` exterior, sobre una tabla derivada que ya
+trae `banda` y `bloques_completos`: en 5.7 no se puede referenciar un alias del `SELECT` dentro
+de un `JOIN` del mismo nivel. El SP está estructurado en cuatro capas anidadas
+(`src` → `base` → `calc` → `fin`).
 
 ### 3.7 Contrato de los tres endpoints
 
-Los tres usan el **sobre A** (`{success, message, data}`), el mismo de `FichaClinicaController`.
+Los tres usan el **sobre A** (`{success, message, data}`), el de `FichaClinicaController`.
+La forma completa de la carta está en `docs/openapi.yaml` (`components/schemas/JuegoCarta`).
 
-`GET api/juego-cartas/{user_email}?search=juan`
+- `GET api/juego-cartas/{user_email}?search=` → `data: {club, search, total, cartas[]}`.
+- `GET api/juego-cartas/detalle/{rut_paciente}` → `data` es una carta, o `null` con
+  `message: "Paciente sin chequeos registrados"` y **status 200** si el RUT no existe.
+- `GET api/juego-cartas/niveles` → `data: {clinico[], completitud[], atributos[]}`.
 
-```json
-{
-  "success": true,
-  "message": "Cartas obtenidas correctamente",
-  "data": { "club": "brisas@ergosanitas.com", "search": "juan", "total": 3, "cartas": [] }
-}
-```
-
-`GET api/juego-cartas/detalle/{rut_paciente}` → `data` es **una** carta con la forma de §3.5, o
-`null` con `message: "Paciente sin chequeos registrados"` y status 200 si el rut no existe.
-
-`GET api/juego-cartas/niveles` → `data` con las filas activas agrupadas por eje:
-
-```json
-{
-  "success": true,
-  "message": "Niveles obtenidos correctamente",
-  "data": { "clinico": [], "completitud": [] }
-}
-```
-
-Error (`catch`, 500): `{ "success": false, "message": "Error obteniendo las cartas", "error": "..." }`.
+Error (`catch`, 500): `{success: false, message: "Error obteniendo las cartas", error: "..."}`.
 
 ---
 
-## 4 — Plan de implementación
+## 4 — Lo implementado
 
-Cada paso deja el sistema funcional. El orden importa: base primero, cableado después.
+| Paso | Archivo |
+| --- | --- |
+| 1 | `database/migrations/2026_09_07_120000_create_juego_niveles_table.php` · `..._120100_create_juego_atributos_table.php` |
+| 2 | `base_datos/references/sp/SP_juego_cartas_club.sql` |
+| 3 | `app/Models/JuegoCartaClub.php` · `JuegoNivel.php` · `JuegoAtributo.php` |
+| 4 | `app/Services/JuegoCartasService.php` |
+| 5 | `app/Providers/JuegoCartasServiceProvider.php` + `bootstrap/providers.php` |
+| 6 | `app/Http/Controllers/JuegoCartasController.php` |
+| 7 | `routes/api.php` (literales antes del comodín) |
+| 8 | `docs/openapi.yaml`, `docs/modelo-datos.md`, `docs/README.md`, `README.md`, `CLAUDE.md` |
 
-**Paso 1 — Migración y siembra de `juego_niveles`.**
-Crear la migración de §3.1 con el `insert` de las 6 filas dentro del mismo `up()`, para que un
-entorno nuevo quede utilizable con `php artisan migrate`. Verificar con `migrate:status` y
-`SELECT * FROM juego_niveles`.
-
-**Paso 2 — Escribir y crear el SP.**
-`base_datos/references/sp/SP_juego_cartas_club.sql` con la fórmula de §3.2–§3.6, y crearlo en la
-base. Probar directo con `CALL SP_juego_cartas_club(NULL, 'brisas@ergosanitas.com')` y
-`CALL SP_juego_cartas_club('25527383-3', NULL)`. Sin CTEs ni funciones de ventana: la base es
-MySQL 5.7.44.
-
-**Paso 3 — Modelos.**
-
-- `app/Models/JuegoCartaClub.php`: sin `$table` (solo envuelve el SP, igual que `FichaClinica`), con el wrapper estático:
-
-```php
-public static function SP_juego_cartas_club($search, $club) {
-    return DB::select('CALL SP_juego_cartas_club(?, ?)', [$search, $club]);
-}
-```
-
-- `app/Models/JuegoNivel.php`: `$table = 'juego_niveles'`, `$fillable` con las 8 columnas de negocio.
-
-**Paso 4 — Service.**
-`app/Services/JuegoCartasService.php`:
-
-- `CartasClub(?string $search, string $club): array` — llama al wrapper, `json_decode` de `resultado_json`, **ordena en PHP por `puntaje` descendente** (ver §6) y devuelve el array de cartas.
-- `CartaDetalle(string $rut): ?object` — `SP_juego_cartas_club($rut, null)` y devuelve el primer elemento o `null`.
-- `Niveles(): array` — `JuegoNivel::where('activo', 1)->orderBy('orden')->get()->groupBy('tipo')`.
-
-**Paso 5 — Provider.**
-`app/Providers/JuegoCartasServiceProvider.php` con un `singleton()`, copiando
-`FichaClinicaServiceProvider`, **y su línea en `bootstrap/providers.php`** en orden alfabético
-(entre `IncidenciaServiceProvider` y `OpenAIServiceProvider`). Sin ese registro deja de ser
-singleton, aunque el autowiring lo resuelva igual.
-
-**Paso 6 — Controlador.**
-`app/Http/Controllers/JuegoCartasController.php` con el service inyectado por constructor, los
-tres métodos en `PascalCase` (`CartasClub`, `CartaDetalle`, `Niveles`) y todo el cuerpo en
-`try/catch`: no hay handler global de excepciones en `bootstrap/app.php`.
-
-**Paso 7 — Rutas.**
-En `routes/api.php`, junto al bloque de `ficha-clinica`. **El orden es obligatorio**: las rutas
-literales van antes de la que captura `{user_email}`, o `juego-cartas/niveles` se resolvería
-con `user_email = "niveles"`.
-
-```php
-Route::get('juego-cartas/niveles',[JuegoCartasController::class,'Niveles'])
-    ->name('Niveles');
-
-Route::get('juego-cartas/detalle/{rut_paciente}',[JuegoCartasController::class,'CartaDetalle'])
-    ->name('CartaDetalle');
-
-Route::get('juego-cartas/{user_email}',[JuegoCartasController::class,'CartasClub'])
-    ->name('CartasClub');
-```
-
-Más el `use App\Http\Controllers\JuegoCartasController;` arriba.
-
-**Paso 8 — Documentación.**
-Añadir las tres operaciones a `docs/openapi.yaml` con sus ejemplos, la fila del SP nuevo en las
-tablas de SP de `README.md` y `CLAUDE.md`, y `juego_niveles` en la lista de tablas. El contrato
-se mantiene a mano: contrastar con `php artisan route:list --json`.
-
-**Paso 9 — Verificación.**
-`php -l` de cada archivo tocado, `vendor/bin/pint --dirty`,
-`php artisan config:clear && php artisan route:clear && php artisan cache:clear`
-(**nunca `config:cache`**), `php artisan route:list --path=juego-cartas`, comprobación de
-singleton con `tinker`, `php artisan test` y las pruebas de §5.
-
-**Paso 10 — Ajuste de bandas.**
-Con el SP ya corriendo, mirar la distribución real de puntajes del club de prueba y ajustar
-`juego_niveles` con un `UPDATE` si todas las cartas caen en la misma banda. Sin tocar código
-ni el procedimiento.
+El orden por puntaje **se hace en PHP** (`JuegoCartasService::ordenar`), no en el SP: en MySQL
+5.7 `JSON_ARRAYAGG` no respeta `ORDER BY`. Desempata por `atributos_medidos` descendente y
+manda las cartas `sin_evaluar` al final.
 
 ---
 
 ## 5 — Criterios de aceptación
 
-- [ ] `php artisan route:list --path=juego-cartas` muestra exactamente las tres rutas, y `GET api/juego-cartas/niveles` **no** cae en la ruta `{user_email}`.
-- [ ] `php artisan migrate:status` muestra la migración aplicada y `SELECT COUNT(*) FROM juego_niveles` devuelve 6.
-- [ ] `bootstrap/providers.php` contiene `App\Providers\JuegoCartasServiceProvider::class` y `app(JuegoCartasService::class) === app(JuegoCartasService::class)` devuelve `true`.
-- [ ] `CALL SP_juego_cartas_club(NULL, 'brisas@ergosanitas.com')` devuelve una fila con `resultado_json` y **exactamente una carta por RUT distinto** del club.
-- [ ] **Postman A (listado):** `GET api/juego-cartas/brisas@ergosanitas.com` → 200, sobre A, `cartas` ordenado por `puntaje` descendente.
-- [ ] **Postman B (search):** el mismo endpoint con `?search=25527383-3` → 200 con una sola carta, la de ese RUT.
-- [ ] **Postman C (detalle):** `GET api/juego-cartas/detalle/25527383-3` → 200 con una carta cuyo `desglose` suma exactamente el `puntaje`.
-- [ ] **Postman D (niveles):** `GET api/juego-cartas/niveles` → 200 con 3 filas en `clinico` y 3 en `completitud`.
-- [ ] Un club inexistente → 200 con `total: 0` y `cartas: []`, sin error.
-- [ ] Un RUT inexistente en `detalle` → 200 con `data: null`.
-- [ ] Un paciente **sin fila de ECG** aparece en el listado, con `desglose.ecg.obtenido = 0` y `completitud.ecg = false`.
-- [ ] Un paciente **sin bioimpedancia** aparece con `desglose.bioimpedancia.obtenido = 0` y su `puntaje` no supera 75.
-- [ ] `estrellas` está siempre entre 1 y 5, y `progreso` es siempre múltiplo de 20 entre 20 y 100.
-- [ ] `nivel` y `estado` nunca vienen `null`: las bandas de `juego_niveles` cubren 0–100 y 0–5 sin huecos.
-- [ ] Cambiar `valor_min` de la fila `clinico/alto` con un `UPDATE` cambia el badge devuelto, **sin** modificar el SP ni el código PHP.
-- [ ] `docs/openapi.yaml` contiene las tres operaciones y `README.md` la tabla `juego_niveles` y el SP nuevo.
-- [ ] `vendor/bin/pint --dirty` sin cambios pendientes y `php artisan test` en verde.
-- [ ] `GET api/ficha-clinica/{rut}` y `POST api/sam-assistant-club/as-question` siguen funcionando igual; no hay diff en sus archivos.
+Todos verificados contra la base real el 2026-09-07.
+
+- [x] `php artisan route:list --path=juego-cartas` muestra exactamente 3 rutas, y `niveles` **no** cae en `{user_email}`.
+- [x] `SELECT COUNT(*)` → 7 en `juego_niveles`, 4 en `juego_atributos`.
+- [x] `bootstrap/providers.php` contiene el provider y `app(JuegoCartasService::class) === app(...)` es `true`.
+- [x] `CALL SP_juego_cartas_club(NULL, 'brisas@ergosanitas.com')` → 118 cartas / 118 RUT distintos. Sobre toda la base: **1.554 cartas para 1.554 RUT**.
+- [x] Listado 200, sobre A, ordenado por puntaje descendente, `sin_evaluar` al final.
+- [x] `?search=25527383-3` → una sola carta, la de ese RUT.
+- [x] Detalle: el promedio de los atributos medidos más `bonus` es exactamente el `puntaje`.
+- [x] `niveles` → 4 filas en `clinico`, 3 en `completitud`, 4 en `atributos`, con los emojis intactos.
+- [x] Club inexistente → 200 con `total: 0` y `cartas: []`. RUT inexistente → 200 con `data: null`.
+- [x] `estrellas` siempre 0–5; `progreso` múltiplo de 20 entre 20 y 100; `puntaje` 0–100 o `null`; `medido` coherente con `valor !== null`. Comprobado sobre las 1.554 cartas.
+- [x] `nivel` y `estado` nunca `null`.
+- [x] Un `UPDATE` de `valor_min` en `clinico/alto` cambia el badge del mismo paciente (`alto → medio → alto`) **sin tocar el SP ni el código**.
+- [x] 201 cartas quedan en `SIN EVALUAR` con `puntaje: null`, `estrellas: 0` y los 4 atributos en `medido: false`.
+- [x] 7 cartas traen `insignia: "InBody"`, con `bonus` variable (9, 5, 4, 0) según la calidad.
+- [x] `docs/openapi.yaml` documenta 84 operaciones, 0 `$ref` rotos, 0 `operationId` duplicados.
+- [x] `php artisan test` en verde; `GET api/ficha-clinica/{rut}` sigue en 200 y sin diff.
 
 ---
 
@@ -412,48 +284,65 @@ ni el procedimiento.
 
 | Decisión | Por qué |
 | --- | --- |
-| **Dos ejes independientes**: puntaje clínico (badge + estrellas) y completitud (barra + filtro) | Es lo que muestra el HTML de referencia: Ana tiene 55% y es `BAJO`, Carlos tiene 25% y es `MEDIO`. Descartado unificarlos en un solo eje, que habría perdido la idea de "progreso de la ficha". |
-| **Tabla de configuración + cálculo al vuelo** | Descartada la tabla snapshot: obliga a decidir cuándo recalcular y el dato queda viejo. Descartado hardcodear los umbrales en el SP: retunear exigiría modificar el procedimiento. |
-| **Una sola tabla `juego_niveles` con columna `tipo`** | Los dos ejes tienen la misma forma (rango → etiqueta → colores). Dos tablas habrían duplicado el modelo, el provider y el endpoint. |
-| **4 bloques de 25 puntos, ausencia = 0** | Decisión explícita del usuario, tomada sabiendo la cobertura real. Consecuencia asumida y documentada en §7: el techo práctico hoy es 75. |
-| **Incidencias deportivas fuera del puntaje** | Indicación expresa del usuario. Además solo hay 15 filas: no discriminarían nada. |
-| **`imc_paciente` en vez de `cc.imc`** | `cc.imc` está vacío en las 1.635 filas. `SP_chequeos_club_prompt` lo lee y por eso devuelve siempre vacío; no se replica el bug. |
-| **`cc.pulso` eliminado como indicador** | Vacío en las 1.635 filas. Descartado sustituirlo por `ec.frecuencia_cardiaca_paciente`: habría acoplado el bloque de signos vitales a que exista ECG y contado el ECG dos veces. |
-| **Presión leída "invertida" a propósito** | En la base `presion_sistolica` guarda la sistólica y `presionArterial` la diastólica. El SP lee cada una por su contenido real, no por su nombre. Renombrar las columnas rompería endpoints en producción. |
-| **`LEFT JOIN` con ECG** | Descartado el `INNER JOIN` de `SP_chequeos_club_prompt`: dejaría fuera del listado a pacientes que el club sí cargó, y eso se reporta como bug. |
-| **Un solo SP con `p_club` nullable** | Descartado un `SP_juego_carta_detalle` aparte: habría duplicado la fórmula del puntaje en dos procedimientos, con riesgo de que divergieran en el primer ajuste. |
-| **Orden por puntaje en PHP, no en el SP** | En MySQL 5.7 `JSON_ARRAYAGG` **no respeta `ORDER BY`**: el orden de los elementos del array no está garantizado. El `usort` del service es el único punto donde el orden es determinista. |
-| **`search` en el SP, sin paginación** | Mismo contrato que `SP_chequeos_club_prompt`. El club más grande tiene 116 pacientes. |
-| **Sobre A (`{success, message, data}`)** | Es el que usa `FichaClinicaController`, el vertical slice que esta spec replica. El repo tiene dos sobres incompatibles y no hay uno canónico. |
-| **Bandas 0-39 / 40-74 / 75-100, ajustables después** | Se siembran los cortes naturales y se ajustan con un `UPDATE` tras ver la distribución real. Por eso los umbrales viven en una tabla y no en el SP. |
-| **Carta sobre el chequeo más reciente** | Descartado el promedio histórico (diluye una mejora reciente) y el mejor histórico (oculta un deterioro actual). |
-| **El `desglose` va en todas las cartas** | Descartado devolverlo solo en el detalle: obligaría a una segunda fórmula o a una segunda consulta. |
-| **Sin ranking con posición** | El listado ordenado por puntaje ya permite pintar la grilla. Una posición estable exige decidir empates y ámbito; es otra spec. |
+| **Cuatro atributos comparables**, no solo un total | Un puntaje agregado no permite comparar alumnos: sin atributos es una tabla ordenada con estética de cartas, no un juego. |
+| **Dos ejes independientes**: clínico y completitud | Es lo que muestra el HTML de referencia. Descartado unificarlos, que habría perdido la idea de "progreso de la ficha". |
+| **Normalizar cada atributo sobre los sub-indicadores presentes** | Hace las cartas comparables aunque tengan datos parciales. La alternativa (ausencia = 0) confunde "no medido" con "enfermo". |
+| **Estado `SIN EVALUAR` como cuarta banda con centinela `-1`** | 201 alumnos solo tienen la carga de Excel. Con ausencia = 0 aparecerían como `BAJO` ante el colegio por un problema administrativo. El centinela mantiene el badge en la tabla, así `nivel` nunca es `null`. |
+| **Bioimpedancia como bonus fuera del 100** | Solo 7 de 1.554 pacientes la tienen. Dentro del 100 (25 pts) el techo real del puntaje era 75 y `ALTO` resultaba inalcanzable. |
+| **El bonus mide calidad, no posesión** | Premiar el mero hecho de tener el examen mezclaría "está sano" con "le hicieron más pruebas", que es justo lo que separa el eje de completitud. |
+| **Tabla de configuración + cálculo al vuelo** | Descartada la tabla snapshot: obliga a decidir cuándo recalcular y el dato queda viejo. Descartado hardcodear umbrales en el SP: retunear exigiría modificarlo. |
+| **Dos tablas (`juego_niveles` + `juego_atributos`)** | Los dos ejes comparten forma (rango → etiqueta → colores) y caben en una; el catálogo de atributos no tiene rangos y habría desnaturalizado el modelo. |
+| **Siembra dentro del `up()`** | Ninguna migración del repo lo hacía, pero sin las filas los endpoints devuelven cartas sin badge. Se asume la desviación. |
+| **`imc_paciente` en vez de `cc.imc`** | `cc.imc` está vacío en las 1.634 filas. No se replica el bug de `SP_chequeos_club_prompt`. |
+| **`cc.pulso` eliminado** | Vacío en las 1.634 filas. Descartado sustituirlo por `ec.frecuencia_cardiaca_paciente`: habría acoplado Vitalidad a que exista ECG y contado el ECG dos veces. |
+| **Presión leída "invertida" a propósito** | El SP lee cada columna por su contenido real, no por su nombre. Renombrarlas rompería endpoints en producción. |
+| **`LEFT JOIN` con ECG** | El `INNER JOIN` de `SP_chequeos_club_prompt` dejaría fuera a pacientes que el club sí cargó. |
+| **Un solo SP con `p_club` nullable** | Un `SP_juego_carta_detalle` aparte habría duplicado la fórmula, con riesgo de divergir al primer ajuste. |
+| **Orden en PHP, no en el SP** | En MySQL 5.7 `JSON_ARRAYAGG` no respeta `ORDER BY`. El `usort` es el único punto determinista. |
+| **Desempate por `atributos_medidos`** | Sin él, una carta con 2 atributos al 100 % adelanta a una completa igual de sana. |
+| **Bandas 0-74 / 75-94 / 95-100** | Los cortes naturales dejaban 1.225 de 1.353 pacientes en `ALTO`. Ver §7. |
+| **Carta sobre el chequeo más reciente** | Descartado el promedio histórico (diluye una mejora) y el mejor histórico (oculta un deterioro). |
+| **Sin ranking con posición** | El listado ordenado basta para pintar la grilla. Una posición estable exige decidir empates y ámbito. |
 
 ---
 
 ## 7 — Riesgos identificados
 
-- **El techo práctico del puntaje es 75, no 100.** Con 4 bloques de 25 y ausencia = 0, un paciente sin bioimpedancia no puede pasar de 75 — y hoy eso son 1.547 de 1.554 pacientes. Con la banda `alto` empezando en 75, solo un paciente perfecto llega a `ALTO`. Es una consecuencia directa y aceptada de las reglas elegidas; la mitigación es el Paso 10 (ajustar `juego_niveles` con un `UPDATE`, sin tocar código).
-- **`bioimpedancia` tiene 7 filas y 2 de ellas están completamente en NULL.** El bloque D dará 0 casi siempre, incluso para pacientes que sí tienen una fila.
-- **Los datos numéricos vienen sucios.** `estatura` mezcla metros y centímetros (max 162), `temperatura` llega a 99 y `frecuencia_cardiaca_paciente` va de 9 a 800. Ninguno de esos tres entra en la fórmula, pero confirma que todo `CAST` necesita un rango de validez y que los valores fuera de rango deben tratarse como "sin dato".
-- **2.065 ECG son huérfanos** (su `id_chequeo` no existe en `chequeo_cardiovascular`). El `LEFT JOIN` por `(rut, id_chequeo)` los ignora, que es lo correcto, pero explica por qué hay 3.378 ECG y solo 1.313 chequeos con ECG.
-- **El SP no queda versionado en las migraciones**, igual que el resto. Vive en la base y su copia está en `base_datos/references/sp/`. Un entorno nuevo levantado solo con `php artisan migrate` tendrá la tabla pero no el procedimiento, y los tres endpoints devolverán 500 desde el `catch`. Confirmar el despliegue del SP en producción antes de dar los endpoints por disponibles.
-- **`GROUP_CONCAT` tiene un límite de 1.024 bytes por defecto.** Se usa para elegir el último chequeo por RUT. Con los datos actuales (pocos chequeos por paciente) no se alcanza, pero si algún RUT acumulara ~100 chequeos el id elegido podría ser incorrecto **sin dar error**.
-- **Sin control de acceso.** Cualquiera que conozca el email de un club puede leer el puntaje clínico de sus pacientes, y `detalle/{rut}` ni siquiera exige club. Es el mismo riesgo que el resto de `routes/api.php` y está fuera de alcance, pero aquí se expone una evaluación de salud, no solo datos.
-- **Ordenar en PHP asume que el club cabe en memoria.** Con 116 pacientes es trivial; si algún día un `user_email` agrupara miles, habría que mover el orden y la paginación al SP.
-- **El puntaje no es un diagnóstico.** Es una heurística de gamificación sobre datos incompletos. Cualquier texto que la UI muestre junto a la carta debería dejarlo claro.
+- **Las bandas se calibraron sobre la distribución actual, no sobre criterio clínico.** Con los
+  cortes naturales (0-39/40-74/75-100) el reparto era 0 `BAJO` / 128 `MEDIO` / 1.225 `ALTO`: el
+  badge no discriminaba nada. Los cortes actuales dan **201 sin evaluar · 128 bajo · 779 medio ·
+  446 alto**, que sí es usable, pero son percentiles de esta base en esta fecha. Al crecer los
+  datos hay que recalibrar con un `UPDATE`.
+- **Un atributo puede valer 100 con un solo sub-indicador.** Es la contracara de normalizar sobre
+  lo presente: un alumno con `sistemaCardiovascular = 'No Presenta'` y sin ECG tiene Corazón 100.
+  El eje de completitud lo delata (`ecg: false`, progreso 20 %) y el desempate del orden lo baja
+  en la grilla, pero la carta muestra un 100 que descansa en un solo campo de texto. Si molesta,
+  la mitigación es exigir un mínimo de sub-indicadores por atributo — cambio en el SP.
+- **Las estrellas casi no discriminan**: 892 de 1.353 cartas evaluadas tienen 5. Derivan de
+  `CEIL(puntaje/20)` y el puntaje se concentra entre 65 y 100. Cambiarlas para que sigan las
+  bandas de `juego_niveles` en vez del puntaje crudo exige tocar el SP.
+- **El bloque de antecedentes premia el origen del dato.** El controlador escribe los defaults
+  `'No Presenta'`/`'Sin Alteraciones'` con `filled()`, así que todo paciente ingresado por
+  formulario se lleva el máximo de esos sub-indicadores.
+- **El SP no queda versionado en las migraciones.** Un entorno levantado solo con
+  `php artisan migrate` tendrá las tablas pero no el procedimiento, y los tres endpoints
+  devolverán 500 desde el `catch`. **Confirmar el despliegue del SP en producción antes de dar
+  los endpoints por disponibles.**
+- **Sin control de acceso.** Cualquiera que conozca el email de un club lee la evaluación clínica
+  de sus alumnos, y `detalle/{rut}` ni siquiera exige club. Es el mismo riesgo que el resto de
+  `routes/api.php`, pero aquí se expone salud de menores.
+- **Ordenar en PHP asume que el club cabe en memoria.** Con 147 pacientes es trivial; si algún
+  `user_email` agrupara miles habría que mover orden y paginación al SP.
+- **El puntaje no es un diagnóstico.** Es una heurística de gamificación sobre datos incompletos.
+  Cualquier texto que la UI muestre junto a la carta debería dejarlo claro.
 
 ---
 
 ## 8 — Lo que **no** entra en esta spec
 
-- Persistir puntajes o su histórico.
-- Ranking con posición dentro del club.
-- Incidencias deportivas en la fórmula.
-- Paginación, autenticación y filtrado por `perfiles_id`.
-- Tests automatizados.
-- El frontend del juego.
-- Corregir los bugs heredados de `SP_chequeos_club_prompt` y de los nombres de las columnas de presión.
+Persistir puntajes o su histórico · progresión y XP · enfrentamiento entre cartas y ranking con
+posición · incidencias deportivas en la fórmula · paginación, autenticación y filtrado por
+`perfiles_id` · tests automatizados · el frontend del juego · corregir los bugs heredados de
+`SP_chequeos_club_prompt` y de los nombres de las columnas de presión.
 
 Cada uno, si llega, va en su propia spec.
