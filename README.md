@@ -586,7 +586,7 @@ La carpeta [`docs/`](docs/) contiene la vista gráfica del sistema, en diagramas
 | Documento | Qué muestra |
 |---|---|
 | [`docs/arquitectura.md`](docs/arquitectura.md) | Componentes, las tres capas y sus excepciones, inyección de dependencias y despliegue |
-| [`docs/flujos.md`](docs/flujos.md) | 12 diagramas de secuencia, uno por flujo end-to-end (carga masiva, facturación, asistentes, WebPay…) |
+| [`docs/flujos.md`](docs/flujos.md) | 13 diagramas de secuencia, uno por flujo end-to-end (carga masiva, facturación, asistentes, WebPay…) |
 | [`docs/diagrama-clases.md`](docs/diagrama-clases.md) | Clases UML por dominio: controladores, servicios, modelos y prompts, con sus firmas reales |
 | [`docs/modelo-datos.md`](docs/modelo-datos.md) | ERD de las 18 tablas, máquina de estados del chequeo, autorización por perfil y catálogo de procedimientos almacenados |
 
@@ -596,7 +596,7 @@ La carpeta [`docs/`](docs/) contiene la vista gráfica del sistema, en diagramas
 
 ## Contrato OpenAPI (Swagger)
 
-El contrato completo de la API vive en **[`docs/openapi.yaml`](docs/openapi.yaml)** (OpenAPI 3.0.3): las 81 operaciones de `routes/api.php`, con esquemas, parámetros, ejemplos de request y de respuesta para cada código de estado, y las particularidades reales del proyecto (los dos formatos de sobre incompatibles, los endpoints que facturan, los que devuelven 200 en caso de error, el filtrado por perfil).
+El contrato completo de la API vive en **[`docs/openapi.yaml`](docs/openapi.yaml)** (OpenAPI 3.0.3): las 84 operaciones de `routes/api.php`, con esquemas, parámetros, ejemplos de request y de respuesta para cada código de estado, y las particularidades reales del proyecto (los dos formatos de sobre incompatibles, los endpoints que facturan, los que devuelven 200 en caso de error, el filtrado por perfil).
 
 Las tablas de la sección [Endpoints](#endpoints) son el índice rápido; el YAML es la referencia detallada.
 
@@ -696,6 +696,21 @@ Todas las rutas están definidas en `routes/api.php` y llevan el prefijo `/api`.
 | Método | Ruta | Acción |
 |---|---|---|
 | `GET` | `ficha-clinica/{rut_paciente}` | Ficha clínica consolidada (`SP_ficha_clinica`) |
+
+### Juego de cartas
+
+Evaluación gamificada por club: cada paciente es una carta con cuatro atributos
+comparables 0-100, puntaje, estrellas, badge clínico y barra de completitud. Todo lo
+calcula `SP_juego_cartas_club` al vuelo; nada se persiste.
+
+| Método | Ruta | Acción |
+|---|---|---|
+| `GET` | `juego-cartas/niveles` | Bandas de `juego_niveles` y catálogo de `juego_atributos` |
+| `GET` | `juego-cartas/detalle/{rut_paciente}` | Una carta por RUT, sin filtro de club |
+| `GET` | `juego-cartas/{user_email}` | Todas las cartas del club, con `?search=` opcional |
+
+**El orden de declaración es obligatorio**: las rutas literales van antes de la que
+captura `{user_email}`, o `juego-cartas/niveles` se resolvería con `user_email = "niveles"`.
 
 ### Certificados
 

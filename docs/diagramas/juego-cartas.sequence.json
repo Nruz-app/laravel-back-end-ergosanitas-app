@@ -1,0 +1,245 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Ergosanitas — Juego de cartas por niveles",
+    "output": "juego-cartas.html",
+    "viewBox": [
+      1060,
+      560
+    ],
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "locale": "en",
+    "views": [
+      {
+        "id": "peticion",
+        "label": "Peticion del club",
+        "focus": [
+          "club",
+          "controlador",
+          "servicio",
+          "modelo"
+        ],
+        "note": "Las tres capas del repo: Controller entrega a Service y Service al wrapper del procedimiento."
+      },
+      {
+        "id": "calculo",
+        "label": "Calculo en MySQL",
+        "focus": [
+          "modelo",
+          "mysql",
+          "procedimiento"
+        ],
+        "note": "Toda la formula vive en el procedimiento, en cuatro capas anidadas. Nada se persiste."
+      },
+      {
+        "id": "orden",
+        "label": "Orden determinista",
+        "focus": [
+          "procedimiento",
+          "modelo",
+          "servicio",
+          "controlador",
+          "club"
+        ],
+        "note": "JSON_ARRAYAGG no respeta ORDER BY en 5.7: el usort de PHP es el unico orden garantizado."
+      }
+    ]
+  },
+  "participants": [
+    {
+      "id": "club",
+      "type": "external",
+      "label": "Colegio",
+      "sublabel": "user_email del club"
+    },
+    {
+      "id": "controlador",
+      "type": "backend",
+      "label": "Controller",
+      "sublabel": "JuegoCartasController"
+    },
+    {
+      "id": "servicio",
+      "type": "backend",
+      "label": "Service",
+      "sublabel": "JuegoCartasService"
+    },
+    {
+      "id": "modelo",
+      "type": "backend",
+      "label": "Model",
+      "sublabel": "JuegoCartaClub"
+    },
+    {
+      "id": "mysql",
+      "type": "database",
+      "label": "MySQL 5.7",
+      "sublabel": "sin CTEs ni window"
+    },
+    {
+      "id": "procedimiento",
+      "type": "database",
+      "label": "Procedimiento",
+      "sublabel": "SP_juego_cartas_club"
+    }
+  ],
+  "segments": [
+    {
+      "from": 152,
+      "to": 252,
+      "label": "Peticion"
+    },
+    {
+      "from": 260,
+      "to": 390,
+      "label": "Calculo al vuelo"
+    },
+    {
+      "from": 398,
+      "to": 500,
+      "label": "Orden y respuesta"
+    }
+  ],
+  "messages": [
+    {
+      "id": "get",
+      "from": "club",
+      "to": "controlador",
+      "y": 168,
+      "label": "GET juego-cartas/{user_email}",
+      "variant": "emphasis"
+    },
+    {
+      "id": "cartas",
+      "from": "controlador",
+      "to": "servicio",
+      "y": 200,
+      "label": "CartasClub(search, club)",
+      "variant": "default"
+    },
+    {
+      "id": "wrapper",
+      "from": "servicio",
+      "to": "modelo",
+      "y": 232,
+      "label": "SP_juego_cartas_club(...)",
+      "variant": "default"
+    },
+    {
+      "id": "call",
+      "from": "modelo",
+      "to": "mysql",
+      "y": 274,
+      "label": "CALL con 2 parametros",
+      "variant": "emphasis"
+    },
+    {
+      "id": "ejecuta",
+      "from": "mysql",
+      "to": "procedimiento",
+      "y": 306,
+      "label": "ejecuta las 4 capas",
+      "variant": "default"
+    },
+    {
+      "id": "joins",
+      "from": "procedimiento",
+      "to": "mysql",
+      "y": 338,
+      "label": "1 carta por RUT + LEFT JOIN acotados",
+      "variant": "default"
+    },
+    {
+      "id": "bandas",
+      "from": "procedimiento",
+      "to": "mysql",
+      "y": 370,
+      "label": "clasifica por juego_niveles + JSON_ARRAYAGG",
+      "variant": "security"
+    },
+    {
+      "id": "fila",
+      "from": "mysql",
+      "to": "servicio",
+      "y": 412,
+      "label": "resultado_json",
+      "variant": "return"
+    },
+    {
+      "id": "usort",
+      "from": "servicio",
+      "to": "controlador",
+      "y": 444,
+      "label": "usort: orden determinista",
+      "variant": "emphasis"
+    },
+    {
+      "id": "resp",
+      "from": "controlador",
+      "to": "club",
+      "y": 476,
+      "label": "200 {success, message, data}",
+      "variant": "return"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "controlador",
+      "from": 164,
+      "to": 482,
+      "type": "backend"
+    },
+    {
+      "participant": "servicio",
+      "from": 196,
+      "to": 450,
+      "type": "backend"
+    },
+    {
+      "participant": "modelo",
+      "from": 228,
+      "to": 344,
+      "type": "backend"
+    },
+    {
+      "participant": "mysql",
+      "from": 270,
+      "to": 418,
+      "type": "database"
+    },
+    {
+      "participant": "procedimiento",
+      "from": 302,
+      "to": 376,
+      "type": "database"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Dos ejes independientes",
+      "items": [
+        "Puntaje clinico: que tan bien esta lo medido",
+        "Completitud: cuanto se ha medido del paciente"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Sin evaluar, no BAJO",
+      "items": [
+        "Un alumno de carga masiva no tiene ningun signo vital",
+        "Sus cuatro atributos quedan nulos y la banda es -1"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Limites de MySQL 5.7",
+      "items": [
+        "JSON_ARRAYAGG ignora ORDER BY: se ordena en PHP",
+        "CAST(NULL) = 0 da NULL: todo CAST lleva COALESCE"
+      ]
+    }
+  ]
+}

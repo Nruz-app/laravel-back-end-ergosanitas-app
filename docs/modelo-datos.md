@@ -265,7 +265,39 @@ erDiagram
         varchar rutaWeb
         varchar mensaje "250 caracteres"
     }
+
+    JUEGO_NIVELES {
+        bigint id PK
+        varchar tipo "clinico | completitud"
+        varchar slug "unique(tipo, slug)"
+        varchar nombre "etiqueta del badge"
+        int valor_min "clinico: -1 (sin evaluar) o 0-100"
+        int valor_max
+        varchar color_fondo
+        varchar color_texto
+        tinyint orden
+        boolean activo
+    }
+
+    JUEGO_ATRIBUTOS {
+        bigint id PK
+        varchar slug "corazon|vitalidad|composicion|resistencia"
+        varchar nombre
+        varchar icono "emoji"
+        varchar descripcion
+        tinyint orden
+        boolean activo
+    }
 ```
+
+> `juego_niveles` y `juego_atributos` **no se relacionan con nadie por clave**: son tablas de
+> configuración que `SP_juego_cartas_club` consulta al vuelo. Ahí viven los umbrales y colores
+> de la carta, para poder retunearlos con un `UPDATE` sin tocar el procedimiento ni el código
+> PHP. Son las dos únicas tablas del repo cuya migración **siembra datos en el propio `up()`**.
+>
+> La banda clínica `sin_evaluar` usa `-1/-1` como centinela: no es un puntaje, marca a los
+> pacientes sin ningún dato clínico (hoy 201 de 1.554) para que no caigan en `BAJO` por una
+> carga masiva incompleta.
 
 **Perfiles conocidos:** 1 administrador · 2 tester · 3 club deportivo · 5 paciente · 6 médico.
 
@@ -445,6 +477,7 @@ flowchart LR
 | `SP_chequeos_prompt` | `PagoMensual` | `EstadisticasService::ChequeoPrompt` | `POST sam-assistant/as-question` |
 | `SP_chequeos_club_prompt` | `ChequeoClubPrompt` | `ClubAssistantService::datosClub` | `POST sam-assistant-club/as-question` |
 | `SP_ficha_clinica` | `FichaClinica` | `FichaClinicaService::FichaClinica` | `GET ficha-clinica/{rut}` |
+| `SP_juego_cartas_club` | `JuegoCartaClub` | `JuegoCartasService::CartasClub` y `::CartaDetalle` | `GET juego-cartas/{user_email}` y `GET juego-cartas/detalle/{rut}` |
 | `SP_bioimpedacia_rut` | `Bioimpedancia` | `BioimpedanciaService::BioPDFRut` | `GET bioimpedancia/pdfRut/{rut}` |
 | `SP_estadistica_liga` | `IncidentesDeportivos` | `IncidentesService::sp_estadistica_liga` | `GET incidencia-deportivos/sp_estadistica_liga/{email}` |
 | `SP_estadistica_categoria` | `IncidentesDeportivos` | `IncidentesService::sp_estadistica_categoria` | `GET incidencia-deportivos/sp_estadistica_categoria/{email}` |
@@ -452,7 +485,7 @@ flowchart LR
 | `SP_estadistica_parte_cuerpo` | `IncidentesDeportivos` | `IncidentesService::sp_estadistica_parte_cuerpo` | `GET incidencia-deportivos/sp_estadistica_parte_cuerpo/{email}` |
 | `SP_estadistica_lesiones_fechas` | `IncidentesDeportivos` | `IncidentesService::sp_estadistica_lesiones_fechas` | `GET incidencia-deportivos/sp_estadistica_lesiones_fechas/{email}` |
 
-**Solo `SP_chequeos_club_prompt` está versionado** en el repo (`base_datos/references/sp/SP_chequeos_club_prompt.sql`). El resto son cajas negras que viven únicamente en la base: al cambiar su firma hay que actualizarlos ahí directamente, y no queda rastro en git.
+**Solo `SP_chequeos_club_prompt` y `SP_juego_cartas_club` están versionados** en el repo (`base_datos/references/sp/`). El resto son cajas negras que viven únicamente en la base: al cambiar su firma hay que actualizarlos ahí directamente, y no queda rastro en git.
 
 La base declara **23 procedimientos**, pero la API solo invoca los 19 de la tabla. Los otros cuatro (`SP_cargar_desde_chequeo`, `SP_filtros_dashboard`, `SP_procesar_mes` y `tmp_call_sp`) no los llama ningún endpoint: antes de borrar alguno, comprueba que no lo use un proceso externo.
 

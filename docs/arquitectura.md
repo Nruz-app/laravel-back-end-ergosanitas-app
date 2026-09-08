@@ -132,6 +132,7 @@ flowchart LR
     subgraph D4["Clinico complementario"]
         BIC["BioimpedanciaController"]
         FCC["FichaClinicaController"]
+        JCC["JuegoCartasController"]
         INC["IncidenciasController"]
     end
     subgraph D5["Negocio y usuarios"]
@@ -148,6 +149,7 @@ flowchart LR
     S_PDF["ChequeoCardiovascularPDFService"]
     S_WS["ChequeoCardiovascularWordService"]
     S_UMS["UserMetadataService"]
+    S_JCS["JuegoCartasService"]
     S_CS["CertificadoService"]
     S_ECS["ElectroCardiogramaService"]
     S_ES["EstadisticasService"]
@@ -176,6 +178,7 @@ flowchart LR
 
     BIC --> S_BIS
     FCC --> S_FCS
+    JCC --> S_JCS
     INC --> S_IS
 
     UC --> S_UMS
@@ -228,7 +231,7 @@ flowchart LR
     classDef warn fill:#fff4e5,stroke:#d97706,stroke-width:2px,color:#5d4037
 ```
 
-Los 12 providers registrados en `bootstrap/providers.php`:
+Los 13 providers registrados en `bootstrap/providers.php`:
 
 | Provider | Registra |
 |---|---|
@@ -242,6 +245,7 @@ Los 12 providers registrados en `bootstrap/providers.php`:
 | `EstadisticasProvider` | `EstadisticasService` |
 | `FichaClinicaServiceProvider` | `FichaClinicaService` |
 | `IncidenciaServiceProvider` | `IncidentesService` |
+| `JuegoCartasServiceProvider` | `JuegoCartasService` |
 | `OpenAIServiceProvider` | `OpenAIService` |
 | `UserMetadataProvider` | `UserMetadataService` |
 

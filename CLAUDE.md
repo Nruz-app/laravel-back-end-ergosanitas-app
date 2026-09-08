@@ -8,9 +8,9 @@ API REST en Laravel 11 (PHP 8.2) para **Ergosanitas**: gestión de chequeos card
 
 El código y los comentarios están en español. Los métodos de controlador van en `PascalCase` (`FindByEmail`, `ChequeoPDFRut`), a diferencia de la convención Laravel por defecto.
 
-`README.md` documenta el stack, la instalación y el catálogo de endpoints. `docs/openapi.yaml` es el contrato OpenAPI 3.0.3 con las 81 operaciones detalladas (request, respuestas por código y ejemplos); `docs/index.html` lo muestra con Swagger UI. Este archivo cubre lo que no se deduce leyendo un solo archivo.
+`README.md` documenta el stack, la instalación y el catálogo de endpoints. `docs/openapi.yaml` es el contrato OpenAPI 3.0.3 con las 84 operaciones detalladas (request, respuestas por código y ejemplos); `docs/index.html` lo muestra con Swagger UI. Este archivo cubre lo que no se deduce leyendo un solo archivo.
 
-La vista gráfica vive en cuatro documentos Mermaid: `docs/arquitectura.md` (componentes, capas, providers, despliegue), `docs/flujos.md` (12 diagramas de secuencia end-to-end), `docs/diagrama-clases.md` (clases UML por dominio) y `docs/modelo-datos.md` (ERD, máquina de estados, autorización por perfil, catálogo de SP). `docs/README.md` los indexa.
+La vista gráfica vive en cuatro documentos Mermaid: `docs/arquitectura.md` (componentes, capas, providers, despliegue), `docs/flujos.md` (13 diagramas de secuencia end-to-end), `docs/diagrama-clases.md` (clases UML por dominio) y `docs/modelo-datos.md` (ERD, máquina de estados, autorización por perfil, catálogo de SP). `docs/README.md` los indexa. Ademas, `docs/diagramas/` tiene tres artefactos **explorables** en HTML generados con archify (arquitectura, juego de cartas y ciclo de vida del chequeo): el `.html` es generado, la fuente es su `.json` hermano.
 
 El contrato y los diagramas **se mantienen a mano**: no hay generación automática ni anotaciones L5-Swagger. Al agregar o modificar una ruta en `routes/api.php`, actualiza `docs/openapi.yaml` en el mismo commit y contrasta con `php artisan route:list --json`. Si cambia un flujo, una clase o el esquema, actualiza también el `.md` de diagramas correspondiente.
 
@@ -115,6 +115,7 @@ Gran parte de las estadísticas vive en MySQL, no en PHP. Los modelos exponen wr
 - `IncidentesDeportivos`: `SP_estadistica_liga`, `SP_estadistica_categoria`, `SP_estadistica_lesiones`, `SP_estadistica_parte_cuerpo`, `SP_estadistica_lesiones_fechas`
 - `PagoMensual`: `SP_agenda_mensual`, `SP_estadistica_monto_mdc`, `SP_update_pago_mensual`, `SP_chequeos_prompt`
 - `FichaClinica`: `SP_ficha_clinica` (devuelve una columna `resultado_json` que el servicio decodifica)
+- `JuegoCartaClub`: `SP_juego_cartas_club` (una columna `resultado_json` con el array de cartas del club)
 - `Bioimpedancia`: `SP_bioimpedacia_rut`
 
 Estos SP **no están versionados en el repo** ni en las migraciones. Al cambiar su firma hay que actualizarlos directamente en la base de datos.

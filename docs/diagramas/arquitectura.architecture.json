@@ -63,7 +63,7 @@
       "id": "rutas",
       "type": "backend",
       "label": "routes/api.php",
-      "sublabel": "81 operaciones bajo /api",
+      "sublabel": "84 operaciones bajo /api",
       "pos": [
         40,
         280
@@ -77,7 +77,7 @@
     {
       "id": "controladores",
       "type": "backend",
-      "label": "18 controladores",
+      "label": "20 controladores",
       "sublabel": "app/Http/Controllers",
       "pos": [
         260,
@@ -91,7 +91,7 @@
     {
       "id": "servicios",
       "type": "backend",
-      "label": "12 servicios",
+      "label": "13 servicios",
       "sublabel": "app/Services",
       "pos": [
         480,
@@ -105,7 +105,7 @@
     {
       "id": "modelos",
       "type": "backend",
-      "label": "21 modelos Eloquent",
+      "label": "23 modelos Eloquent",
       "sublabel": "app/Models",
       "pos": [
         700,
@@ -120,7 +120,7 @@
       "id": "mysql",
       "type": "database",
       "label": "MySQL 5.7",
-      "sublabel": "18 tablas de negocio",
+      "sublabel": "20 tablas de negocio",
       "pos": [
         920,
         280
@@ -204,8 +204,8 @@
     {
       "id": "procedimientos",
       "type": "database",
-      "label": "19 procedimientos",
-      "sublabel": "solo 1 versionado",
+      "label": "20 procedimientos",
+      "sublabel": "solo 2 versionados",
       "pos": [
         920,
         460
@@ -300,7 +300,7 @@
       "title": "Las tres capas",
       "items": [
         "Controller entrega a Service y Service a Model",
-        "Seis controladores hablan directo con los modelos"
+        "juego-cartas es el slice mas limpio del repo"
       ]
     },
     {

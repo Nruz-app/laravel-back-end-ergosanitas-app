@@ -576,6 +576,64 @@ classDiagram
 
 ---
 
+## Juego de cartas
+
+Vertical slice completo y reciente: es el ejemplo más limpio del patrón Controller → Service → Model del repo, porque se escribió con las convenciones ya documentadas.
+
+```mermaid
+classDiagram
+    class JuegoCartasController {
+        -JuegoCartasService juegoCartasService
+        +__construct(JuegoCartasService)
+        +CartasClub(Request, string user_email)
+        +CartaDetalle(string rut_paciente)
+        +Niveles()
+    }
+
+    class JuegoCartasService {
+        +CartasClub(?string search, string club) array
+        +CartaDetalle(string rut) ?array
+        +Niveles() array
+        -llamarSP(?string search, ?string club) array
+        -ordenar(array cartas) void
+    }
+
+    class JuegoCartaClub {
+        <<wrapper de SP>>
+        +SP_juego_cartas_club(search, club)$
+    }
+
+    class JuegoNivel {
+        +string table = "juego_niveles"
+        +array fillable
+    }
+
+    class JuegoAtributo {
+        +string table = "juego_atributos"
+        +array fillable
+    }
+
+    class JuegoCartasServiceProvider {
+        +register() void
+        +boot() void
+    }
+
+    JuegoCartasController --> JuegoCartasService : constructor
+    JuegoCartasService --> JuegoCartaClub : CALL SP
+    JuegoCartasService --> JuegoNivel : Eloquent
+    JuegoCartasService --> JuegoAtributo : Eloquent
+    JuegoCartasServiceProvider ..> JuegoCartasService : singleton
+```
+
+Detalles que no se ven en el diagrama:
+
+- `JuegoCartaClub` **no declara `$table`**: solo envuelve el procedimiento, igual que `FichaClinica`. `JuegoNivel` y `JuegoAtributo` sí son modelos Eloquent reales.
+- `llamarSP()` usa la variante **defensiva** de `json_decode` (la de `ClubAssistantService`, no la de `FichaClinicaService`): comprueba `empty($results[0]->resultado_json)` y valida `is_array()` antes de seguir.
+- `ordenar()` existe porque **en MySQL 5.7 `JSON_ARRAYAGG` no respeta `ORDER BY`**. Ordena por `puntaje` descendente, desempata por `atributos_medidos` descendente —para que una carta con los cuatro atributos gane a otra que empata con solo dos— y manda las `sin_evaluar` al final.
+- `JuegoCartasServiceProvider` está registrado en `bootstrap/providers.php`, en orden alfabético entre `IncidenciaServiceProvider` y `OpenAIServiceProvider`.
+
+---
+
 ## Convenciones y anomalías
 
 **Convenciones propias del repo** (respétalas al añadir código):
