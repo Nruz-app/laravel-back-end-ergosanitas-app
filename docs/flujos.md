@@ -17,6 +17,7 @@ Un diagrama de secuencia por flujo de negocio, con el endpoint que lo dispara y 
 | 11 | [Pago WebPay](#11-pago-webpay) | `POST transbank/web-pay-request` |
 | 12 | [Agenda, correo y estadísticas](#12-agenda-correo-y-estadísticas) | `POST agenda-horas` · `POST email/reserva-hora` |
 | 13 | [Juego de cartas por niveles](#13-juego-de-cartas-por-niveles) | `GET juego-cartas/{user_email}` |
+| 14 | [Carro de servicios](#14-carro-de-servicios) | `POST cart-flow/carritos/{uuid}/checkout` |
 
 ---
 
@@ -622,6 +623,59 @@ Los otros dos endpoints reutilizan el mismo procedimiento y el mismo service:
 - `GET juego-cartas/niveles` → no toca el SP: lee `juego_niveles` y `juego_atributos` con Eloquent.
 
 > **El orden de declaración de las rutas es obligatorio.** `juego-cartas/niveles` y `juego-cartas/detalle/{rut}` van **antes** de `juego-cartas/{user_email}` en `routes/api.php`, o `niveles` se resolvería como un club llamado `"niveles"`.
+
+---
+
+## 14. Carro de servicios
+
+Spec 04 (`servicio-cart-flow`). Flujo paralelo al 11 y al 12, que no cambian. El cliente **nunca** manda montos: cada respuesta del carro trae el desglose que calcula `CalculadoraCarroService`.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Cliente (front /servicios)
+    participant CC as CarritoController
+    participant CS as CarritoService
+    participant CALC as CalculadoraCarroService
+    participant AG as AgendaPedidoController
+    participant CK as CheckoutService
+    participant WP as WebPayCartFlowService
+    participant TBK as Transbank
+    participant DB as MySQL (cf_*)
+
+    U->>CC: POST cart-flow/carritos {comuna_id}
+    CC->>DB: cf_carritos (uuid, expira_en +7d) + primer paciente
+    CC-->>U: 201 carro
+    U->>CC: POST cart-flow/carritos/{uuid}/lineas {paciente_id, sku}
+    CC->>CS: agregarLinea (rechaza ocultos y de cotizacion)
+    CS->>CALC: calcular(comuna, plan, pacientes, automaticos)
+    Note over CALC: toma de muestra 1 por paciente,<br/>TRUTROL, planes solo en servicios,<br/>domicilio 1 vez (mixta = el mayor),<br/>redondeo al $1.000, ticket minimo
+    CC-->>U: 201 carro + desglose + preparacion + bloqueos
+    U->>AG: GET cart-flow/agenda/bloques?carrito={uuid}
+    AG-->>U: dias y bloques (solo manana si hay ayuno o laboratorio)
+    U->>CC: POST cart-flow/carritos/{uuid}/checkout (multipart)
+    CC->>CK: checkout
+    CK->>CALC: recalcula a la fecha de la cita
+    CK->>DB: BEGIN · lockForUpdate(bloque) · cupo libre?
+    CK->>DB: cf_pedidos + pacientes + lineas (snapshot) · carrito convertido · COMMIT
+    CC-->>U: 201 pedido + token_consulta
+    alt medio_pago = webpay
+        U->>AG: POST cart-flow/pedidos/{numero}/webpay {t}
+        AG->>WP: iniciar (monto = cf_pedidos.total, buy_order unico)
+        WP->>TBK: POST transactions
+        AG-->>U: {token, url} → form POST token_ws
+        TBK->>AG: GET|POST cart-flow/webpay/retorno?token_ws
+        AG->>WP: retorno → PUT transactions/{token}
+        Note over WP: pagado solo si AUTHORIZED,<br/>response_code 0, monto y buy_order iguales
+        AG-->>U: 302 /servicios/resultado?pago=aprobado|rechazado&pedido&t
+    else transferencia o efectivo
+        Note over CK: pedido pendiente_pago + cf_pagos iniciado:<br/>Gerencia lo confirma
+    end
+```
+
+- **Cupo**: `cupo` del bloque menos los pedidos no anulados de esa fecha y bloque. El `lockForUpdate` sobre la fila del bloque serializa el último cupo; el segundo recibe 409 `bloque_lleno`.
+- **Producto oculto con carro abierto**: al leer el carro la línea se quita (soft delete) y sale el aviso `producto_no_disponible`; el checkout responde 409 para que el cliente revise el total.
+- **Webpay rechazado o cancelado**: el pedido sigue `pendiente_pago` y admite otro intento, con un `buy_order` nuevo.
 
 ---
 

@@ -1,0 +1,323 @@
+﻿sku_pack;nombre_pack;orden;sku_componente;nombre_componente;precio_componente
+PERF-BASICO;"Perfil Básico";1;LAB-301045;Hemograma;4120
+PERF-BASICO;"Perfil Básico";2;LAB-302047;"Glicemia (VITROS.)";1660
+PERF-BASICO;"Perfil Básico";3;LAB-302034;"Perfil Lipídico (VITROS.)";8290
+PERF-BASICO;"Perfil Básico";4;LAB-302023;"Creatinina en Sangre (VITROS)";1780
+PERF-BASICO;"Perfil Básico";5;LAB-309022;"Orina Completa-C (Con Uro)";2000
+PERF-BASICO;"Perfil Básico";6;LAB-307011-TM;"Toma de muestra venosa";1460
+PERF-DIABETICO;"Perfil Diabético";1;LAB-301041;"Hemoglobina Glicada";6030
+PERF-DIABETICO;"Perfil Diabético";2;LAB-302047;"Glicemia (VITROS.)";1660
+PERF-DIABETICO;"Perfil Diabético";3;LAB-302023;"Creatinina en Sangre (VITROS)";1780
+PERF-DIABETICO;"Perfil Diabético";4;LAB-309013;"Microalbúmina en orina Aislada";3780
+PERF-DIABETICO;"Perfil Diabético";5;LAB-302067;"Colesterol Total (VITROS.)";1810
+PERF-DIABETICO;"Perfil Diabético";6;LAB-302068;"Colesterol HDL (VITROS.)";2690
+PERF-DIABETICO;"Perfil Diabético";7;LAB-302064;Trigliceridos;2350
+PERF-DIABETICO;"Perfil Diabético";8;LAB-307011-TM;"Toma de muestra venosa";1460
+PERF-ADULTO-MAYOR;"Perfil Adulto Mayor";1;LAB-301045;Hemograma;4120
+PERF-ADULTO-MAYOR;"Perfil Adulto Mayor";2;LAB-302047;"Glicemia (VITROS.)";1660
+PERF-ADULTO-MAYOR;"Perfil Adulto Mayor";3;LAB-302034;"Perfil Lipídico (VITROS.)";8290
+PERF-ADULTO-MAYOR;"Perfil Adulto Mayor";4;LAB-302023;"Creatinina en Sangre (VITROS)";1780
+PERF-ADULTO-MAYOR;"Perfil Adulto Mayor";5;LAB-302057;"Nitrogeno Ureico (en sangre) (VITROS.)";1760
+PERF-ADULTO-MAYOR;"Perfil Adulto Mayor";6;LAB-302005;"Acido úrico, en sangre (Uricemia)";2030
+PERF-ADULTO-MAYOR;"Perfil Adulto Mayor";7;LAB-302063-2;"Transaminasas Oxaloacetica (GOT) (VITROS.)";1940
+PERF-ADULTO-MAYOR;"Perfil Adulto Mayor";8;LAB-302063;"Transaminasas , Piruvica (GPT) (VITROS.)";1940
+PERF-ADULTO-MAYOR;"Perfil Adulto Mayor";9;LAB-302015;"Calcio en sangre (VITROS.)";1850
+PERF-ADULTO-MAYOR;"Perfil Adulto Mayor";10;LAB-302042;"Fosforo, fosfemia (VITROS.)";2440
+PERF-ADULTO-MAYOR;"Perfil Adulto Mayor";11;LAB-309022;"Orina Completa-C (Con Uro)";2000
+PERF-ADULTO-MAYOR;"Perfil Adulto Mayor";12;LAB-303024;"Hormona Tiroestimulante (TSH) VITROS";6030
+PERF-ADULTO-MAYOR;"Perfil Adulto Mayor";13;LAB-307011-TM;"Toma de muestra venosa";1460
+PERF-HOMBRE-50;"Perfil Hombre 50+";1;LAB-301045;Hemograma;4120
+PERF-HOMBRE-50;"Perfil Hombre 50+";2;LAB-302047;"Glicemia (VITROS.)";1660
+PERF-HOMBRE-50;"Perfil Hombre 50+";3;LAB-302067;"Colesterol Total (VITROS.)";1810
+PERF-HOMBRE-50;"Perfil Hombre 50+";4;LAB-302068;"Colesterol HDL (VITROS.)";2690
+PERF-HOMBRE-50;"Perfil Hombre 50+";5;LAB-302064;Trigliceridos;2350
+PERF-HOMBRE-50;"Perfil Hombre 50+";6;LAB-302023;"Creatinina en Sangre (VITROS)";1780
+PERF-HOMBRE-50;"Perfil Hombre 50+";7;LAB-305070;"Antigeno Prostático Especifico (PSA Total)";9540
+PERF-HOMBRE-50;"Perfil Hombre 50+";8;LAB-303024;"Hormona Tiroestimulante (TSH) VITROS";6030
+PERF-HOMBRE-50;"Perfil Hombre 50+";9;LAB-309022;"Orina Completa-C (Con Uro)";2000
+PERF-HOMBRE-50;"Perfil Hombre 50+";10;LAB-307011-TM;"Toma de muestra venosa";1460
+PERF-MUJER-40;"Perfil Mujer 40+";1;LAB-301045;Hemograma;4120
+PERF-MUJER-40;"Perfil Mujer 40+";2;LAB-302047;"Glicemia (VITROS.)";1660
+PERF-MUJER-40;"Perfil Mujer 40+";3;LAB-302067;"Colesterol Total (VITROS.)";1810
+PERF-MUJER-40;"Perfil Mujer 40+";4;LAB-302068;"Colesterol HDL (VITROS.)";2690
+PERF-MUJER-40;"Perfil Mujer 40+";5;LAB-302064;Trigliceridos;2350
+PERF-MUJER-40;"Perfil Mujer 40+";6;LAB-302023;"Creatinina en Sangre (VITROS)";1780
+PERF-MUJER-40;"Perfil Mujer 40+";7;LAB-303024;"Hormona Tiroestimulante (TSH) VITROS";6030
+PERF-MUJER-40;"Perfil Mujer 40+";8;LAB-301026;"Ferritina DXI VITROS";8020
+PERF-MUJER-40;"Perfil Mujer 40+";9;LAB-309022;"Orina Completa-C (Con Uro)";2000
+PERF-MUJER-40;"Perfil Mujer 40+";10;LAB-307011-TM;"Toma de muestra venosa";1460
+PERF-MUJER-50-POSTMENOPAUSIA;"Perfil Mujer 50+ / Postmenopausia";1;LAB-301045;Hemograma;4120
+PERF-MUJER-50-POSTMENOPAUSIA;"Perfil Mujer 50+ / Postmenopausia";2;LAB-302047;"Glicemia (VITROS.)";1660
+PERF-MUJER-50-POSTMENOPAUSIA;"Perfil Mujer 50+ / Postmenopausia";3;LAB-302067;"Colesterol Total (VITROS.)";1810
+PERF-MUJER-50-POSTMENOPAUSIA;"Perfil Mujer 50+ / Postmenopausia";4;LAB-302068;"Colesterol HDL (VITROS.)";2690
+PERF-MUJER-50-POSTMENOPAUSIA;"Perfil Mujer 50+ / Postmenopausia";5;LAB-302064;Trigliceridos;2350
+PERF-MUJER-50-POSTMENOPAUSIA;"Perfil Mujer 50+ / Postmenopausia";6;LAB-302023;"Creatinina en Sangre (VITROS)";1780
+PERF-MUJER-50-POSTMENOPAUSIA;"Perfil Mujer 50+ / Postmenopausia";7;LAB-303024;"Hormona Tiroestimulante (TSH) VITROS";6030
+PERF-MUJER-50-POSTMENOPAUSIA;"Perfil Mujer 50+ / Postmenopausia";8;LAB-301026;"Ferritina DXI VITROS";8020
+PERF-MUJER-50-POSTMENOPAUSIA;"Perfil Mujer 50+ / Postmenopausia";9;LAB-309022;"Orina Completa-C (Con Uro)";2000
+PERF-MUJER-50-POSTMENOPAUSIA;"Perfil Mujer 50+ / Postmenopausia";10;LAB-302678;"25-Hidroxi Vitamina D VITROS (Proteger muestra de la LUZ)";22460
+PERF-MUJER-50-POSTMENOPAUSIA;"Perfil Mujer 50+ / Postmenopausia";11;LAB-302015;"Calcio en sangre (VITROS.)";1850
+PERF-MUJER-50-POSTMENOPAUSIA;"Perfil Mujer 50+ / Postmenopausia";12;LAB-302042;"Fosforo, fosfemia (VITROS.)";2440
+PERF-MUJER-50-POSTMENOPAUSIA;"Perfil Mujer 50+ / Postmenopausia";13;LAB-302040;"Fosfatasas Alcalinas VITROS";1700
+PERF-MUJER-50-POSTMENOPAUSIA;"Perfil Mujer 50+ / Postmenopausia";14;LAB-307011-TM;"Toma de muestra venosa";1460
+PERF-CARDIOVASCULAR-PREVENTIVO;"Perfil Cardiovascular Preventivo";1;LAB-302047;"Glicemia (VITROS.)";1660
+PERF-CARDIOVASCULAR-PREVENTIVO;"Perfil Cardiovascular Preventivo";2;LAB-301041;"Hemoglobina Glicada";6030
+PERF-CARDIOVASCULAR-PREVENTIVO;"Perfil Cardiovascular Preventivo";3;LAB-302067;"Colesterol Total (VITROS.)";1810
+PERF-CARDIOVASCULAR-PREVENTIVO;"Perfil Cardiovascular Preventivo";4;LAB-302068;"Colesterol HDL (VITROS.)";2690
+PERF-CARDIOVASCULAR-PREVENTIVO;"Perfil Cardiovascular Preventivo";5;LAB-302064;Trigliceridos;2350
+PERF-CARDIOVASCULAR-PREVENTIVO;"Perfil Cardiovascular Preventivo";6;LAB-302023;"Creatinina en Sangre (VITROS)";1780
+PERF-CARDIOVASCULAR-PREVENTIVO;"Perfil Cardiovascular Preventivo";7;LAB-302005;"Acido úrico, en sangre (Uricemia)";2030
+PERF-CARDIOVASCULAR-PREVENTIVO;"Perfil Cardiovascular Preventivo";8;LAB-305031;"Proteina C reactiva, PCR (VITROS.)";6370
+PERF-CARDIOVASCULAR-PREVENTIVO;"Perfil Cardiovascular Preventivo";9;LAB-309022;"Orina Completa-C (Con Uro)";2000
+PERF-CARDIOVASCULAR-PREVENTIVO;"Perfil Cardiovascular Preventivo";10;LAB-1009;"INDICE MAU/CREA VITROS (Creatiniruria + Microalbuminuria)";2070
+PERF-CARDIOVASCULAR-PREVENTIVO;"Perfil Cardiovascular Preventivo";11;LAB-307011-TM;"Toma de muestra venosa";1460
+PERF-METABOLICO-CONTROL-DE-PESO;"Perfil Metabólico / Control de Peso";1;LAB-1008-2;"INDICE HOMA VITROS (Insulina basal +Glicemia basal)";8350
+PERF-METABOLICO-CONTROL-DE-PESO;"Perfil Metabólico / Control de Peso";2;LAB-301041;"Hemoglobina Glicada";6030
+PERF-METABOLICO-CONTROL-DE-PESO;"Perfil Metabólico / Control de Peso";3;LAB-302067;"Colesterol Total (VITROS.)";1810
+PERF-METABOLICO-CONTROL-DE-PESO;"Perfil Metabólico / Control de Peso";4;LAB-302068;"Colesterol HDL (VITROS.)";2690
+PERF-METABOLICO-CONTROL-DE-PESO;"Perfil Metabólico / Control de Peso";5;LAB-302064;Trigliceridos;2350
+PERF-METABOLICO-CONTROL-DE-PESO;"Perfil Metabólico / Control de Peso";6;LAB-302063;"Transaminasas , Piruvica (GPT) (VITROS.)";1940
+PERF-METABOLICO-CONTROL-DE-PESO;"Perfil Metabólico / Control de Peso";7;LAB-303024;"Hormona Tiroestimulante (TSH) VITROS";6030
+PERF-METABOLICO-CONTROL-DE-PESO;"Perfil Metabólico / Control de Peso";8;LAB-302005;"Acido úrico, en sangre (Uricemia)";2030
+PERF-METABOLICO-CONTROL-DE-PESO;"Perfil Metabólico / Control de Peso";9;LAB-307011-TM;"Toma de muestra venosa";1460
+PERF-PREQUIRURGICO;"Perfil Prequirúrgico";1;LAB-301045;Hemograma;4120
+PERF-PREQUIRURGICO;"Perfil Prequirúrgico";2;LAB-301059;"Tiempo de Protrombina (TP)+INR";2070
+PERF-PREQUIRURGICO;"Perfil Prequirúrgico";3;LAB-301085;"Tromboplastina, tiempo parcial de (TTPA, TTPK o similares)";2350
+PERF-PREQUIRURGICO;"Perfil Prequirúrgico";4;LAB-301034;"Grupos - Rh";3330
+PERF-PREQUIRURGICO;"Perfil Prequirúrgico";5;LAB-302047;"Glicemia (VITROS.)";1660
+PERF-PREQUIRURGICO;"Perfil Prequirúrgico";6;LAB-302023;"Creatinina en Sangre (VITROS)";1780
+PERF-PREQUIRURGICO;"Perfil Prequirúrgico";7;LAB-302057;"Nitrogeno Ureico (en sangre) (VITROS.)";1760
+PERF-PREQUIRURGICO;"Perfil Prequirúrgico";8;LAB-302032-3;"Electrolitos en sangre, Sodio (VITROS.)";1720
+PERF-PREQUIRURGICO;"Perfil Prequirúrgico";9;LAB-302032-2;"Electrolitos en sangre, Potasio (VITROS.)";1720
+PERF-PREQUIRURGICO;"Perfil Prequirúrgico";10;LAB-302063-2;"Transaminasas Oxaloacetica (GOT) (VITROS.)";1940
+PERF-PREQUIRURGICO;"Perfil Prequirúrgico";11;LAB-302063;"Transaminasas , Piruvica (GPT) (VITROS.)";1940
+PERF-PREQUIRURGICO;"Perfil Prequirúrgico";12;LAB-309022;"Orina Completa-C (Con Uro)";2000
+PERF-PREQUIRURGICO;"Perfil Prequirúrgico";13;LAB-307011-TM;"Toma de muestra venosa";1460
+PERF-EJECUTIVO-ANUAL;"Perfil Ejecutivo Anual";1;LAB-301045;Hemograma;4120
+PERF-EJECUTIVO-ANUAL;"Perfil Ejecutivo Anual";2;LAB-302047;"Glicemia (VITROS.)";1660
+PERF-EJECUTIVO-ANUAL;"Perfil Ejecutivo Anual";3;LAB-301041;"Hemoglobina Glicada";6030
+PERF-EJECUTIVO-ANUAL;"Perfil Ejecutivo Anual";4;LAB-302067;"Colesterol Total (VITROS.)";1810
+PERF-EJECUTIVO-ANUAL;"Perfil Ejecutivo Anual";5;LAB-302068;"Colesterol HDL (VITROS.)";2690
+PERF-EJECUTIVO-ANUAL;"Perfil Ejecutivo Anual";6;LAB-302064;Trigliceridos;2350
+PERF-EJECUTIVO-ANUAL;"Perfil Ejecutivo Anual";7;LAB-302023;"Creatinina en Sangre (VITROS)";1780
+PERF-EJECUTIVO-ANUAL;"Perfil Ejecutivo Anual";8;LAB-302057;"Nitrogeno Ureico (en sangre) (VITROS.)";1760
+PERF-EJECUTIVO-ANUAL;"Perfil Ejecutivo Anual";9;LAB-302005;"Acido úrico, en sangre (Uricemia)";2030
+PERF-EJECUTIVO-ANUAL;"Perfil Ejecutivo Anual";10;LAB-302063-2;"Transaminasas Oxaloacetica (GOT) (VITROS.)";1940
+PERF-EJECUTIVO-ANUAL;"Perfil Ejecutivo Anual";11;LAB-302063;"Transaminasas , Piruvica (GPT) (VITROS.)";1940
+PERF-EJECUTIVO-ANUAL;"Perfil Ejecutivo Anual";12;LAB-303024;"Hormona Tiroestimulante (TSH) VITROS";6030
+PERF-EJECUTIVO-ANUAL;"Perfil Ejecutivo Anual";13;LAB-301086;VHS;740
+PERF-EJECUTIVO-ANUAL;"Perfil Ejecutivo Anual";14;LAB-302077;"Vitamina B12 VITROS (Proteger muestra de la LUZ)";10110
+PERF-EJECUTIVO-ANUAL;"Perfil Ejecutivo Anual";15;LAB-309022;"Orina Completa-C (Con Uro)";2000
+PERF-EJECUTIVO-ANUAL;"Perfil Ejecutivo Anual";16;LAB-1009;"INDICE MAU/CREA VITROS (Creatiniruria + Microalbuminuria)";2070
+PERF-EJECUTIVO-ANUAL;"Perfil Ejecutivo Anual";17;LAB-307011-TM;"Toma de muestra venosa";1460
+PERF-HOMBRE-40;"Perfil Hombre 40+";1;LAB-301045;Hemograma;4120
+PERF-HOMBRE-40;"Perfil Hombre 40+";2;LAB-302047;"Glicemia (VITROS.)";1660
+PERF-HOMBRE-40;"Perfil Hombre 40+";3;LAB-302067;"Colesterol Total (VITROS.)";1810
+PERF-HOMBRE-40;"Perfil Hombre 40+";4;LAB-302068;"Colesterol HDL (VITROS.)";2690
+PERF-HOMBRE-40;"Perfil Hombre 40+";5;LAB-302064;Trigliceridos;2350
+PERF-HOMBRE-40;"Perfil Hombre 40+";6;LAB-302023;"Creatinina en Sangre (VITROS)";1780
+PERF-HOMBRE-40;"Perfil Hombre 40+";7;LAB-302005;"Acido úrico, en sangre (Uricemia)";2030
+PERF-HOMBRE-40;"Perfil Hombre 40+";8;LAB-302063-2;"Transaminasas Oxaloacetica (GOT) (VITROS.)";1940
+PERF-HOMBRE-40;"Perfil Hombre 40+";9;LAB-302063;"Transaminasas , Piruvica (GPT) (VITROS.)";1940
+PERF-HOMBRE-40;"Perfil Hombre 40+";10;LAB-309022;"Orina Completa-C (Con Uro)";2000
+PERF-HOMBRE-40;"Perfil Hombre 40+";11;LAB-303022;"Testosterona Total VITROS";5990
+PERF-HOMBRE-40;"Perfil Hombre 40+";12;LAB-303024;"Hormona Tiroestimulante (TSH) VITROS";6030
+PERF-HOMBRE-40;"Perfil Hombre 40+";13;LAB-307011-TM;"Toma de muestra venosa";1460
+PACK-HIPERTENSION-ARTERIAL;"Pack Hipertensión Arterial";1;LAB-302047;"Glicemia (VITROS.)";1660
+PACK-HIPERTENSION-ARTERIAL;"Pack Hipertensión Arterial";2;LAB-302034;"Perfil Lipídico (VITROS.)";8290
+PACK-HIPERTENSION-ARTERIAL;"Pack Hipertensión Arterial";3;LAB-302023;"Creatinina en Sangre (VITROS)";1780
+PACK-HIPERTENSION-ARTERIAL;"Pack Hipertensión Arterial";4;LAB-302032-3;"Electrolitos en sangre, Sodio (VITROS.)";1720
+PACK-HIPERTENSION-ARTERIAL;"Pack Hipertensión Arterial";5;LAB-302032-2;"Electrolitos en sangre, Potasio (VITROS.)";1720
+PACK-HIPERTENSION-ARTERIAL;"Pack Hipertensión Arterial";6;LAB-302005;"Acido úrico, en sangre (Uricemia)";2030
+PACK-HIPERTENSION-ARTERIAL;"Pack Hipertensión Arterial";7;LAB-309022;"Orina Completa-C (Con Uro)";2000
+PACK-HIPERTENSION-ARTERIAL;"Pack Hipertensión Arterial";8;LAB-309013;"Microalbúmina en orina Aislada";3780
+PACK-HIPERTENSION-ARTERIAL;"Pack Hipertensión Arterial";9;LAB-302057;"Nitrogeno Ureico (en sangre) (VITROS.)";1760
+PACK-HIPERTENSION-ARTERIAL;"Pack Hipertensión Arterial";10;LAB-307011-TM;"Toma de muestra venosa";1460
+PACK-DEPORTISTA;"Pack Deportista";1;LAB-301045;Hemograma;4120
+PACK-DEPORTISTA;"Pack Deportista";2;LAB-302034;"Perfil Lipídico (VITROS.)";8290
+PACK-DEPORTISTA;"Pack Deportista";3;LAB-302047;"Glicemia (VITROS.)";1660
+PACK-DEPORTISTA;"Pack Deportista";4;LAB-302023;"Creatinina en Sangre (VITROS)";1780
+PACK-DEPORTISTA;"Pack Deportista";5;LAB-302026;"Creatinquinasa CK-TOTAL (VITROS.)";5070
+PACK-DEPORTISTA;"Pack Deportista";6;LAB-301026;"Ferritina DXI VITROS";8020
+PACK-DEPORTISTA;"Pack Deportista";7;LAB-302032-3;"Electrolitos en sangre, Sodio (VITROS.)";1720
+PACK-DEPORTISTA;"Pack Deportista";8;LAB-302032-2;"Electrolitos en sangre, Potasio (VITROS.)";1720
+PACK-DEPORTISTA;"Pack Deportista";9;LAB-302063-2;"Transaminasas Oxaloacetica (GOT) (VITROS.)";1940
+PACK-DEPORTISTA;"Pack Deportista";10;LAB-302030;"Deshidrogenasa Lactica (LDH)";3190
+PACK-DEPORTISTA;"Pack Deportista";11;LAB-307011-TM;"Toma de muestra venosa";1460
+PACK-VEGGIE-BASICO;"Pack Veggie Básico";1;LAB-302077;"Vitamina B12 VITROS (Proteger muestra de la LUZ)";10110
+PACK-VEGGIE-BASICO;"Pack Veggie Básico";2;LAB-301026;"Ferritina DXI VITROS";8020
+PACK-VEGGIE-BASICO;"Pack Veggie Básico";3;LAB-301028;"Ferremia, Fierro serico";2830
+PACK-VEGGIE-BASICO;"Pack Veggie Básico";4;LAB-301045;Hemograma;4120
+PACK-VEGGIE-BASICO;"Pack Veggie Básico";5;LAB-307011-TM;"Toma de muestra venosa";1460
+PACK-VEGGIE-COMPLETO;"Pack Veggie Completo";1;LAB-302077;"Vitamina B12 VITROS (Proteger muestra de la LUZ)";10110
+PACK-VEGGIE-COMPLETO;"Pack Veggie Completo";2;LAB-301026;"Ferritina DXI VITROS";8020
+PACK-VEGGIE-COMPLETO;"Pack Veggie Completo";3;LAB-301028;"Ferremia, Fierro serico";2830
+PACK-VEGGIE-COMPLETO;"Pack Veggie Completo";4;LAB-301045;Hemograma;4120
+PACK-VEGGIE-COMPLETO;"Pack Veggie Completo";5;LAB-302678;"25-Hidroxi Vitamina D VITROS (Proteger muestra de la LUZ)";22460
+PACK-VEGGIE-COMPLETO;"Pack Veggie Completo";6;LAB-302015;"Calcio en sangre (VITROS.)";1850
+PACK-VEGGIE-COMPLETO;"Pack Veggie Completo";7;LAB-302101;"Albúmina en sangre (VITROS)";1960
+PACK-VEGGIE-COMPLETO;"Pack Veggie Completo";8;LAB-302034;"Perfil Lipídico (VITROS.)";8290
+PACK-VEGGIE-COMPLETO;"Pack Veggie Completo";9;LAB-303024;"Hormona Tiroestimulante (TSH) VITROS";6030
+PACK-VEGGIE-COMPLETO;"Pack Veggie Completo";10;LAB-307011-TM;"Toma de muestra venosa";1460
+PACK-TIROIDES-BASICO;"Pack Tiroides Básico";1;LAB-303024;"Hormona Tiroestimulante (TSH) VITROS";6030
+PACK-TIROIDES-BASICO;"Pack Tiroides Básico";2;LAB-303026;"Hormona T4 Libre (T4L) VITROS";6940
+PACK-TIROIDES-BASICO;"Pack Tiroides Básico";3;LAB-307011-TM;"Toma de muestra venosa";1460
+PACK-TIROIDES-AMPLIADO;"Pack Tiroides Ampliado";1;LAB-303024;"Hormona Tiroestimulante (TSH) VITROS";6030
+PACK-TIROIDES-AMPLIADO;"Pack Tiroides Ampliado";2;LAB-303026;"Hormona T4 Libre (T4L) VITROS";6940
+PACK-TIROIDES-AMPLIADO;"Pack Tiroides Ampliado";3;LAB-303028;"Hormona tiroidea, Triyodotironina (T3) VITROS";6270
+PACK-TIROIDES-AMPLIADO;"Pack Tiroides Ampliado";4;LAB-307011-TM;"Toma de muestra venosa";1460
+PACK-INMUNOLOGICO;"Pack Inmunológico";1;LAB-301045;Hemograma;4120
+PACK-INMUNOLOGICO;"Pack Inmunológico";2;LAB-305031;"Proteina C reactiva, PCR (VITROS.)";6370
+PACK-INMUNOLOGICO;"Pack Inmunológico";3;LAB-301086;VHS;740
+PACK-INMUNOLOGICO;"Pack Inmunológico";4;LAB-305027;"Inmunoglobulinas IgA VITROS";4600
+PACK-INMUNOLOGICO;"Pack Inmunológico";5;LAB-305027-2;"Inmunoglobulinas IgG VITROS";6860
+PACK-INMUNOLOGICO;"Pack Inmunológico";6;LAB-305027-3;"Inmunoglobulinas IgM VITROS";6860
+PACK-INMUNOLOGICO;"Pack Inmunológico";7;LAB-305028;"Inmunoglobulinas IgE Total BK";4600
+PACK-INMUNOLOGICO;"Pack Inmunológico";8;LAB-307011-TM;"Toma de muestra venosa";1460
+PACK-VITAMINAS-Y-MINERALES;"Pack Vitaminas y Minerales";1;LAB-302077;"Vitamina B12 VITROS (Proteger muestra de la LUZ)";10110
+PACK-VITAMINAS-Y-MINERALES;"Pack Vitaminas y Minerales";2;LAB-302678;"25-Hidroxi Vitamina D VITROS (Proteger muestra de la LUZ)";22460
+PACK-VITAMINAS-Y-MINERALES;"Pack Vitaminas y Minerales";3;LAB-301002-2;"Acido Folico Serico VITROS (Proteger muestra de la LUZ)";6680
+PACK-VITAMINAS-Y-MINERALES;"Pack Vitaminas y Minerales";4;LAB-301026;"Ferritina DXI VITROS";8020
+PACK-VITAMINAS-Y-MINERALES;"Pack Vitaminas y Minerales";5;LAB-302015;"Calcio en sangre (VITROS.)";1850
+PACK-VITAMINAS-Y-MINERALES;"Pack Vitaminas y Minerales";6;LAB-302056;"Magnesio en sangre VITROS";3330
+PACK-VITAMINAS-Y-MINERALES;"Pack Vitaminas y Minerales";7;LAB-302042;"Fosforo, fosfemia (VITROS.)";2440
+PACK-VITAMINAS-Y-MINERALES;"Pack Vitaminas y Minerales";8;LAB-307011-TM;"Toma de muestra venosa";1460
+PACK-ANEMIA-FATIGA;"Pack Anemia / Fatiga";1;LAB-301045;Hemograma;4120
+PACK-ANEMIA-FATIGA;"Pack Anemia / Fatiga";2;LAB-301026;"Ferritina DXI VITROS";8020
+PACK-ANEMIA-FATIGA;"Pack Anemia / Fatiga";3;LAB-301028;"Ferremia, Fierro serico";2830
+PACK-ANEMIA-FATIGA;"Pack Anemia / Fatiga";4;LAB-301029;"Fierro, Capacidad de fijacion (incluye fierro serico) (VITROS.)";6160
+PACK-ANEMIA-FATIGA;"Pack Anemia / Fatiga";5;LAB-302077;"Vitamina B12 VITROS (Proteger muestra de la LUZ)";10110
+PACK-ANEMIA-FATIGA;"Pack Anemia / Fatiga";6;LAB-301086;VHS;740
+PACK-ANEMIA-FATIGA;"Pack Anemia / Fatiga";7;LAB-307011-TM;"Toma de muestra venosa";1460
+PACK-ETS;"Pack ETS";1;LAB-306169;"V.I.H (Ac. HIV 1/2 y Ag. p24) VITROS";720
+PACK-ETS;"Pack ETS";2;LAB-306042;VDRL;4130
+PACK-ETS;"Pack ETS";3;LAB-306076;"Virus Hepatitis B, Anti Core Total del (Anti HBc total) BK";10230
+PACK-ETS;"Pack ETS";4;LAB-306081;"Anticuerpos Totales virus Hepatitis C VITROS";8760
+PACK-ETS;"Pack ETS";5;LAB-307011-TM;"Toma de muestra venosa";1460
+PACK-MUJER-HORMONAL;"Pack Mujer Hormonal";1;LAB-303015-2;"Hormona Foliculo Estimulante (FSH Mujeres) VITROS";5760
+PACK-MUJER-HORMONAL;"Pack Mujer Hormonal";2;LAB-303016;"Hormona Luteinizante (LH) VITROS";5750
+PACK-MUJER-HORMONAL;"Pack Mujer Hormonal";3;LAB-303030;"Estradiol sensitive VITROS";7200
+PACK-MUJER-HORMONAL;"Pack Mujer Hormonal";4;LAB-303020;"Prolactina (PRL) VITROS";5760
+PACK-MUJER-HORMONAL;"Pack Mujer Hormonal";5;LAB-303024;"Hormona Tiroestimulante (TSH) VITROS";6030
+PACK-MUJER-HORMONAL;"Pack Mujer Hormonal";6;LAB-301045;Hemograma;4120
+PACK-MUJER-HORMONAL;"Pack Mujer Hormonal";7;LAB-307011-TM;"Toma de muestra venosa";1460
+PACK-EMBARAZO-INICIAL;"Pack Embarazo Inicial";1;LAB-303014;"Gonadotrofina Corionica (BHCG) VITROS";7180
+PACK-EMBARAZO-INICIAL;"Pack Embarazo Inicial";2;LAB-301034;"Grupos - Rh";3330
+PACK-EMBARAZO-INICIAL;"Pack Embarazo Inicial";3;LAB-301045;Hemograma;4120
+PACK-EMBARAZO-INICIAL;"Pack Embarazo Inicial";4;LAB-302047;"Glicemia (VITROS.)";1660
+PACK-EMBARAZO-INICIAL;"Pack Embarazo Inicial";5;LAB-309022;"Orina Completa-C (Con Uro)";2000
+PACK-EMBARAZO-INICIAL;"Pack Embarazo Inicial";6;LAB-306011-2;"Urocultivo 2";3870
+PACK-EMBARAZO-INICIAL;"Pack Embarazo Inicial";7;LAB-306042;VDRL;4130
+PACK-EMBARAZO-INICIAL;"Pack Embarazo Inicial";8;LAB-306169;"V.I.H (Ac. HIV 1/2 y Ag. p24) VITROS";720
+PACK-EMBARAZO-INICIAL;"Pack Embarazo Inicial";9;LAB-306061;Chagas;7490
+PACK-EMBARAZO-INICIAL;"Pack Embarazo Inicial";10;LAB-307011-TM;"Toma de muestra venosa";1460
+PACK-HEPATICO;"Pack Hepático";1;LAB-302076;"Perfil Hepático (TP) (VITROS.)";13640
+PACK-HEPATICO;"Pack Hepático";2;LAB-307011-TM;"Toma de muestra venosa";1460
+PACK-RENAL;"Pack Renal";1;LAB-302023;"Creatinina en Sangre (VITROS)";1780
+PACK-RENAL;"Pack Renal";2;LAB-302057;"Nitrogeno Ureico (en sangre) (VITROS.)";1760
+PACK-RENAL;"Pack Renal";3;LAB-302005;"Acido úrico, en sangre (Uricemia)";2030
+PACK-RENAL;"Pack Renal";4;LAB-302032-3;"Electrolitos en sangre, Sodio (VITROS.)";1720
+PACK-RENAL;"Pack Renal";5;LAB-302032-2;"Electrolitos en sangre, Potasio (VITROS.)";1720
+PACK-RENAL;"Pack Renal";6;LAB-302032;"Electrolitos en sangre, Cloro (VITROS.)";1720
+PACK-RENAL;"Pack Renal";7;LAB-309022;"Orina Completa-C (Con Uro)";2000
+PACK-RENAL;"Pack Renal";8;LAB-309013;"Microalbúmina en orina Aislada";3780
+PACK-RENAL;"Pack Renal";9;LAB-302042;"Fosforo, fosfemia (VITROS.)";2440
+PACK-RENAL;"Pack Renal";10;LAB-307011-TM;"Toma de muestra venosa";1460
+PACK-CONTROL-TACO-SEMESTRAL;"Pack Control TACO Semestral";1;LAB-301059;"Tiempo de Protrombina (TP)+INR";2070
+PACK-CONTROL-TACO-SEMESTRAL;"Pack Control TACO Semestral";2;LAB-301045;Hemograma;4120
+PACK-CONTROL-TACO-SEMESTRAL;"Pack Control TACO Semestral";3;LAB-302023;"Creatinina en Sangre (VITROS)";1780
+PACK-CONTROL-TACO-SEMESTRAL;"Pack Control TACO Semestral";4;LAB-302057;"Nitrogeno Ureico (en sangre) (VITROS.)";1760
+PACK-CONTROL-TACO-SEMESTRAL;"Pack Control TACO Semestral";5;LAB-302063-2;"Transaminasas Oxaloacetica (GOT) (VITROS.)";1940
+PACK-CONTROL-TACO-SEMESTRAL;"Pack Control TACO Semestral";6;LAB-302063;"Transaminasas , Piruvica (GPT) (VITROS.)";1940
+PACK-CONTROL-TACO-SEMESTRAL;"Pack Control TACO Semestral";7;LAB-309022;"Orina Completa-C (Con Uro)";2000
+PACK-CONTROL-TACO-SEMESTRAL;"Pack Control TACO Semestral";8;LAB-308004;"Hemorragias Ocultas (1ra muestra)";1570
+PACK-CONTROL-TACO-SEMESTRAL;"Pack Control TACO Semestral";9;LAB-303024;"Hormona Tiroestimulante (TSH) VITROS";6030
+PACK-CONTROL-TACO-SEMESTRAL;"Pack Control TACO Semestral";10;LAB-307011-TM;"Toma de muestra venosa";1460
+PACK-CONTROL-TACO-BASE;"Pack Control TACO Base";1;LAB-301059;"Tiempo de Protrombina (TP)+INR";2070
+PACK-CONTROL-TACO-BASE;"Pack Control TACO Base";2;LAB-301045;Hemograma;4120
+PACK-CONTROL-TACO-BASE;"Pack Control TACO Base";3;LAB-302023;"Creatinina en Sangre (VITROS)";1780
+PACK-CONTROL-TACO-BASE;"Pack Control TACO Base";4;LAB-302057;"Nitrogeno Ureico (en sangre) (VITROS.)";1760
+PACK-CONTROL-TACO-BASE;"Pack Control TACO Base";5;LAB-302063-2;"Transaminasas Oxaloacetica (GOT) (VITROS.)";1940
+PACK-CONTROL-TACO-BASE;"Pack Control TACO Base";6;LAB-302063;"Transaminasas , Piruvica (GPT) (VITROS.)";1940
+PACK-CONTROL-TACO-BASE;"Pack Control TACO Base";7;LAB-309022;"Orina Completa-C (Con Uro)";2000
+PACK-CONTROL-TACO-BASE;"Pack Control TACO Base";8;LAB-308004;"Hemorragias Ocultas (1ra muestra)";1570
+PACK-CONTROL-TACO-BASE;"Pack Control TACO Base";9;LAB-307011-TM;"Toma de muestra venosa";1460
+PACK-SEGURIDAD-ACOD;"Pack Seguridad ACOD";1;LAB-301045;Hemograma;4120
+PACK-SEGURIDAD-ACOD;"Pack Seguridad ACOD";2;LAB-302023;"Creatinina en Sangre (VITROS)";1780
+PACK-SEGURIDAD-ACOD;"Pack Seguridad ACOD";3;LAB-302057;"Nitrogeno Ureico (en sangre) (VITROS.)";1760
+PACK-SEGURIDAD-ACOD;"Pack Seguridad ACOD";4;LAB-302063-2;"Transaminasas Oxaloacetica (GOT) (VITROS.)";1940
+PACK-SEGURIDAD-ACOD;"Pack Seguridad ACOD";5;LAB-302063;"Transaminasas , Piruvica (GPT) (VITROS.)";1940
+PACK-SEGURIDAD-ACOD;"Pack Seguridad ACOD";6;LAB-309022;"Orina Completa-C (Con Uro)";2000
+PACK-SEGURIDAD-ACOD;"Pack Seguridad ACOD";7;LAB-308004;"Hemorragias Ocultas (1ra muestra)";1570
+PACK-SEGURIDAD-ACOD;"Pack Seguridad ACOD";8;LAB-307011-TM;"Toma de muestra venosa";1460
+PACK-CONTROL-INR-MENSUAL;"Control INR Mensual";1;LAB-301059;"Tiempo de Protrombina (TP)+INR";2070
+PACK-CONTROL-INR-MENSUAL;"Control INR Mensual";2;LAB-307011-TM;"Toma de muestra venosa";1460
+ESC-ESCOLAR-DEPORTIVO-LAB-APTO;"Escolar Deportivo (lab + Apto)";1;LAB-301045;Hemograma;4120
+ESC-ESCOLAR-DEPORTIVO-LAB-APTO;"Escolar Deportivo (lab + Apto)";2;LAB-302047;"Glicemia (VITROS.)";1660
+ESC-ESCOLAR-DEPORTIVO-LAB-APTO;"Escolar Deportivo (lab + Apto)";3;LAB-301028;"Ferremia, Fierro serico";2830
+ESC-ESCOLAR-DEPORTIVO-LAB-APTO;"Escolar Deportivo (lab + Apto)";4;LAB-309022;"Orina Completa-C (Con Uro)";2000
+ESC-ESCOLAR-DEPORTIVO-LAB-APTO;"Escolar Deportivo (lab + Apto)";5;LAB-306004;"Parasitologico Directo (DEPOSICIÓN)";1920
+ESC-ESCOLAR-DEPORTIVO-LAB-APTO;"Escolar Deportivo (lab + Apto)";6;LAB-307011-TM;"Toma de muestra venosa";1460
+ESC-ESCOLAR-DEPORTIVO-LAB-APTO;"Escolar Deportivo (lab + Apto)";7;SRV-CHEQUEO-CARDIOVASCULAR-DEPORTIVO;"Chequeo cardiovascular deportivo";30000
+ESC-ESCOLAR-RENDIMIENTO;"Escolar Rendimiento";1;LAB-301045;Hemograma;4120
+ESC-ESCOLAR-RENDIMIENTO;"Escolar Rendimiento";2;LAB-301026;"Ferritina DXI VITROS";8020
+ESC-ESCOLAR-RENDIMIENTO;"Escolar Rendimiento";3;LAB-301028;"Ferremia, Fierro serico";2830
+ESC-ESCOLAR-RENDIMIENTO;"Escolar Rendimiento";4;LAB-306004;"Parasitologico Directo (DEPOSICIÓN)";1920
+ESC-ESCOLAR-RENDIMIENTO;"Escolar Rendimiento";5;LAB-309022;"Orina Completa-C (Con Uro)";2000
+ESC-ESCOLAR-RENDIMIENTO;"Escolar Rendimiento";6;LAB-307011-TM;"Toma de muestra venosa";1460
+ESC-ESCOLAR-BASICO;"Escolar Básico";1;LAB-301045;Hemograma;4120
+ESC-ESCOLAR-BASICO;"Escolar Básico";2;LAB-302047;"Glicemia (VITROS.)";1660
+ESC-ESCOLAR-BASICO;"Escolar Básico";3;LAB-301028;"Ferremia, Fierro serico";2830
+ESC-ESCOLAR-BASICO;"Escolar Básico";4;LAB-309022;"Orina Completa-C (Con Uro)";2000
+ESC-ESCOLAR-BASICO;"Escolar Básico";5;LAB-306004;"Parasitologico Directo (DEPOSICIÓN)";1920
+ESC-ESCOLAR-BASICO;"Escolar Básico";6;LAB-307011-TM;"Toma de muestra venosa";1460
+ESC-JARDIN-SIN-PINCHAZO;"Jardín sin Pinchazo";1;LAB-306048;"Coproparasitológico seriado simple / TELLEMAN";5280
+ESC-JARDIN-SIN-PINCHAZO;"Jardín sin Pinchazo";2;LAB-309022;"Orina Completa-C (Con Uro)";2000
+ESC-CELIAQUIA-ESCOLAR;"Celiaquía Escolar";1;LAB-305181;"Ac. anti-transglutaminasa tisular (IgA) BK";16190
+ESC-CELIAQUIA-ESCOLAR;"Celiaquía Escolar";2;LAB-305181-2;"Ac. anti-transglutaminasa tisular (IgG) BK";16190
+ESC-CELIAQUIA-ESCOLAR;"Celiaquía Escolar";3;LAB-305027;"Inmunoglobulinas IgA VITROS";4600
+ESC-CELIAQUIA-ESCOLAR;"Celiaquía Escolar";4;LAB-301045;Hemograma;4120
+ESC-CELIAQUIA-ESCOLAR;"Celiaquía Escolar";5;LAB-301026;"Ferritina DXI VITROS";8020
+ESC-CELIAQUIA-ESCOLAR;"Celiaquía Escolar";6;LAB-307011-TM;"Toma de muestra venosa";1460
+EMP-LABORAL-BASICO;"Laboral Básico";1;LAB-301045;Hemograma;4120
+EMP-LABORAL-BASICO;"Laboral Básico";2;LAB-302047;"Glicemia (VITROS.)";1660
+EMP-LABORAL-BASICO;"Laboral Básico";3;LAB-302067;"Colesterol Total (VITROS.)";1810
+EMP-LABORAL-BASICO;"Laboral Básico";4;LAB-302068;"Colesterol HDL (VITROS.)";2690
+EMP-LABORAL-BASICO;"Laboral Básico";5;LAB-302064;Trigliceridos;2350
+EMP-LABORAL-BASICO;"Laboral Básico";6;LAB-302023;"Creatinina en Sangre (VITROS)";1780
+EMP-LABORAL-BASICO;"Laboral Básico";7;LAB-302063-2;"Transaminasas Oxaloacetica (GOT) (VITROS.)";1940
+EMP-LABORAL-BASICO;"Laboral Básico";8;LAB-302063;"Transaminasas , Piruvica (GPT) (VITROS.)";1940
+EMP-LABORAL-BASICO;"Laboral Básico";9;LAB-309022;"Orina Completa-C (Con Uro)";2000
+EMP-LABORAL-BASICO;"Laboral Básico";10;LAB-307011-TM;"Toma de muestra venosa";1460
+EMP-LABORAL-CARDIOVASCULAR;"Laboral Cardiovascular";1;LAB-301045;Hemograma;4120
+EMP-LABORAL-CARDIOVASCULAR;"Laboral Cardiovascular";2;LAB-302047;"Glicemia (VITROS.)";1660
+EMP-LABORAL-CARDIOVASCULAR;"Laboral Cardiovascular";3;LAB-302067;"Colesterol Total (VITROS.)";1810
+EMP-LABORAL-CARDIOVASCULAR;"Laboral Cardiovascular";4;LAB-302068;"Colesterol HDL (VITROS.)";2690
+EMP-LABORAL-CARDIOVASCULAR;"Laboral Cardiovascular";5;LAB-302064;Trigliceridos;2350
+EMP-LABORAL-CARDIOVASCULAR;"Laboral Cardiovascular";6;LAB-302023;"Creatinina en Sangre (VITROS)";1780
+EMP-LABORAL-CARDIOVASCULAR;"Laboral Cardiovascular";7;LAB-302063-2;"Transaminasas Oxaloacetica (GOT) (VITROS.)";1940
+EMP-LABORAL-CARDIOVASCULAR;"Laboral Cardiovascular";8;LAB-302063;"Transaminasas , Piruvica (GPT) (VITROS.)";1940
+EMP-LABORAL-CARDIOVASCULAR;"Laboral Cardiovascular";9;LAB-309022;"Orina Completa-C (Con Uro)";2000
+EMP-LABORAL-CARDIOVASCULAR;"Laboral Cardiovascular";10;LAB-307011-TM;"Toma de muestra venosa";1460
+EMP-LABORAL-CARDIOVASCULAR;"Laboral Cardiovascular";11;SRV-ECG-CON-INFORME;"ECG de reposo con informe";15000
+EMP-LABORAL-INTEGRAL;"Laboral Integral";1;LAB-301045;Hemograma;4120
+EMP-LABORAL-INTEGRAL;"Laboral Integral";2;LAB-302047;"Glicemia (VITROS.)";1660
+EMP-LABORAL-INTEGRAL;"Laboral Integral";3;LAB-302067;"Colesterol Total (VITROS.)";1810
+EMP-LABORAL-INTEGRAL;"Laboral Integral";4;LAB-302068;"Colesterol HDL (VITROS.)";2690
+EMP-LABORAL-INTEGRAL;"Laboral Integral";5;LAB-302064;Trigliceridos;2350
+EMP-LABORAL-INTEGRAL;"Laboral Integral";6;LAB-302023;"Creatinina en Sangre (VITROS)";1780
+EMP-LABORAL-INTEGRAL;"Laboral Integral";7;LAB-302063-2;"Transaminasas Oxaloacetica (GOT) (VITROS.)";1940
+EMP-LABORAL-INTEGRAL;"Laboral Integral";8;LAB-302063;"Transaminasas , Piruvica (GPT) (VITROS.)";1940
+EMP-LABORAL-INTEGRAL;"Laboral Integral";9;LAB-309022;"Orina Completa-C (Con Uro)";2000
+EMP-LABORAL-INTEGRAL;"Laboral Integral";10;LAB-301041;"Hemoglobina Glicada";6030
+EMP-LABORAL-INTEGRAL;"Laboral Integral";11;LAB-307011-TM;"Toma de muestra venosa";1460
+EMP-LABORAL-INTEGRAL;"Laboral Integral";12;SRV-ECG-CON-INFORME;"ECG de reposo con informe";15000
+EMP-LABORAL-INTEGRAL;"Laboral Integral";13;SRV-BIOIMPEDANCIA;"Bioimpedancia corporal";5000
+EMP-CONTROL-DE-DROGAS-LABORAL-3-SUSTANCIAS;"CONTROL DE DROGAS LABORAL (3 sustancias)";1;LAB-1011;"Marihuana en Orina";7180
+EMP-CONTROL-DE-DROGAS-LABORAL-3-SUSTANCIAS;"CONTROL DE DROGAS LABORAL (3 sustancias)";2;LAB-1022;"Cocaina en Orina";8330
+EMP-CONTROL-DE-DROGAS-LABORAL-3-SUSTANCIAS;"CONTROL DE DROGAS LABORAL (3 sustancias)";3;LAB-1003;"Anfetaminas en orina";8330
+EMP-CONTROL-DE-DROGAS-LABORAL-5-SUSTANCIAS;"CONTROL DE DROGAS LABORAL (5 sustancias)";1;LAB-1011;"Marihuana en Orina";7180
+EMP-CONTROL-DE-DROGAS-LABORAL-5-SUSTANCIAS;"CONTROL DE DROGAS LABORAL (5 sustancias)";2;LAB-1022;"Cocaina en Orina";8330
+EMP-CONTROL-DE-DROGAS-LABORAL-5-SUSTANCIAS;"CONTROL DE DROGAS LABORAL (5 sustancias)";3;LAB-1003;"Anfetaminas en orina";8330
+EMP-CONTROL-DE-DROGAS-LABORAL-5-SUSTANCIAS;"CONTROL DE DROGAS LABORAL (5 sustancias)";4;LAB-1008;"Benzodiazepinas Orina";8330
+EMP-CONTROL-DE-DROGAS-LABORAL-5-SUSTANCIAS;"CONTROL DE DROGAS LABORAL (5 sustancias)";5;LAB-1066;Opiaceos;7180

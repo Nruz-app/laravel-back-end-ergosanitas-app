@@ -6,11 +6,11 @@ Esta carpeta contiene el contrato de la API y los diagramas del sistema. La docu
 
 | Archivo | Qué es |
 |---|---|
-| [`openapi.yaml`](openapi.yaml) | Contrato OpenAPI 3.0.3 con las 90 operaciones: request, respuestas por código y ejemplos |
+| [`openapi.yaml`](openapi.yaml) | Contrato OpenAPI 3.0.3 con las 110 operaciones: request, respuestas por código y ejemplos |
 | [`index.html`](index.html) | Visor Swagger UI del contrato, listo para abrir en el navegador |
-| [`postman/`](postman/) | **Generado** — colección Postman v2.1 con las 90 operaciones, tres entornos y el script que la regenera desde `openapi.yaml` |
+| [`postman/`](postman/) | **Generado** — colección Postman v2.1 con las 110 operaciones, tres entornos y el script que la regenera desde `openapi.yaml` |
 | [`arquitectura.md`](arquitectura.md) | Componentes, las tres capas y sus excepciones, inyección de dependencias y despliegue |
-| [`flujos.md`](flujos.md) | 13 diagramas de secuencia, uno por flujo de negocio end-to-end |
+| [`flujos.md`](flujos.md) | 14 diagramas de secuencia, uno por flujo de negocio end-to-end |
 | [`diagrama-clases.md`](diagrama-clases.md) | Clases UML por dominio: controladores, servicios, modelos y prompts |
 | [`modelo-datos.md`](modelo-datos.md) | ERD de las 21 tablas, máquina de estados del chequeo, autorización por perfil y catálogo de procedimientos almacenados |
 | [`diagramas/arquitectura.html`](diagramas/arquitectura.html) | **Explorable** — mapa de componentes: zoom, búsqueda, vistas guiadas y exportación |

@@ -1,0 +1,7 @@
+﻿sku_operativo;pacientes_min;pacientes_max;precio_rm;precio_rm_comuna_lejana;precio_v_region_ohiggins;precio_otras_regiones;nota
+OP-CHEQUEO-CV;1;1;30000;35000;;;"individual a domicilio"
+OP-CHEQUEO-CV;5;19;20000;;;;
+OP-CHEQUEO-CV;20;49;18000;;25000;;
+OP-CHEQUEO-CV;50;99;16000;;20000;22000;
+OP-CHEQUEO-CV;100;199;15000;;18000;18000;
+OP-CHEQUEO-CV;200;;15000;;16000;;

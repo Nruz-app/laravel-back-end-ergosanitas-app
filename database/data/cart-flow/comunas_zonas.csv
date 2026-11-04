@@ -1,0 +1,51 @@
+﻿comuna;zona;cargo_domicilio_servicio;cargo_domicilio_laboratorio;km_ida_vuelta;a_cotizar;comuna_lejana_chequeo_cv
+"San Bernardo";1;10000;15000;14;NO;NO
+"El Bosque";1;10000;15000;12;NO;NO
+"La Pintana";1;10000;15000;16;NO;NO
+"La Cisterna";1;10000;15000;18;NO;NO
+"Lo Espejo";1;10000;15000;20;NO;NO
+"Pedro Aguirre Cerda";2;15000;15000;22;NO;NO
+"San Ramón";2;15000;15000;22;NO;NO
+"Calera de Tango";2;15000;15000;24;NO;NO
+"San Miguel";2;15000;15000;24;NO;NO
+Cerrillos;2;15000;15000;26;NO;NO
+"Padre Hurtado";2;15000;15000;26;NO;SI
+"La Granja";2;15000;15000;26;NO;NO
+"La Florida";2;15000;15000;28;NO;NO
+"Puente Alto";2;15000;15000;28;NO;NO
+"San Joaquín";2;15000;15000;28;NO;NO
+Maipú;2;15000;15000;30;NO;NO
+"Estación Central";2;15000;15000;34;NO;NO
+"Santiago Centro";2;15000;15000;34;NO;NO
+"Quinta Normal";3;20000;20000;36;NO;NO
+Macul;3;20000;20000;36;NO;NO
+Buin;3;20000;20000;38;NO;NO
+Pirque;3;20000;20000;40;NO;NO
+Independencia;3;20000;20000;40;NO;NO
+Ñuñoa;3;20000;20000;42;NO;NO
+"Lo Prado";3;20000;20000;44;NO;NO
+Peñaflor;3;20000;20000;44;NO;NO
+Recoleta;3;20000;20000;46;NO;NO
+Peñalolén;3;20000;20000;48;NO;NO
+Pudahuel;3;20000;20000;48;NO;NO
+"Cerro Navia";3;20000;20000;48;NO;NO
+Providencia;3;20000;20000;50;NO;NO
+Conchalí;3;20000;20000;52;NO;NO
+Renca;3;20000;20000;52;NO;NO
+Paine;3;20000;20000;56;NO;NO
+"La Reina";3;20000;20000;56;NO;NO
+Talagante;3;20000;20000;60;NO;NO
+Quilicura;3;20000;20000;60;NO;NO
+Vitacura;3;20000;20000;66;NO;NO
+Huechuraba;3;20000;20000;70;NO;NO
+"Las Condes";3;20000;20000;70;NO;NO
+"Isla de Maipo";3;20000;20000;70;NO;NO
+"Lo Barnechea";3;20000;20000;76;NO;NO
+"El Monte";3;20000;20000;78;NO;NO
+Lampa;3;20000;20000;92;NO;SI
+"San José de Maipo";3;20000;20000;96;NO;SI
+Colina;3;20000;20000;98;NO;SI
+Melipilla;3;20000;20000;128;NO;NO
+"San Felipe";;;;200;SI;NO
+"El Quisco";;;;238;SI;NO
+"La Serena";;;;976;SI;NO

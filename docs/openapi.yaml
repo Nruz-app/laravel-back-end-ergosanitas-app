@@ -277,6 +277,13 @@ tags:
       Mantenedor de las imágenes de promociones, alianzas y galería del Home comercial del
       front (tabla `home_imagenes`, archivos en `public/HomeImagenes`). La lectura es
       pública; las escrituras exigen un `user_email` de perfil Administrador (403 si no).
+  - name: Carro de servicios
+    description: |
+      SPEC 04 — Flujo `servicio-cart-flow` (tablas `cf_*`): catálogo completo con comunas y
+      zonas, carro anónimo por `uuid` con varios pacientes en la misma dirección, agenda por
+      bloques con cupo, checkout y pago por Webpay, transferencia o efectivo. **El total se
+      calcula siempre en el servidor.** Sobre `{success, message, data}`. Convive con
+      `servicios`, `agenda-horas` y `transbank/*`, que no cambian.
   - name: Incidencias deportivas
     description: Registro de lesiones deportivas y sus estadísticas por liga, categoría y parte del cuerpo.
   - name: Estadísticas y pagos
@@ -1159,6 +1166,235 @@ components:
               items: { type: string }
           example: "not_found"
       required: [success, message, error]
+
+    # ------------------------------------------------------------------
+    # SPEC 04 — Carro de servicios (servicio-cart-flow)
+    # ------------------------------------------------------------------
+    CartFlowError:
+      type: object
+      description: |
+        Sobre de error del carro. `error` es `"not_found"`, `"forbidden"`, `"server_error"`,
+        un código de conflicto (`"bloque_lleno"`, `"carrito_convertido"`, `"requiere_confirmacion"`…),
+        el array de mensajes de validación o el array de `bloqueos` del carro.
+      properties:
+        success: { type: boolean, example: false }
+        message: { type: string, example: "El carro tiene observaciones que impiden pagar." }
+        error: {}
+
+    CartFlowComuna:
+      type: object
+      properties:
+        id: { type: integer, example: 2 }
+        comuna: { type: string, example: "El Bosque" }
+        zona: { type: integer, nullable: true, example: 1 }
+        a_cotizar: { type: boolean, example: false }
+        cargo_servicio: { type: integer, nullable: true, example: 10000 }
+        cargo_laboratorio: { type: integer, nullable: true, example: 15000 }
+
+    CartFlowProducto:
+      type: object
+      description: |
+        Producto del catálogo. **Nunca** incluye `costo_domilab` ni `nota_interna` (`$hidden`).
+        `solo_cotizacion` = `true` para `operativo`, `a_cotizar` y `solo_operativo`: no entran al carro.
+      properties:
+        id: { type: integer, example: 54 }
+        sku: { type: string, example: "PERF-BASICO" }
+        tipo: { type: string, enum: [servicio_domicilio, examen_lab, perfil_lab, pack_lab, servicio_evento, operativo, a_cotizar, toma_muestra] }
+        categoria: { type: string, example: "Laboratorio / Perfiles preventivos" }
+        nombre: { type: string, example: "Perfil Básico" }
+        codigo_fonasa: { type: string, nullable: true }
+        precio: { type: integer, nullable: true, example: 19310 }
+        precio_te_cuida: { type: integer, nullable: true }
+        precio_familiar: { type: integer, nullable: true }
+        precio_adulto_mayor: { type: integer, nullable: true }
+        edad_min_beneficio: { type: integer, nullable: true }
+        agrega_automatico: { type: string, nullable: true }
+        publicable: { type: boolean }
+        visible_tienda: { type: boolean }
+        motivo_no_publicable: { type: string, nullable: true }
+        es_laboratorio: { type: boolean }
+        incluye_toma_muestra: { type: boolean }
+        requiere_orden_medica: { type: boolean }
+        requiere_ayuno: { type: boolean }
+        horas_ayuno: { type: integer, nullable: true, example: 8 }
+        solo_ruta_manana: { type: boolean }
+        solo_domicilio: { type: boolean }
+        solo_operativo: { type: boolean }
+        edad_min: { type: integer, nullable: true }
+        edad_max: { type: integer, nullable: true }
+        sexo: { type: string, nullable: true, enum: [F, M] }
+        aplica_plan: { type: boolean }
+        proteger_luz: { type: boolean }
+        muestra_orina: { type: boolean }
+        muestra_deposicion: { type: boolean }
+        descripcion_publica: { type: string, nullable: true }
+        preparacion: { type: string, nullable: true }
+        observacion: { type: string, nullable: true }
+        solo_cotizacion: { type: boolean, example: false }
+
+    CartFlowDesglose:
+      type: object
+      properties:
+        subtotal_lab: { type: integer, example: 19310 }
+        subtotal_servicios: { type: integer, example: 20000 }
+        toma_muestra: { type: integer, example: 0 }
+        insumos: { type: integer, example: 0 }
+        cargo_domicilio: { type: integer, example: 15000 }
+        descuento_plan: { type: integer, example: 0, description: "Informativo: ya está descontado de subtotal_servicios" }
+        total_sin_redondeo: { type: integer, example: 54310 }
+        ajuste_redondeo: { type: integer, example: 690 }
+        total: { type: integer, example: 55000 }
+
+    CartFlowLinea:
+      type: object
+      properties:
+        id: { type: integer, nullable: true, description: "null en las líneas automáticas" }
+        sku: { type: string, example: "PERF-BASICO" }
+        nombre: { type: string, example: "Perfil Básico" }
+        tipo: { type: string, example: "perfil_lab" }
+        cantidad: { type: integer, example: 1 }
+        precio_lista: { type: integer, example: 19310 }
+        precio_unitario: { type: integer, example: 19310 }
+        subtotal: { type: integer, example: 19310 }
+        automatica: { type: boolean, example: false, description: "Toma de muestra o insumo (TRUTROL) agregado por el carro" }
+        requiere_orden_medica: { type: boolean }
+        bloqueada: { type: boolean }
+
+    CartFlowPreparacion:
+      type: object
+      description: Preparación consolidada del paciente — rige la indicación más exigente.
+      properties:
+        ayuno: { type: boolean, example: true }
+        horas_ayuno: { type: integer, example: 8 }
+        requiere_orden_medica: { type: boolean, example: false }
+        indicaciones:
+          type: array
+          items: { type: string }
+          example: ["Ayuno de 8 horas"]
+
+    CartFlowCarrito:
+      type: object
+      properties:
+        uuid: { type: string, format: uuid }
+        estado: { type: string, enum: [abierto, convertido, expirado] }
+        expira_en: { type: string, format: date-time }
+        comuna: { $ref: '#/components/schemas/CartFlowComuna' }
+        direccion: { type: string, nullable: true, example: "Calle Ficticia 123" }
+        referencia: { type: string, nullable: true }
+        plan: { type: string, enum: [ninguno, te_cuida, familiar] }
+        pacientes:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              orden: { type: integer }
+              nombre: { type: string, nullable: true }
+              rut: { type: string, nullable: true }
+              fecha_nac: { type: string, format: date, nullable: true }
+              edad: { type: integer, nullable: true }
+              sexo: { type: string, nullable: true }
+              prevision: { type: string, nullable: true }
+              telefono: { type: string, nullable: true }
+              email: { type: string, nullable: true }
+              consentimiento: { type: boolean }
+              apoderado_nombre: { type: string, nullable: true }
+              apoderado_rut: { type: string, nullable: true }
+              consentimiento_apoderado: { type: boolean }
+              lineas:
+                type: array
+                items: { $ref: '#/components/schemas/CartFlowLinea' }
+              preparacion: { $ref: '#/components/schemas/CartFlowPreparacion' }
+        desglose: { $ref: '#/components/schemas/CartFlowDesglose' }
+        requiere_manana: { type: boolean }
+        requiere_orden_medica: { type: boolean }
+        a_cotizar: { type: boolean }
+        bloqueos:
+          type: array
+          items:
+            type: object
+            properties:
+              codigo: { type: string, enum: [sin_comuna, a_cotizar, carro_vacio, ticket_minimo, solo_cotizacion, no_disponible, edad_min, edad_max, sexo] }
+              mensaje: { type: string }
+              paciente_id: { type: integer, nullable: true }
+              linea_id: { type: integer, nullable: true }
+        avisos:
+          type: array
+          items:
+            type: object
+            properties:
+              codigo: { type: string, example: "producto_no_disponible" }
+              mensaje: { type: string }
+
+    CartFlowRespuestaCarrito:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string, example: "Producto agregado al carro" }
+        data: { $ref: '#/components/schemas/CartFlowCarrito' }
+
+    CartFlowPedido:
+      type: object
+      description: Pedido (snapshot del carro). Sin RUT ni fecha de nacimiento de los pacientes.
+      properties:
+        numero: { type: string, example: "ES-2026-000123" }
+        estado: { type: string, enum: [pendiente_pago, pagado, confirmado, atendido, anulado] }
+        medio_pago: { type: string, enum: [webpay, transferencia, efectivo] }
+        estado_pago: { type: string, enum: [pendiente, pagado, rechazado] }
+        comuna: { type: string }
+        zona: { type: integer, nullable: true }
+        direccion: { type: string }
+        referencia: { type: string, nullable: true }
+        plan: { type: string }
+        agenda:
+          type: object
+          properties:
+            fecha: { type: string, format: date, example: "2026-11-05" }
+            bloque: { type: string, example: "07:30-10:00" }
+            requiere_manana: { type: boolean }
+        desglose: { $ref: '#/components/schemas/CartFlowDesglose' }
+        pacientes:
+          type: array
+          items:
+            type: object
+            properties:
+              orden: { type: integer }
+              nombre: { type: string }
+              preparacion: { $ref: '#/components/schemas/CartFlowPreparacion' }
+              orden_medica_adjunta: { type: boolean }
+              lineas:
+                type: array
+                items: { $ref: '#/components/schemas/CartFlowLinea' }
+        pagos:
+          type: array
+          items:
+            type: object
+            properties:
+              medio: { type: string }
+              monto: { type: integer }
+              estado: { type: string, enum: [iniciado, aprobado, rechazado, error] }
+              fecha: { type: string, format: date-time }
+        creado: { type: string, format: date-time }
+        token_consulta:
+          type: string
+          format: uuid
+          description: Solo en la respuesta del checkout. Necesario para consultar y pagar el pedido.
+
+    CartFlowPacienteEntrada:
+      type: object
+      description: Todos opcionales al editar; el checkout exige nombre, RUT, fecha de nacimiento y consentimiento.
+      properties:
+        nombre: { type: string, example: "Paciente Ficticio" }
+        rut: { type: string, example: "11111111-1" }
+        fecha_nac: { type: string, format: date, example: "1980-01-01" }
+        sexo: { type: string, enum: [F, M] }
+        prevision: { type: string, example: "Fonasa" }
+        telefono: { type: string, example: "+56900000000" }
+        email: { type: string, format: email, example: "paciente@example.com" }
+        consentimiento: { type: boolean, example: true }
+        apoderado_nombre: { type: string }
+        apoderado_rut: { type: string }
+        consentimiento_apoderado: { type: boolean }
 
     ResultadoSP:
       description: |
@@ -6741,3 +6977,704 @@ paths:
                 response:
                   status: "Error en ejecucion"
                   mensaje: "Connection could not be established with host smtp.gmail.com"
+
+  # ------------------------------------------------------------------
+  # SPEC 04 — Carro de servicios (servicio-cart-flow)
+  # ------------------------------------------------------------------
+  /cart-flow/comunas:
+    get:
+      tags: [Carro de servicios]
+      summary: Comunas con zona y cargos de domicilio
+      operationId: cartFlowComunas
+      description: |
+        Comunas activas de `cf_comunas`, ordenadas por nombre. Las que están fuera de RM (sin
+        zona) o marcadas `a_cotizar` salen con `a_cotizar: true` y cargos `null`: el front solo
+        ofrece "Solicitar cotización".
+      responses:
+        '200':
+          description: Comunas.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "OK" }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/CartFlowComuna' }
+        '500':
+          description: Error inesperado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+
+  /cart-flow/catalogo:
+    get:
+      tags: [Carro de servicios]
+      summary: Catálogo público (solo visible_tienda)
+      operationId: cartFlowCatalogo
+      description: |
+        Productos con `visible_tienda = 1`, sin la toma de muestra suelta (el carro la suma
+        sola), ordenados por nombre. `categorias` trae las categorías visibles en el orden de
+        la tienda. Sin paginación (son ~230 filas).
+      parameters:
+        - { name: categoria, in: query, required: false, schema: { type: string, example: "Enfermería a domicilio" } }
+        - { name: tipo, in: query, required: false, schema: { type: string, example: "servicio_domicilio" } }
+        - { name: q, in: query, required: false, description: "Búsqueda por nombre (LIKE, sin distinguir mayúsculas)", schema: { type: string, example: "hemograma" } }
+      responses:
+        '200':
+          description: Productos y categorías.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "OK" }
+                  data:
+                    type: object
+                    properties:
+                      productos:
+                        type: array
+                        items: { $ref: '#/components/schemas/CartFlowProducto' }
+                      categorias:
+                        type: array
+                        items: { type: string }
+        '422':
+          description: Filtro inválido.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+
+  /cart-flow/catalogo/{sku}:
+    get:
+      tags: [Carro de servicios]
+      summary: Detalle de un producto visible
+      operationId: cartFlowProducto
+      parameters:
+        - { name: sku, in: path, required: true, schema: { type: string, example: "PERF-BASICO" } }
+      responses:
+        '200':
+          description: Producto con sus `componentes` (id, sku, nombre, tipo) si es perfil o pack.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "OK" }
+                  data: { $ref: '#/components/schemas/CartFlowProducto' }
+        '404':
+          description: No existe o está oculto.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+
+  /cart-flow/admin/productos/{sku}/visibilidad:
+    put:
+      tags: [Carro de servicios]
+      summary: Muestra u oculta un producto (mantenedor)
+      operationId: cartFlowVisibilidad
+      description: |
+        Exige un `user_email` de perfil **Administrador** (mismo control que la Spec 03; no es
+        autenticación). Cada cambio queda en `cf_visibilidad_log`. Activar un producto con
+        `publicable = 0` responde **409** `requiere_confirmacion` hasta que llegue `confirmar: true`.
+        Ocultar no afecta a los pedidos ya creados; los carros abiertos lo pierden con un aviso.
+      parameters:
+        - { name: sku, in: path, required: true, schema: { type: string, example: "LAB-301045" } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_email, visible_tienda]
+              properties:
+                user_email: { type: string, format: email, example: "admin@ergosanitas.com" }
+                visible_tienda: { type: boolean, example: false }
+                confirmar: { type: boolean, example: false }
+      responses:
+        '200':
+          description: Producto actualizado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Producto oculto de la tienda" }
+                  data: { $ref: '#/components/schemas/CartFlowProducto' }
+        '403':
+          description: El email no es de perfil Administrador.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+        '404':
+          description: SKU inexistente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+        '409':
+          description: Producto no publicable sin `confirmar`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+        '422':
+          description: Validación.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+
+  /cart-flow/carritos:
+    post:
+      tags: [Carro de servicios]
+      summary: Crea un carro anónimo
+      operationId: cartFlowCarritoStore
+      description: |
+        Crea un carro `abierto` con `uuid` aleatorio, vigente `carrito_dias_vigencia` días (7) y
+        con un primer paciente vacío. El front guarda el `uuid` para retomarlo.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                comuna_id: { type: integer, example: 2 }
+                direccion: { type: string, example: "Calle Ficticia 123" }
+                referencia: { type: string }
+                plan: { type: string, enum: [ninguno, te_cuida, familiar] }
+      responses:
+        '201':
+          description: Carro creado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowRespuestaCarrito' }
+        '422':
+          description: Comuna inexistente o plan inválido.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+
+  /cart-flow/carritos/{uuid}:
+    parameters:
+      - { name: uuid, in: path, required: true, schema: { type: string, format: uuid, example: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d" } }
+    get:
+      tags: [Carro de servicios]
+      summary: Carro recalculado
+      operationId: cartFlowCarritoShow
+      description: |
+        Devuelve el carro con desglose, preparación consolidada, bloqueos y avisos. Si el dueño
+        ocultó un producto, la línea se quita (soft delete) y sale un aviso `producto_no_disponible`.
+      responses:
+        '200':
+          description: Carro.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowRespuestaCarrito' }
+        '404':
+          description: Carro inexistente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+    put:
+      tags: [Carro de servicios]
+      summary: Cambia comuna, dirección o plan
+      operationId: cartFlowCarritoUpdate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                comuna_id: { type: integer, example: 2 }
+                direccion: { type: string, example: "Calle Ficticia 123" }
+                referencia: { type: string }
+                plan: { type: string, enum: [ninguno, te_cuida, familiar] }
+      responses:
+        '200':
+          description: Carro actualizado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowRespuestaCarrito' }
+        '404':
+          description: Carro inexistente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+        '409':
+          description: El carro ya se convirtió en pedido o expiró.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+        '422':
+          description: Validación.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+
+  /cart-flow/carritos/{uuid}/pacientes:
+    post:
+      tags: [Carro de servicios]
+      summary: Agrega otro paciente en la misma dirección
+      operationId: cartFlowPacienteStore
+      description: El segundo paciente y siguientes no pagan domicilio. Máximo 10 por carro.
+      parameters:
+        - { name: uuid, in: path, required: true, schema: { type: string, format: uuid, example: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d" } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CartFlowPacienteEntrada' }
+      responses:
+        '201':
+          description: Paciente agregado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowRespuestaCarrito' }
+        '409':
+          description: Carro no abierto.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+        '422':
+          description: Validación o máximo de pacientes.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+
+  /cart-flow/carritos/{uuid}/pacientes/{id}:
+    put:
+      tags: [Carro de servicios]
+      summary: Edita los datos de un paciente del carro
+      operationId: cartFlowPacienteUpdate
+      description: |
+        Datos ficticios en pruebas. El RUT se guarda sin puntos y en mayúsculas. La edad (a la
+        fecha de la cita) decide el beneficio adulto mayor y las restricciones de edad.
+      parameters:
+        - { name: uuid, in: path, required: true, schema: { type: string, format: uuid, example: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d" } }
+        - { name: id, in: path, required: true, schema: { type: integer, example: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CartFlowPacienteEntrada' }
+      responses:
+        '200':
+          description: Paciente actualizado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowRespuestaCarrito' }
+        '404':
+          description: Paciente no pertenece al carro.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+        '422':
+          description: Validación.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+
+  /cart-flow/carritos/{uuid}/pacientes/{id}/quitar:
+    post:
+      tags: [Carro de servicios]
+      summary: Quita un paciente (soft delete)
+      operationId: cartFlowPacienteQuitar
+      description: No borra filas (especificación legal §1). El carro conserva al menos un paciente.
+      parameters:
+        - { name: uuid, in: path, required: true, schema: { type: string, format: uuid, example: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d" } }
+        - { name: id, in: path, required: true, schema: { type: integer, example: 2 } }
+      responses:
+        '200':
+          description: Carro sin el paciente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowRespuestaCarrito' }
+        '404':
+          description: Paciente no pertenece al carro.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+        '422':
+          description: Es el único paciente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+
+  /cart-flow/carritos/{uuid}/lineas:
+    post:
+      tags: [Carro de servicios]
+      summary: Agrega un producto a un paciente
+      operationId: cartFlowLineaStore
+      description: |
+        Rechaza productos ocultos o la toma de muestra suelta (**404**) y los de cotización
+        (**422** `solo_cotizacion`). Si el producto ya está: los servicios suman cantidad, el
+        laboratorio no se duplica.
+      parameters:
+        - { name: uuid, in: path, required: true, schema: { type: string, format: uuid, example: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d" } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [paciente_id, sku]
+              properties:
+                paciente_id: { type: integer, example: 1 }
+                sku: { type: string, example: "PERF-BASICO" }
+                cantidad: { type: integer, minimum: 1, maximum: 20, example: 1 }
+      responses:
+        '201':
+          description: Carro con la línea.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowRespuestaCarrito' }
+        '404':
+          description: Producto no disponible o paciente ajeno al carro.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+        '409':
+          description: Carro no abierto.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+        '422':
+          description: Producto de cotización o validación.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+
+  /cart-flow/carritos/{uuid}/lineas/{id}:
+    put:
+      tags: [Carro de servicios]
+      summary: Cambia la cantidad de una línea
+      operationId: cartFlowLineaUpdate
+      description: Solo los servicios admiten cantidad mayor a 1; el laboratorio queda en 1.
+      parameters:
+        - { name: uuid, in: path, required: true, schema: { type: string, format: uuid, example: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d" } }
+        - { name: id, in: path, required: true, schema: { type: integer, example: 10 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cantidad]
+              properties:
+                cantidad: { type: integer, minimum: 1, maximum: 20, example: 2 }
+      responses:
+        '200':
+          description: Carro actualizado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowRespuestaCarrito' }
+        '404':
+          description: Línea ajena al carro.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+
+  /cart-flow/carritos/{uuid}/lineas/{id}/quitar:
+    post:
+      tags: [Carro de servicios]
+      summary: Quita una línea (soft delete)
+      operationId: cartFlowLineaQuitar
+      parameters:
+        - { name: uuid, in: path, required: true, schema: { type: string, format: uuid, example: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d" } }
+        - { name: id, in: path, required: true, schema: { type: integer, example: 10 } }
+      responses:
+        '200':
+          description: Carro sin la línea.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowRespuestaCarrito' }
+        '404':
+          description: Línea ajena al carro.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+
+  /cart-flow/agenda/bloques:
+    get:
+      tags: [Carro de servicios]
+      summary: Bloques disponibles para un carro
+      operationId: cartFlowAgendaBloques
+      description: |
+        Días entre `hoy + agenda_anticipacion_dias` (1) y `hoy + agenda_dias_max` (30) con sus
+        bloques activos para la zona del carro (los de `zona_id` null aplican a todas). Si el
+        carro tiene laboratorio, ayuno o `solo_ruta_manana`, solo sale la franja `manana`.
+        `libres` = `cupo` − pedidos no anulados del bloque y la fecha.
+      parameters:
+        - { name: carrito, in: query, required: true, schema: { type: string, format: uuid, example: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d" } }
+        - { name: desde, in: query, required: false, schema: { type: string, format: date, example: "2026-11-05" } }
+        - { name: hasta, in: query, required: false, schema: { type: string, format: date, example: "2026-11-20" } }
+      responses:
+        '200':
+          description: Agenda.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "OK" }
+                  data:
+                    type: object
+                    properties:
+                      requiere_manana: { type: boolean, example: true }
+                      dias:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            fecha: { type: string, format: date, example: "2026-11-05" }
+                            dia_semana: { type: integer, example: 4 }
+                            bloques:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  id: { type: integer, example: 10 }
+                                  bloque: { type: string, example: "07:30-10:00" }
+                                  franja: { type: string, enum: [manana, tarde] }
+                                  cupo: { type: integer, example: 6 }
+                                  libres: { type: integer, example: 4 }
+        '409':
+          description: Carro no abierto.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+        '422':
+          description: Comuna a cotizar o parámetros inválidos.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+
+  /cart-flow/carritos/{uuid}/checkout:
+    post:
+      tags: [Carro de servicios]
+      summary: Convierte el carro en pedido
+      operationId: cartFlowCheckout
+      description: |
+        Recalcula en el servidor a la fecha de la cita, valida bloqueos, datos y consentimiento
+        de cada paciente (apoderado si es menor de 18), la orden médica cuando alguna línea la
+        pide y el bloque (día, zona, franja). Toma el cupo dentro de una transacción con
+        `lockForUpdate`. Las órdenes médicas van al disco privado `local`, nunca a `public/`.
+
+        Transferencia y efectivo dejan el pedido `pendiente_pago` con un pago `iniciado`; Webpay
+        sigue con `POST /cart-flow/pedidos/{numero}/webpay`. La respuesta trae `token_consulta`
+        **una sola vez**.
+      parameters:
+        - { name: uuid, in: path, required: true, schema: { type: string, format: uuid, example: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d" } }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [fecha, bloque_id, medio_pago, contacto_nombre, contacto_email, contacto_telefono, acepta_terminos]
+              properties:
+                fecha: { type: string, format: date, example: "2026-11-05" }
+                bloque_id: { type: integer, example: 10 }
+                medio_pago: { type: string, enum: [webpay, transferencia, efectivo] }
+                contacto_nombre: { type: string, example: "Contacto Ficticio" }
+                contacto_email: { type: string, format: email, example: "contacto@example.com" }
+                contacto_telefono: { type: string, example: "+56900000000" }
+                direccion: { type: string }
+                referencia: { type: string }
+                observaciones: { type: string }
+                acepta_terminos: { type: string, example: "1" }
+                'ordenes[{paciente_id}]':
+                  type: string
+                  format: binary
+                  description: Orden médica (PDF, JPG o PNG, máx. 5 MB) por id de paciente del carro.
+      responses:
+        '201':
+          description: Pedido creado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Pedido creado" }
+                  data: { $ref: '#/components/schemas/CartFlowPedido' }
+        '409':
+          description: Carro no abierto, bloque lleno o un producto se ocultó (revisar el total).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+        '422':
+          description: |
+            Validación, bloqueos del carro (`error` = array de bloqueos), datos de pacientes
+            (`error` = objeto `pacientes.{id}.campo` → mensaje), fecha o bloque no válidos.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+
+  /cart-flow/pedidos/{numero}:
+    get:
+      tags: [Carro de servicios]
+      summary: Consulta un pedido con su token
+      operationId: cartFlowPedido
+      description: Sin el `token_consulta` correcto responde 404 (evita enumerar pedidos). No devuelve RUT ni fecha de nacimiento.
+      parameters:
+        - { name: numero, in: path, required: true, schema: { type: string, example: "ES-2026-000123" } }
+        - { name: t, in: query, required: true, schema: { type: string, format: uuid, example: "3f1c2a7e-8d4b-4c1a-9e2f-5b6a7c8d9e0f" } }
+      responses:
+        '200':
+          description: Pedido.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "OK" }
+                  data: { $ref: '#/components/schemas/CartFlowPedido' }
+        '404':
+          description: Pedido inexistente o token incorrecto.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+
+  /cart-flow/pedidos/{numero}/webpay:
+    post:
+      tags: [Carro de servicios]
+      summary: Inicia el pago Webpay de un pedido
+      operationId: cartFlowPedidoWebPay
+      description: |
+        Crea la transacción por **`cf_pedidos.total`** (nunca por un monto del cliente) con
+        `buy_order` único por intento (`CF{pedido}-{pago}`) y `session_id` = número de pedido.
+        El front hace un form POST a `url` con el campo `token_ws`.
+      parameters:
+        - { name: numero, in: path, required: true, schema: { type: string, example: "ES-2026-000123" } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [t]
+              properties:
+                t: { type: string, format: uuid, example: "3f1c2a7e-8d4b-4c1a-9e2f-5b6a7c8d9e0f" }
+      responses:
+        '200':
+          description: Transacción creada.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Transacción creada" }
+                  data:
+                    type: object
+                    properties:
+                      token: { type: string, example: "01ab4b4c..." }
+                      url: { type: string, example: "https://webpay3gint.transbank.cl/webpayserver/initTransaction" }
+        '404':
+          description: Pedido inexistente o token incorrecto.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+        '409':
+          description: El pedido no es Webpay o ya no está pendiente de pago.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+        '502':
+          description: Transbank rechazó la creación.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+        '503':
+          description: Faltan `WEBPAY_URL` o `WEBPAY_CART_FLOW_RETURN`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+
+  /cart-flow/webpay/retorno:
+    get:
+      tags: [Carro de servicios]
+      summary: Retorno de Transbank (redirige al front)
+      operationId: cartFlowWebPayRetornoGet
+      description: |
+        Lo llama Transbank, no el front. Con `token_ws` hace el commit y marca el pedido
+        `pagado` solo si `status = AUTHORIZED`, `response_code = 0`, el monto y el `buy_order`
+        coinciden. Con `TBK_TOKEN` / `TBK_ORDEN_COMPRA` (el cliente anuló) marca el intento
+        rechazado. Siempre redirige a `{CART_FLOW_FRONT_URL}/servicios/resultado?pago=aprobado|rechazado|cancelado|error&pedido=…&t=…`.
+      parameters:
+        - { name: token_ws, in: query, required: false, schema: { type: string } }
+        - { name: TBK_TOKEN, in: query, required: false, schema: { type: string } }
+        - { name: TBK_ORDEN_COMPRA, in: query, required: false, schema: { type: string } }
+      responses:
+        '302':
+          description: Redirección al front con el resultado.
+    post:
+      tags: [Carro de servicios]
+      summary: Retorno de Transbank por POST (redirige al front)
+      operationId: cartFlowWebPayRetornoPost
+      description: Igual que el GET; Transbank puede volver por formulario.
+      requestBody:
+        required: false
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                token_ws: { type: string }
+                TBK_TOKEN: { type: string }
+                TBK_ORDEN_COMPRA: { type: string }
+      responses:
+        '302':
+          description: Redirección al front con el resultado.
+
+  /cart-flow/cotizaciones:
+    post:
+      tags: [Carro de servicios]
+      summary: Solicitud de cotización
+      operationId: cartFlowCotizacion
+      description: Para operativos, empresas, productos `a_cotizar` y comunas fuera de RM. Queda en `cf_cotizaciones` con estado `nueva`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comuna, servicio, contacto_nombre, contacto_email, contacto_telefono]
+              properties:
+                organizacion: { type: string, example: "Club Ficticio" }
+                comuna: { type: string, example: "La Serena" }
+                personas: { type: integer, example: 40 }
+                servicio: { type: string, example: "Operativo chequeo cardiovascular" }
+                sku: { type: string, example: "OP-CHEQUEO-CV" }
+                fecha_tentativa: { type: string, format: date, example: "2026-12-01" }
+                contacto_nombre: { type: string, example: "Contacto Ficticio" }
+                contacto_email: { type: string, format: email, example: "contacto@example.com" }
+                contacto_telefono: { type: string, example: "+56900000000" }
+                mensaje: { type: string }
+      responses:
+        '201':
+          description: Solicitud registrada.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Solicitud enviada: te contactaremos pronto" }
+                  data:
+                    type: object
+                    properties:
+                      id: { type: integer, example: 1 }
+                      estado: { type: string, example: "nueva" }
+        '422':
+          description: Validación.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }

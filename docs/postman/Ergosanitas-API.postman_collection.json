@@ -3,7 +3,7 @@
         "name": "Ergosanitas — API REST v1.0.0",
         "_postman_id": "6f2c1a34-e0a1-4a11-9c8e-e12345678901",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-        "description": "Generada desde `docs/openapi.yaml` (90 operaciones).\n\nLas rutas de negocio **no llevan middleware de autenticacion**: `user_email` y `perfiles_id` viajan como parametros del request.\n\nAjusta `baseUrl` y las variables de coleccion (`user_email`, `rut_paciente`, `id_paciente`, `perfil`) antes de ejecutar.\n\nLos cuerpos son los ejemplos del contrato OpenAPI; en los `multipart/form-data` hay que seleccionar el archivo a mano."
+        "description": "Generada desde `docs/openapi.yaml` (110 operaciones).\n\nLas rutas de negocio **no llevan middleware de autenticacion**: `user_email` y `perfiles_id` viajan como parametros del request.\n\nAjusta `baseUrl` y las variables de coleccion (`user_email`, `rut_paciente`, `id_paciente`, `perfil`) antes de ejecutar.\n\nLos cuerpos son los ejemplos del contrato OpenAPI; en los `multipart/form-data` hay que seleccionar el archivo a mano."
     },
     "item": [
         {
@@ -1816,6 +1816,780 @@
             ]
         },
         {
+            "name": "Carro de servicios",
+            "description": "SPEC 04 — Flujo `servicio-cart-flow` (tablas `cf_*`): catálogo completo con comunas y\nzonas, carro anónimo por `uuid` con varios pacientes en la misma dirección, agenda por\nbloques con cupo, checkout y pago por Webpay, transferencia o efectivo. **El total se\ncalcula siempre en el servidor.** Sobre `{success, message, data}`. Convive con\n`servicios`, `agenda-horas` y `transbank/*`, que no cambian.",
+            "item": [
+                {
+                    "name": "Comunas con zona y cargos de domicilio",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/comunas",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "comunas"
+                            ]
+                        },
+                        "description": "Comunas activas de `cf_comunas`, ordenadas por nombre. Las que están fuera de RM (sin\nzona) o marcadas `a_cotizar` salen con `a_cotizar: true` y cargos `null`: el front solo\nofrece \"Solicitar cotización\".\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Comunas.\n- `500` - Error inesperado.\n\n---\n\n_operationId_: `cartFlowComunas`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Catálogo público (solo visible_tienda)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/catalogo",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "catalogo"
+                            ],
+                            "query": [
+                                {
+                                    "key": "categoria",
+                                    "value": "Enfermería a domicilio",
+                                    "disabled": true,
+                                    "description": ""
+                                },
+                                {
+                                    "key": "tipo",
+                                    "value": "servicio_domicilio",
+                                    "disabled": true,
+                                    "description": ""
+                                },
+                                {
+                                    "key": "q",
+                                    "value": "hemograma",
+                                    "disabled": true,
+                                    "description": "Búsqueda por nombre (LIKE, sin distinguir mayúsculas)"
+                                }
+                            ]
+                        },
+                        "description": "Productos con `visible_tienda = 1`, sin la toma de muestra suelta (el carro la suma\nsola), ordenados por nombre. `categorias` trae las categorías visibles en el orden de\nla tienda. Sin paginación (son ~230 filas).\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Productos y categorías.\n- `422` - Filtro inválido.\n\n---\n\n_operationId_: `cartFlowCatalogo`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Detalle de un producto visible",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/catalogo/{{sku}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "catalogo",
+                                "{{sku}}"
+                            ]
+                        },
+                        "description": "**Respuestas documentadas**\n\n- `200` - Producto con sus `componentes` (id, sku, nombre, tipo) si es perfil o pack.\n- `404` - No existe o está oculto.\n\n---\n\n_operationId_: `cartFlowProducto`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Muestra u oculta un producto (mantenedor)",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/admin/productos/{{sku}}/visibilidad",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "admin",
+                                "productos",
+                                "{{sku}}",
+                                "visibilidad"
+                            ]
+                        },
+                        "description": "Exige un `user_email` de perfil **Administrador** (mismo control que la Spec 03; no es\nautenticación). Cada cambio queda en `cf_visibilidad_log`. Activar un producto con\n`publicable = 0` responde **409** `requiere_confirmacion` hasta que llegue `confirmar: true`.\nOcultar no afecta a los pedidos ya creados; los carros abiertos lo pierden con un aviso.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Producto actualizado.\n- `403` - El email no es de perfil Administrador.\n- `404` - SKU inexistente.\n- `409` - Producto no publicable sin `confirmar`.\n- `422` - Validación.\n\n---\n\n_operationId_: `cartFlowVisibilidad`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"user_email\": \"admin@ergosanitas.com\",\n    \"visible_tienda\": false,\n    \"confirmar\": false\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Crea un carro anónimo",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/carritos",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "carritos"
+                            ]
+                        },
+                        "description": "Crea un carro `abierto` con `uuid` aleatorio, vigente `carrito_dias_vigencia` días (7) y\ncon un primer paciente vacío. El front guarda el `uuid` para retomarlo.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - Carro creado.\n- `422` - Comuna inexistente o plan inválido.\n\n---\n\n_operationId_: `cartFlowCarritoStore`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"comuna_id\": 2,\n    \"direccion\": \"Calle Ficticia 123\",\n    \"referencia\": \"\",\n    \"plan\": \"ninguno\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Carro recalculado",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/carritos/{{uuid}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "carritos",
+                                "{{uuid}}"
+                            ]
+                        },
+                        "description": "Devuelve el carro con desglose, preparación consolidada, bloqueos y avisos. Si el dueño\nocultó un producto, la línea se quita (soft delete) y sale un aviso `producto_no_disponible`.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Carro.\n- `404` - Carro inexistente.\n\n---\n\n_operationId_: `cartFlowCarritoShow`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Cambia comuna, dirección o plan",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/carritos/{{uuid}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "carritos",
+                                "{{uuid}}"
+                            ]
+                        },
+                        "description": "**Respuestas documentadas**\n\n- `200` - Carro actualizado.\n- `404` - Carro inexistente.\n- `409` - El carro ya se convirtió en pedido o expiró.\n- `422` - Validación.\n\n---\n\n_operationId_: `cartFlowCarritoUpdate`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"comuna_id\": 2,\n    \"direccion\": \"Calle Ficticia 123\",\n    \"referencia\": \"\",\n    \"plan\": \"ninguno\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Agrega otro paciente en la misma dirección",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/carritos/{{uuid}}/pacientes",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "carritos",
+                                "{{uuid}}",
+                                "pacientes"
+                            ]
+                        },
+                        "description": "El segundo paciente y siguientes no pagan domicilio. Máximo 10 por carro.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - Paciente agregado.\n- `409` - Carro no abierto.\n- `422` - Validación o máximo de pacientes.\n\n---\n\n_operationId_: `cartFlowPacienteStore`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"nombre\": \"Paciente Ficticio\",\n    \"rut\": \"11111111-1\",\n    \"fecha_nac\": \"1980-01-01\",\n    \"sexo\": \"F\",\n    \"prevision\": \"Fonasa\",\n    \"telefono\": \"+56900000000\",\n    \"email\": \"paciente@example.com\",\n    \"consentimiento\": true,\n    \"apoderado_nombre\": \"\",\n    \"apoderado_rut\": \"\",\n    \"consentimiento_apoderado\": true\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Edita los datos de un paciente del carro",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/carritos/{{uuid}}/pacientes/{{id}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "carritos",
+                                "{{uuid}}",
+                                "pacientes",
+                                "{{id}}"
+                            ]
+                        },
+                        "description": "Datos ficticios en pruebas. El RUT se guarda sin puntos y en mayúsculas. La edad (a la\nfecha de la cita) decide el beneficio adulto mayor y las restricciones de edad.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Paciente actualizado.\n- `404` - Paciente no pertenece al carro.\n- `422` - Validación.\n\n---\n\n_operationId_: `cartFlowPacienteUpdate`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"nombre\": \"Paciente Ficticio\",\n    \"rut\": \"11111111-1\",\n    \"fecha_nac\": \"1980-01-01\",\n    \"sexo\": \"F\",\n    \"prevision\": \"Fonasa\",\n    \"telefono\": \"+56900000000\",\n    \"email\": \"paciente@example.com\",\n    \"consentimiento\": true,\n    \"apoderado_nombre\": \"\",\n    \"apoderado_rut\": \"\",\n    \"consentimiento_apoderado\": true\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Quita un paciente (soft delete)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/carritos/{{uuid}}/pacientes/{{id}}/quitar",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "carritos",
+                                "{{uuid}}",
+                                "pacientes",
+                                "{{id}}",
+                                "quitar"
+                            ]
+                        },
+                        "description": "No borra filas (especificación legal §1). El carro conserva al menos un paciente.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Carro sin el paciente.\n- `404` - Paciente no pertenece al carro.\n- `422` - Es el único paciente.\n\n---\n\n_operationId_: `cartFlowPacienteQuitar`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Agrega un producto a un paciente",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/carritos/{{uuid}}/lineas",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "carritos",
+                                "{{uuid}}",
+                                "lineas"
+                            ]
+                        },
+                        "description": "Rechaza productos ocultos o la toma de muestra suelta (**404**) y los de cotización\n(**422** `solo_cotizacion`). Si el producto ya está: los servicios suman cantidad, el\nlaboratorio no se duplica.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - Carro con la línea.\n- `404` - Producto no disponible o paciente ajeno al carro.\n- `409` - Carro no abierto.\n- `422` - Producto de cotización o validación.\n\n---\n\n_operationId_: `cartFlowLineaStore`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"paciente_id\": 1,\n    \"sku\": \"PERF-BASICO\",\n    \"cantidad\": 1\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Cambia la cantidad de una línea",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/carritos/{{uuid}}/lineas/{{id}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "carritos",
+                                "{{uuid}}",
+                                "lineas",
+                                "{{id}}"
+                            ]
+                        },
+                        "description": "Solo los servicios admiten cantidad mayor a 1; el laboratorio queda en 1.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Carro actualizado.\n- `404` - Línea ajena al carro.\n\n---\n\n_operationId_: `cartFlowLineaUpdate`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"cantidad\": 2\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Quita una línea (soft delete)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/carritos/{{uuid}}/lineas/{{id}}/quitar",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "carritos",
+                                "{{uuid}}",
+                                "lineas",
+                                "{{id}}",
+                                "quitar"
+                            ]
+                        },
+                        "description": "**Respuestas documentadas**\n\n- `200` - Carro sin la línea.\n- `404` - Línea ajena al carro.\n\n---\n\n_operationId_: `cartFlowLineaQuitar`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Bloques disponibles para un carro",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/agenda/bloques?carrito=9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "agenda",
+                                "bloques"
+                            ],
+                            "query": [
+                                {
+                                    "key": "carrito",
+                                    "value": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+                                    "disabled": false,
+                                    "description": ""
+                                },
+                                {
+                                    "key": "desde",
+                                    "value": "2026-11-05",
+                                    "disabled": true,
+                                    "description": ""
+                                },
+                                {
+                                    "key": "hasta",
+                                    "value": "2026-11-20",
+                                    "disabled": true,
+                                    "description": ""
+                                }
+                            ]
+                        },
+                        "description": "Días entre `hoy + agenda_anticipacion_dias` (1) y `hoy + agenda_dias_max` (30) con sus\nbloques activos para la zona del carro (los de `zona_id` null aplican a todas). Si el\ncarro tiene laboratorio, ayuno o `solo_ruta_manana`, solo sale la franja `manana`.\n`libres` = `cupo` − pedidos no anulados del bloque y la fecha.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Agenda.\n- `409` - Carro no abierto.\n- `422` - Comuna a cotizar o parámetros inválidos.\n\n---\n\n_operationId_: `cartFlowAgendaBloques`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Convierte el carro en pedido",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/carritos/{{uuid}}/checkout",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "carritos",
+                                "{{uuid}}",
+                                "checkout"
+                            ]
+                        },
+                        "description": "Recalcula en el servidor a la fecha de la cita, valida bloqueos, datos y consentimiento\nde cada paciente (apoderado si es menor de 18), la orden médica cuando alguna línea la\npide y el bloque (día, zona, franja). Toma el cupo dentro de una transacción con\n`lockForUpdate`. Las órdenes médicas van al disco privado `local`, nunca a `public/`.\n\nTransferencia y efectivo dejan el pedido `pendiente_pago` con un pago `iniciado`; Webpay\nsigue con `POST /cart-flow/pedidos/{numero}/webpay`. La respuesta trae `token_consulta`\n**una sola vez**.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - Pedido creado.\n- `409` - Carro no abierto, bloque lleno o un producto se ocultó (revisar el total).\n- `422` - Validación, bloqueos del carro (`error` = array de bloqueos), datos de pacientes\n\n---\n\n_operationId_: `cartFlowCheckout`",
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "fecha",
+                                    "type": "text",
+                                    "value": "2026-11-05",
+                                    "description": ""
+                                },
+                                {
+                                    "key": "bloque_id",
+                                    "type": "text",
+                                    "value": "10",
+                                    "description": ""
+                                },
+                                {
+                                    "key": "medio_pago",
+                                    "type": "text",
+                                    "value": "webpay",
+                                    "description": ""
+                                },
+                                {
+                                    "key": "contacto_nombre",
+                                    "type": "text",
+                                    "value": "Contacto Ficticio",
+                                    "description": ""
+                                },
+                                {
+                                    "key": "contacto_email",
+                                    "type": "text",
+                                    "value": "contacto@example.com",
+                                    "description": ""
+                                },
+                                {
+                                    "key": "contacto_telefono",
+                                    "type": "text",
+                                    "value": "+56900000000",
+                                    "description": ""
+                                },
+                                {
+                                    "key": "direccion",
+                                    "type": "text",
+                                    "value": "",
+                                    "description": ""
+                                },
+                                {
+                                    "key": "referencia",
+                                    "type": "text",
+                                    "value": "",
+                                    "description": ""
+                                },
+                                {
+                                    "key": "observaciones",
+                                    "type": "text",
+                                    "value": "",
+                                    "description": ""
+                                },
+                                {
+                                    "key": "acepta_terminos",
+                                    "type": "text",
+                                    "value": "1",
+                                    "description": ""
+                                },
+                                {
+                                    "key": "ordenes[{paciente_id}]",
+                                    "type": "file",
+                                    "src": [],
+                                    "description": "Orden médica (PDF, JPG o PNG, máx. 5 MB) por id de paciente del carro."
+                                }
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Consulta un pedido con su token",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/pedidos/{{numero}}?t=3f1c2a7e-8d4b-4c1a-9e2f-5b6a7c8d9e0f",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "pedidos",
+                                "{{numero}}"
+                            ],
+                            "query": [
+                                {
+                                    "key": "t",
+                                    "value": "3f1c2a7e-8d4b-4c1a-9e2f-5b6a7c8d9e0f",
+                                    "disabled": false,
+                                    "description": ""
+                                }
+                            ]
+                        },
+                        "description": "Sin el `token_consulta` correcto responde 404 (evita enumerar pedidos). No devuelve RUT ni fecha de nacimiento.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Pedido.\n- `404` - Pedido inexistente o token incorrecto.\n\n---\n\n_operationId_: `cartFlowPedido`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Inicia el pago Webpay de un pedido",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/pedidos/{{numero}}/webpay",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "pedidos",
+                                "{{numero}}",
+                                "webpay"
+                            ]
+                        },
+                        "description": "Crea la transacción por **`cf_pedidos.total`** (nunca por un monto del cliente) con\n`buy_order` único por intento (`CF{pedido}-{pago}`) y `session_id` = número de pedido.\nEl front hace un form POST a `url` con el campo `token_ws`.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Transacción creada.\n- `404` - Pedido inexistente o token incorrecto.\n- `409` - El pedido no es Webpay o ya no está pendiente de pago.\n- `502` - Transbank rechazó la creación.\n- `503` - Faltan `WEBPAY_URL` o `WEBPAY_CART_FLOW_RETURN`.\n\n---\n\n_operationId_: `cartFlowPedidoWebPay`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"t\": \"3f1c2a7e-8d4b-4c1a-9e2f-5b6a7c8d9e0f\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Retorno de Transbank (redirige al front)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/webpay/retorno",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "webpay",
+                                "retorno"
+                            ],
+                            "query": [
+                                {
+                                    "key": "token_ws",
+                                    "value": "",
+                                    "disabled": true,
+                                    "description": ""
+                                },
+                                {
+                                    "key": "TBK_TOKEN",
+                                    "value": "",
+                                    "disabled": true,
+                                    "description": ""
+                                },
+                                {
+                                    "key": "TBK_ORDEN_COMPRA",
+                                    "value": "",
+                                    "disabled": true,
+                                    "description": ""
+                                }
+                            ]
+                        },
+                        "description": "Lo llama Transbank, no el front. Con `token_ws` hace el commit y marca el pedido\n`pagado` solo si `status = AUTHORIZED`, `response_code = 0`, el monto y el `buy_order`\ncoinciden. Con `TBK_TOKEN` / `TBK_ORDEN_COMPRA` (el cliente anuló) marca el intento\nrechazado. Siempre redirige a `{CART_FLOW_FRONT_URL}/servicios/resultado?pago=aprobado|rechazado|cancelado|error&pedido=…&t=…`.\n\n---\n\n**Respuestas documentadas**\n\n- `302` - Redirección al front con el resultado.\n\n---\n\n_operationId_: `cartFlowWebPayRetornoGet`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Retorno de Transbank por POST (redirige al front)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/webpay/retorno",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "webpay",
+                                "retorno"
+                            ]
+                        },
+                        "description": "Igual que el GET; Transbank puede volver por formulario.\n\n---\n\n**Respuestas documentadas**\n\n- `302` - Redirección al front con el resultado.\n\n---\n\n_operationId_: `cartFlowWebPayRetornoPost`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Solicitud de cotización",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/cotizaciones",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "cotizaciones"
+                            ]
+                        },
+                        "description": "Para operativos, empresas, productos `a_cotizar` y comunas fuera de RM. Queda en `cf_cotizaciones` con estado `nueva`.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - Solicitud registrada.\n- `422` - Validación.\n\n---\n\n_operationId_: `cartFlowCotizacion`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"organizacion\": \"Club Ficticio\",\n    \"comuna\": \"La Serena\",\n    \"personas\": 40,\n    \"servicio\": \"Operativo chequeo cardiovascular\",\n    \"sku\": \"OP-CHEQUEO-CV\",\n    \"fecha_tentativa\": \"2026-12-01\",\n    \"contacto_nombre\": \"Contacto Ficticio\",\n    \"contacto_email\": \"contacto@example.com\",\n    \"contacto_telefono\": \"+56900000000\",\n    \"mensaje\": \"\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
             "name": "Incidencias deportivas",
             "description": "Registro de lesiones deportivas y sus estadísticas por liga, categoría y parte del cuerpo.",
             "item": [
@@ -2993,6 +3767,12 @@
             "description": "Nombre exacto del servicio, URL-encoded."
         },
         {
+            "key": "numero",
+            "value": "ES-2026-000123",
+            "type": "string",
+            "description": ""
+        },
+        {
             "key": "perfil",
             "value": "3",
             "type": "string",
@@ -3005,10 +3785,22 @@
             "description": "RUT del paciente en formato `12345678-9` (sin puntos, con guion)."
         },
         {
+            "key": "sku",
+            "value": "PERF-BASICO",
+            "type": "string",
+            "description": ""
+        },
+        {
             "key": "user_email",
             "value": "club.deportivo@ergosanitas.com",
             "type": "string",
             "description": "Email del usuario que edita. Su perfil define qué campos se aplican. URL-encoded."
+        },
+        {
+            "key": "uuid",
+            "value": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+            "type": "string",
+            "description": ""
         }
     ]
 }

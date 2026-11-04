@@ -41,4 +41,15 @@ return [
         'url' => rtrim((string) env('API_PATH_HOME', ''), '/'),
     ],
 
+    // SPEC 04 — Carro de servicios (servicio-cart-flow). Reutiliza las credenciales de Webpay del
+    // flujo anterior; la URL de retorno es propia (apunta a api/cart-flow/webpay/retorno) y
+    // front_url es donde se redirige al cliente despues de pagar (/servicios/resultado).
+    'cart_flow' => [
+        'webpay_url' => env('WEBPAY_URL'),
+        'webpay_id' => env('WEBPAY_ID'),
+        'webpay_secret' => env('WEBPAY_SECRET'),
+        'webpay_return' => env('WEBPAY_CART_FLOW_RETURN'),
+        'front_url' => rtrim((string) env('CART_FLOW_FRONT_URL', 'https://ergosanitas.com'), '/'),
+    ],
+
 ];

@@ -8,11 +8,11 @@ API REST en Laravel 11 (PHP 8.2) para **Ergosanitas**: gestión de chequeos card
 
 El código y los comentarios están en español. Los métodos de controlador van en `PascalCase` (`FindByEmail`, `ChequeoPDFRut`), a diferencia de la convención Laravel por defecto.
 
-`README.md` documenta el stack, la instalación y el catálogo de endpoints. `docs/openapi.yaml` es el contrato OpenAPI 3.0.3 con las 90 operaciones detalladas (request, respuestas por código y ejemplos); `docs/index.html` lo muestra con Swagger UI. Este archivo cubre lo que no se deduce leyendo un solo archivo.
+`README.md` documenta el stack, la instalación y el catálogo de endpoints. `docs/openapi.yaml` es el contrato OpenAPI 3.0.3 con las 110 operaciones detalladas (request, respuestas por código y ejemplos); `docs/index.html` lo muestra con Swagger UI. Este archivo cubre lo que no se deduce leyendo un solo archivo.
 
-La vista gráfica vive en cuatro documentos Mermaid: `docs/arquitectura.md` (componentes, capas, providers, despliegue), `docs/flujos.md` (13 diagramas de secuencia end-to-end), `docs/diagrama-clases.md` (clases UML por dominio) y `docs/modelo-datos.md` (ERD, máquina de estados, autorización por perfil, catálogo de SP). `docs/README.md` los indexa. Ademas, `docs/diagramas/` tiene tres artefactos **explorables** en HTML generados con archify (arquitectura, juego de cartas y ciclo de vida del chequeo): el `.html` es generado, la fuente es su `.json` hermano.
+La vista gráfica vive en cuatro documentos Mermaid: `docs/arquitectura.md` (componentes, capas, providers, despliegue), `docs/flujos.md` (14 diagramas de secuencia end-to-end), `docs/diagrama-clases.md` (clases UML por dominio) y `docs/modelo-datos.md` (ERD, máquina de estados, autorización por perfil, catálogo de SP). `docs/README.md` los indexa. Ademas, `docs/diagramas/` tiene tres artefactos **explorables** en HTML generados con archify (arquitectura, juego de cartas y ciclo de vida del chequeo): el `.html` es generado, la fuente es su `.json` hermano.
 
-`docs/postman/` es la excepción generada: `Ergosanitas-API.postman_collection.json` (90 requests, 17 carpetas) y sus tres entornos salen de `openapi.yaml` con `php docs/postman/generar-coleccion.php`. No los edites a mano; `php docs/postman/verificar-cobertura.php` contrasta la colección con `route:list`.
+`docs/postman/` es la excepción generada: `Ergosanitas-API.postman_collection.json` (110 requests, 18 carpetas) y sus tres entornos salen de `openapi.yaml` con `php docs/postman/generar-coleccion.php`. No los edites a mano; `php docs/postman/verificar-cobertura.php` contrasta la colección con `route:list`.
 
 El contrato y los diagramas **se mantienen a mano**: no hay generación automática ni anotaciones L5-Swagger. Al agregar o modificar una ruta en `routes/api.php`, actualiza `docs/openapi.yaml` en el mismo commit y contrasta con `php artisan route:list --json`. Si cambia un flujo, una clase o el esquema, actualiza también el `.md` de diagramas correspondiente.
 
@@ -166,6 +166,19 @@ El asistente por club (`POST api/sam-assistant-club/as-question`, body `{email, 
 
 Es el único lugar del código que persiste errores: el `catch` graba en la tabla `logs_api` vía el modelo `LogsApi` **y no devuelve respuesta**, así que un fallo aquí sale como cuerpo vacío. Si tocas este controlador, ese es el bug de fondo a considerar.
 
+### Carro de servicios `servicio-cart-flow` (Spec 04)
+
+Flujo **paralelo** al de `servicios` / `agenda-horas` / `transbank/*`, que siguen vivos sin cambios (los usa la app móvil y es el rollback). Todo vive bajo `api/cart-flow/*`, tablas `cf_*`, `app/Models/CartFlow/`, `app/Services/CartFlow/` y `app/Http/Controllers/CartFlow/`, con un solo provider (`CartFlowServiceProvider`). La spec es `specs/04-servicio-cart-flow.md`; la lógica de negocio sale de `ERGO_SANITAS_SERVICIOS_Y_CARRO.md` (Parte B) del dueño.
+
+- **El total se calcula solo en el servidor**: `CalculadoraCarroService` es una función pura (no consulta la base). Si cambias una regla de precio, corre `tests/Unit/CartFlow/CalculadoraCarroServiceTest.php`: tiene los 10 ejemplos resueltos de la especificación.
+- Los montos de negocio (toma de muestra, ticket mínimo, redondeo, anticipación de agenda…) están en `cf_reglas` (JSON por clave) con valores por defecto en `CalculadoraCarroService::REGLAS_POR_DEFECTO`. No en `params`.
+- Catálogo: `php artisan cart-flow:importar-catalogo [--dir=]` hace upsert por SKU y **no pisa `visible_tienda`** de productos existentes. La copia versionada `database/data/cart-flow/*.csv` va **sin** `costo_domilab`, `nota_interna` ni `costo_componente`; para cargar costos se apunta `--dir` a una carpeta privada. `Producto::$hidden` impide que salgan por la API.
+- `php artisan db:seed --class=CartFlowSeeder` siembra reglas, bloques de agenda (lunes a sábado, 07:30–10:00, 10:00–13:00 y 15:00–18:00, cupo 6) e importa el catálogo. Es idempotente.
+- Nada se borra: quitar paciente o línea del carro es soft delete; un pedido se anula (`estado = anulado`).
+- Webpay del carro (`WebPayCartFlowService`) reutiliza `WEBPAY_URL|ID|SECRET` vía `config('services.cart_flow')` y suma `WEBPAY_CART_FLOW_RETURN` y `CART_FLOW_FRONT_URL`. Cobra `cf_pedidos.total`, `buy_order` único por intento, y solo marca `pagado` con `AUTHORIZED` + `response_code = 0` + monto y `buy_order` iguales.
+- La orden médica va al disco privado `local` (`storage/app/private/cart-flow/ordenes`), nunca a `public/`.
+- **Tests**: `php artisan test --filter=CartFlow`. `tests/Feature/CartFlow/CartFlowTestCase.php` fuerza SQLite en memoria antes de arrancar la app y migra solo las tres migraciones `cf_*`, así que no tocan el MySQL remoto aunque `phpunit.xml` lo tenga configurado. El test unitario no arranca Laravel: crea los `Producto` con `Model::unguarded()` porque `fill()` con `$guarded` consulta las columnas en la base.
+
 ### Generación de documentos
 
 - **PDF con mPDF**: `ChequeoCardiovascularPDFService` y `BioimpedanciaService` construyen HTML como string y lo renderizan. Los assets (`logo.png`, `firmarDoctor.jpg`, `firmarErgo.jpg`, `watermark.png`, `firma_cardiologo.jpeg`) se referencian con `public_path()`.
@@ -195,7 +208,7 @@ Todo en `routes/api.php`, plano y sin agrupar, con prefijo automático `/api`. O
 
 - Agentes en `.claude/agents/`: `ergosanitas-developer` (implementa y corrige), `ergosanitas-laravel` (dudas de framework/PHP), `ergosanitas-mysql` (queries, SP, MySQL 5.7) y `ergo-docs` (mantiene `docs/`; documenta, nunca toca código). Cada uno carga su skill homónima de `.claude/skills/`.
 - Al cerrar un cambio que toque `routes/`, controladores, servicios, modelos o el esquema, pasa por `ergo-docs` para poner al día el contrato, los diagramas y la colección Postman.
-- Las features nuevas se hacen por spec: `/spec` redacta `specs/NN-nombre.md` y `/spec-impl` o `/spec-impl-ergo` la implementan por pasos. Hoy existen `01-asistente-chat-club`, `02-juego-cartas-niveles` y `03-mantenedor-imagenes-home`; léelas antes de tocar esos dominios.
+- Las features nuevas se hacen por spec: `/spec` redacta `specs/NN-nombre.md` y `/spec-impl` o `/spec-impl-ergo` la implementan por pasos. Hoy existen `01-asistente-chat-club`, `02-juego-cartas-niveles`, `03-mantenedor-imagenes-home` y `04-servicio-cart-flow`; léelas antes de tocar esos dominios.
 
 ## Trampas conocidas
 
