@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    // SPEC 03 — Mantenedor de imagenes del Home. URL publica de la carpeta public/HomeImagenes,
+    // sin barra final. HomeImagen::src la usa para armar la URL de cada imagen al responder.
+    'home_imagenes' => [
+        'url' => rtrim((string) env('API_PATH_HOME', ''), '/'),
+    ],
+
 ];

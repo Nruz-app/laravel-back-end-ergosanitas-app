@@ -45,6 +45,8 @@ use App\Http\Controllers\FichaClinicaController;
 
 use App\Http\Controllers\JuegoCartasController;
 
+use App\Http\Controllers\HomeImagenController;
+
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
@@ -336,3 +338,27 @@ Route::get('juego-cartas/detalle/{rut_paciente}',[JuegoCartasController::class,'
 
 Route::get('juego-cartas/{user_email}',[JuegoCartasController::class,'CartasClub'])
     ->name('CartasClub');
+
+
+// SPEC 03 — Mantenedor de imagenes del Home. La literal home-imagenes/admin va antes de las
+// rutas con {id}; y {id} se restringe a numeros para que "admin" nunca se resuelva como id.
+Route::get('home-imagenes',[HomeImagenController::class,'Index'])
+    ->name('HomeImagenesIndex');
+
+Route::get('home-imagenes/admin',[HomeImagenController::class,'Admin'])
+    ->name('HomeImagenesAdmin');
+
+Route::post('home-imagenes',[HomeImagenController::class,'Store'])
+    ->name('HomeImagenesStore');
+
+Route::put('home-imagenes/{id}/activo',[HomeImagenController::class,'UpdateActivo'])
+    ->whereNumber('id')
+    ->name('HomeImagenesUpdateActivo');
+
+Route::put('home-imagenes/{id}',[HomeImagenController::class,'Update'])
+    ->whereNumber('id')
+    ->name('HomeImagenesUpdate');
+
+Route::delete('home-imagenes/{id}',[HomeImagenController::class,'Destroy'])
+    ->whereNumber('id')
+    ->name('HomeImagenesDestroy');
