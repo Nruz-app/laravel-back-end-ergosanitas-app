@@ -49,10 +49,17 @@ class OpenAIService
             ]);
         }
 
+        // Los 20 mensajes MÁS RECIENTES, en orden cronológico. Con 'asc' + limit se
+        // traían los 20 más antiguos: pasado ese número la pregunta actual quedaba
+        // fuera y el modelo respondía siempre a la conversación vieja. Mismo patrón
+        // que ClubAssistantService (desc + reverse).
         $messages = ChatHistory::where('patient_identifier',$patient)
-            ->orderBy('created_at', 'asc')
+            ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'desc')
             ->limit(20)
             ->get()
+            ->reverse()
+            ->values()
             ->map(function ($item) {
                 return [
                     'role' => $item->role,
