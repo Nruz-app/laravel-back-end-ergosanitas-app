@@ -1,0 +1,3014 @@
+{
+    "info": {
+        "name": "Ergosanitas — API REST v1.0.0",
+        "_postman_id": "6f2c1a34-e0a1-4a11-9c8e-e12345678901",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+        "description": "Generada desde `docs/openapi.yaml` (90 operaciones).\n\nLas rutas de negocio **no llevan middleware de autenticacion**: `user_email` y `perfiles_id` viajan como parametros del request.\n\nAjusta `baseUrl` y las variables de coleccion (`user_email`, `rut_paciente`, `id_paciente`, `perfil`) antes de ejecutar.\n\nLos cuerpos son los ejemplos del contrato OpenAPI; en los `multipart/form-data` hay que seleccionar el archivo a mano."
+    },
+    "item": [
+        {
+            "name": "Autenticación y usuarios",
+            "description": "Login por email/password con sesión, login con Google, alta de usuarios, logo del\nclub y gestión de la clave `ergo_pass`. Los usuarios viven en DOS tablas: `users`\n(Laravel, password hasheada con bcrypt) y `users_metadata` (perfil, logo, rut,\n`ergo_pass` y **una copia en claro de la contraseña**). `UserMetadataService`\nescribe en ambas y deben mantenerse sincronizadas.",
+            "item": [
+                {
+                    "name": "Login con Google (verificación del id_token)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/auth-login",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "auth-login"
+                            ]
+                        },
+                        "description": "Verifica un `id_token` de Google con `google/apiclient` (no Socialite) usando\n`GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET` leídos con `env()` **dentro del propio\ncontrolador** — por eso `config:cache` rompe este endpoint.\n\n**No crea ni busca al usuario en la base**: solo valida el token y devuelve el\n`sub` y el `email` de Google. El comentario del código lo dice explícitamente\n(\"Aquí puedes implementar la lógica para encontrar o crear un usuario\").\n\nEl controlador se llama `GoogleAuthControlle`, sin la \"r\" final: typo consolidado.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Token válido.\n- `401` - Token inválido o expirado.\n- `500` - Excepción del cliente de Google. **Ojo: aquí el sobre cambia al formato B**\n\n---\n\n_operationId_: `authLogin`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"token\": \"eyJhbGciOiJSUzI1NiIsImtpZCI6IjZmNzI1NDEwMWY...\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Login principal por email y contraseña",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/auth-register",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "auth-register"
+                            ]
+                        },
+                        "description": "Pese al nombre, **es el login**, no un registro. Ejecuta `Auth::attempt()` contra la\ntabla `users` (password bcrypt) y, si pasa, lee `users_metadata` por `users_id` para\narmar la respuesta con el perfil, el logo y el RUT.\n\nValidaciones: `user_email` requerido y `email:rfc,dns` (**hace resolución DNS del\ndominio**: sin salida a internet o con un dominio sin registros MX/A, la validación\nfalla); `user_password` requerido con mínimo 2 caracteres — el mensaje de error dice\n6, pero la regla es `min:2`.\n\nSi el usuario existe en `users` pero no en `users_metadata`, el acceso a\n`$usuario->id` sobre `null` lanza un `Error` que el `catch (\\Exception)` no atrapa.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Credenciales válidas. Se inicia la sesión de Laravel.\n- `401` - Credenciales incorrectas.\n- `422` - Falla de validación (Laravel, requiere el header Accept: application/json).\n- `500` - Excepción no controlada.\n\n---\n\n_operationId_: `authRegister`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"user_email\": \"club.deportivo@ergosanitas.com\",\n    \"user_password\": \"MiClave2026\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Autoregistro del paciente a partir de su RUT",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/login/create-user",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "login",
+                                "create-user"
+                            ]
+                        },
+                        "description": "Alta del **perfil 5 (paciente)**. Flujo completo:\n\n1. Busca en `chequeo_cardiovascular` el último chequeo del `rut_paciente` para\n   tomar el nombre. **Si no existe ningún chequeo con ese RUT, el acceso a\n   `$resChequeo->nombre` sobre `null` revienta con 500.**\n2. Escribe `email_paciente` en **todos** los chequeos de ese RUT.\n3. Crea el usuario en `users` (bcrypt) y en `users_metadata` con `perfiles_id = 5`,\n   `status = 'S'` y **la contraseña también en claro** en `users_metadata.password`.\n4. Hace login inmediato con `Auth::attempt()` y devuelve el mismo sobre del login.\n\nNo valida que el email esté libre: un email repetido revienta contra el índice\núnico de `users`.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Usuario creado y autenticado.\n- `401` - El login posterior a la creación falló.\n- `500` - No hay chequeo para ese RUT, o el email ya existe.\n\n---\n\n_operationId_: `createUser`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"rut_paciente\": \"21345678-9\",\n    \"user_email\": \"matias.fuentes@gmail.com\",\n    \"user_password\": \"Deporte2026\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Sube el logo del club",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/auth-register/load-logo",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "auth-register",
+                                "load-logo"
+                            ]
+                        },
+                        "description": "Guarda el archivo en `public/Logo` con el nombre\n`{user_email}_{uniqid()}.{extensión}` y actualiza `users_metadata.user_logo` con\n`env('API_PATH_LOGO') . '/' . {archivo}`.\n\nAdvertencias reales del código:\n\n- **`API_PATH_LOGO` no está en `.env.example`** aunque el código la usa: si falta,\n  la URL guardada queda como `/archivo.png`.\n- **No hay validación del archivo**: ni tipo MIME, ni tamaño, ni extensión. Acepta\n  cualquier cosa que PHP considere un upload válido.\n- Si no viene archivo o el upload es inválido, la función **no retorna nada** y\n  Laravel responde con cuerpo vacío y status 200.\n- Si el `user_email` no existe en `users_metadata`, el `firstOrFail()` lanza un 404\n  sin capturar.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Logo subido — **o** cuerpo vacío si no llegó archivo válido.\n- `404` - El `user_email` no existe en `users_metadata` (`firstOrFail`).\n\n---\n\n_operationId_: `uploadLogo`",
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "file",
+                                    "type": "file",
+                                    "src": [],
+                                    "description": "Imagen del logo. Sin validación de tipo ni tamaño."
+                                },
+                                {
+                                    "key": "user_email",
+                                    "type": "text",
+                                    "value": "club.deportivo@ergosanitas.com",
+                                    "description": ""
+                                }
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Lista los usuarios activos de un perfil",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/auth-register/user_email/{{perfil}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "auth-register",
+                                "user_email",
+                                "{{perfil}}"
+                            ]
+                        },
+                        "description": "Devuelve `users_id`, `user_email` y `user_name` de `users_metadata` filtrando por\n`status = 'S'` y `perfiles_id = {perfil}`. Alimenta el combo \"seleccionar club\"\n(`selectClub`) de la búsqueda de chequeos.\n\nRespuesta **sin sobre**: es el array directo. Un perfil sin usuarios devuelve `[]`\ncon status 200.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Listado de usuarios del perfil.\n\n---\n\n_operationId_: `listUserEmail`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Crea un usuario (alta administrativa)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/user-save",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "user-save"
+                            ]
+                        },
+                        "description": "Crea la fila en `users` (password con `bcrypt`) y en `users_metadata` con\n`status = 'S'`, `rut_paciente = null` y **la contraseña también en claro** en\n`users_metadata.password`.\n\nLos nombres de los campos del request **no coinciden** con los del resto de la API:\naquí son `nombre_user`, `email_user`, `password_user` y `perfil_user`.\n\nNo hay validación: si falta un campo, la escritura falla en la base y sale como 500.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Usuario creado.\n- `500` - Error al escribir en `users` o `users_metadata`.\n\n---\n\n_operationId_: `userSave`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"nombre_user\": \"Escuela de Fútbol Los Andes\",\n    \"email_user\": \"escuela.futbol@ergosanitas.com\",\n    \"password_user\": \"Andes2026\",\n    \"perfil_user\": 3\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Cambia la contraseña del usuario",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/user-update-password",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "user-update-password"
+                            ]
+                        },
+                        "description": "Actualiza la contraseña en **las dos tablas**: `users.password` con `bcrypt` y\n`users_metadata.password` en claro. Ambas deben mantenerse sincronizadas.\n\nEl método se llama `UserUpdatePassowrd` (typo consolidado en el controlador).\n\n`UserMetadataService::UserUpdatePassowrd()` **se traga la excepción y devuelve\n`null`**, así que un email inexistente responde igual `200 OK` sin haber cambiado\nnada. El cliente no puede distinguir el éxito del fracaso.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Siempre que no explote el controlador. **No garantiza que la clave haya\n- `500` - Excepción no controlada.\n\n---\n\n_operationId_: `userUpdatePassword`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email_user\": \"club.deportivo@ergosanitas.com\",\n    \"password_user\": \"NuevaClave2026\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Actualiza la clave `ergo_pass`",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/user-update-ergo-pass",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "user-update-ergo-pass"
+                            ]
+                        },
+                        "description": "Escribe `users_metadata.ergo_pass`. Es una clave secundaria de negocio, distinta de\nla contraseña de acceso.\n\nIgual que el endpoint anterior, el servicio se traga la excepción y devuelve `200`\naunque el email no exista.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Petición procesada.\n- `500` - Excepción no controlada.\n\n---\n\n_operationId_: `userUpdateErgoPass`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email_user\": \"club.deportivo@ergosanitas.com\",\n    \"ergo_pass\": \"ERGO-2026-XY\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Consulta la `ergo_pass` de un usuario",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/user-first-ergo-pass",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "user-first-ergo-pass"
+                            ]
+                        },
+                        "description": "Devuelve el valor de `users_metadata.ergo_pass` del email indicado. Es un **POST de\nlectura**.\n\nSi el email no existe, `->value()` devuelve `null` y la respuesta es `200` con\n`data.ergo_pass = null`.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Valor actual de `ergo_pass`.\n- `500` - Excepción no controlada.\n\n---\n\n_operationId_: `userFirstErgoPass`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email_user\": \"club.deportivo@ergosanitas.com\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Servicios",
+            "description": "Catálogo de servicios y precios; alimenta la agenda y el pago WebPay.",
+            "item": [
+                {
+                    "name": "Lista el catálogo de servicios",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/servicios",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "servicios"
+                            ]
+                        },
+                        "description": "Devuelve todos los servicios ordenados por `id` descendente, **sin sobre**.\n\nDetalle del código: primero hace `Servicios::where(['activo' => 's'])->firstOrFail()`\ny luego encadena `orderBy()->get()` sobre el modelo obtenido, de modo que el filtro\n`activo = 's'` **no se aplica al listado final** — devuelve todas las filas. El\n`firstOrFail()` sí actúa como guarda: si no existe ningún servicio activo, responde\n**404**.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Catálogo completo.\n- `404` - No hay ningún servicio con `activo = 's'`.\n\n---\n\n_operationId_: `getServicios`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Detalle de un servicio por nombre",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/servicios/{{name}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "servicios",
+                                "{{name}}"
+                            ]
+                        },
+                        "description": "Busca por coincidencia **exacta** del nombre (no LIKE) y devuelve el modelo\ncompleto. Ojo: el nombre viaja en la URL, así que hay que URL-encodearlo.\n\nEl controlador arma un array reducido con `id` y `precio` pero **devuelve el modelo\ncompleto**, no ese array.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Servicio encontrado.\n- `404` - No existe un servicio con ese nombre exacto (`firstOrFail`).\n\n---\n\n_operationId_: `showService`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Busca servicios por texto parcial",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/servicios/like",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "servicios",
+                                "like"
+                            ]
+                        },
+                        "description": "Búsqueda insensible a mayúsculas con `LOWER(nombre) LIKE %texto%`, ordenada por\n`id` descendente.\n\nEl controlador exige que el **cuerpo sea un JSON parseable a array**: lee\n`php://input` y responde 400 si no lo es. Un cuerpo vacío o `form-data` da 400.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Coincidencias (array, puede ir vacío).\n- `400` - El cuerpo no es un JSON válido.\n- `500` - Error de ejecución.\n\n---\n\n_operationId_: `likeServices`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"textoValue\": \"chequeo\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Agenda de horas",
+            "description": "Reserva de horas de pacientes contra un servicio del catálogo.",
+            "item": [
+                {
+                    "name": "Lista todas las reservas",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/agenda-horas",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "agenda-horas"
+                            ]
+                        },
+                        "description": "Devuelve **todas** las reservas de `agenda_horas` ordenadas por `id` descendente,\nsin paginación ni filtro. El controlador arma el array campo por campo, así que\n`created_at` y `updated_at` no se incluyen.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Listado de reservas.\n\n---\n\n_operationId_: `getAgenda`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Crea una reserva de hora",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/agenda-horas",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "agenda-horas"
+                            ]
+                        },
+                        "description": "Resuelve el `servicios_id` buscando el **nombre exacto** del servicio\n(`servicios_name`) con `firstOrFail()`: un nombre que no exista en el catálogo hace\nque el endpoint responda 500 con el mensaje del `ModelNotFoundException`.\n\nRequiere que el cuerpo sea un JSON parseable a array (lee `php://input`), o\ndevuelve 400.\n\nNo hay validación de campos: lo que no venga se guarda como `null` y, con MySQL en\n`STRICT_TRANS_TABLES`, las columnas `NOT NULL` hacen fallar el insert.\n\nEsta es la reserva que después confirma el pago WebPay: `WebPayResponse` marca\n`pagado_paciente = 'PAGADO'` buscando por `rut_paciente`.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - Reserva creada.\n- `400` - El cuerpo no es un JSON válido.\n- `500` - El servicio no existe, o falló el insert.\n\n---\n\n_operationId_: `storeAgenda`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"nombre_paciente\": \"Matías Fuentes Rojas\",\n    \"rut_paciente\": \"21345678-9\",\n    \"edad_paciente\": \"15\",\n    \"direccion_paciente\": \"Av. Los Carrera 1450, Depto 32\",\n    \"email_paciente\": \"apoderado.fuentes@gmail.com\",\n    \"celular_paciente\": \"+56912345678\",\n    \"sexo_paciente\": \"Masculino\",\n    \"servicios_name\": \"Chequeo Cardiovascular Deportivo\",\n    \"comuna_paciente\": \"Rancagua\",\n    \"pagado_paciente\": \"PENDIENTE\",\n    \"fecha_reserva_paciente\": \"2026-09-18 10:30\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Chequeo cardiovascular",
+            "description": "Dominio central. Alta, edición, búsqueda, filtrado por perfil y exportación a PDF y\nWord del chequeo cardiovascular deportivo.",
+            "item": [
+                {
+                    "name": "Lista TODOS los chequeos (sin filtro ni paginación)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/chequeo-cardiovascular",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "chequeo-cardiovascular"
+                            ]
+                        },
+                        "description": "Devuelve la tabla `chequeo_cardiovascular` completa ordenada por `id` descendente,\n**sin sobre, sin paginación y sin filtrado por perfil**.\n\nEn producción son decenas de miles de filas: para la UI usa\n`POST /chequeo-cardiovascular/search-chequeo`, que sí pagina y respeta el perfil.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Todos los chequeos.\n\n---\n\n_operationId_: `indexChequeo`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Crea un chequeo cardiovascular",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/chequeo-cardiovascular",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "chequeo-cardiovascular"
+                            ]
+                        },
+                        "description": "Alta de un chequeo. Reglas que aplica el controlador:\n\n- Valida `nombre` (string), `rut` (string) y `user_email` (email). **No valida el\n  formato del RUT.**\n- `nombre` se normaliza con `ucwords(strtolower(trim(...)))`.\n- `estatura` cambia la coma decimal por punto.\n- Los campos clínicos vacíos toman un valor por defecto:\n  `enfermedadesCronicas` y `medicamentosDiarios` -> `No Presenta`;\n  `sistemaOsteoarticular`, `sistemaCardiovascular`, `enfermedadesAnteriores`,\n  `Recuperacion` y `gradoIncidenciaPosterio` -> `Sin Alteraciones`.\n- `user_email_perfil` del request se guarda en la columna `user_email_update`.\n- **Si el perfil de `user_email` es 2 (tester)**, fija `fecha_atencion = now()` y\n  `status = 'Testiado'`. En cualquier otro caso el `status` lo pone el default de la\n  columna (`ingresado`).\n- Un request completamente vacío devuelve 400.\n\n`user_email` identifica al **club dueño del chequeo**: es la clave del filtrado por\nperfil 3 y de la facturación mensual.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - Chequeo creado.\n- `400` - Request vacío.\n- `422` - Falla de validación de `nombre`, `rut` o `user_email`.\n- `500` - Error al guardar.\n\n---\n\n_operationId_: `storeChequeo`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"nombre\": \"Matías Fuentes Rojas\",\n    \"rut\": \"21345678-9\",\n    \"user_email\": \"club.deportivo@ergosanitas.com\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Detalle de un chequeo por id",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/chequeo-cardiovascular/{{id_paciente}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "chequeo-cardiovascular",
+                                "{{id_paciente}}"
+                            ]
+                        },
+                        "description": "Devuelve la fila completa de `chequeo_cardiovascular` con ese `id`, **sin sobre**.\n\nCuidado con el orden de las rutas: `pdf/{id}` y `pdfRut/{rut}` están declaradas\nantes en `routes/api.php` justo para que esta ruta genérica no las capture.\n\nSi el id no existe, `->first()` devuelve `null` y `->toArray()` sobre `null` lanza\nun `Error` que el `catch (\\Exception)` **no atrapa**: sale como 500 de Laravel.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Chequeo encontrado.\n- `500` - Id inexistente o error de ejecución.\n\n---\n\n_operationId_: `chequeoRut`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Elimina un chequeo por id",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/chequeo-cardiovascular/{{id_paciente}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "chequeo-cardiovascular",
+                                "{{id_paciente}}"
+                            ]
+                        },
+                        "description": "Borrado físico de la fila. **No borra en cascada** los certificados\n(`certificado_url`) ni los ECG (`electro_cardiogranas`) asociados: quedan huérfanos\napuntando a un `id_chequeo` inexistente.\n\nTampoco revierte la facturación del mes si ese chequeo ya generó un `ADD` en\n`pago_mensual`.\n\nEn `routes/api.php` este parámetro se llama `{id}`, no `{id_paciente}`; se\ndocumenta aquí junto al GET porque OpenAPI considera idénticas ambas plantillas.\n\nUn id inexistente devuelve igualmente 200: el `delete()` afecta 0 filas.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Borrado ejecutado. El mensaje incluye un typo del código\n- `500` - Error de ejecución.\n\n---\n\n_operationId_: `deleteChequeoById`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Actualiza un chequeo (el perfil decide qué campos se tocan)",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/chequeo-cardiovascular/{{id_paciente}}/{{user_email}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "chequeo-cardiovascular",
+                                "{{id_paciente}}",
+                                "{{user_email}}"
+                            ]
+                        },
+                        "description": "Actualiza el chequeo `{id_paciente}`. El `{user_email}` de la **URL** es el usuario\nque edita, y su perfil determina el alcance del cambio:\n\n| Perfil | Comportamiento |\n|---|---|\n| 1 (admin) | Además de los campos clínicos, puede cambiar `rut`, `user_email` (club), `status` y `fecha_atencion`. Al terminar propaga el nuevo RUT a `certificado_url` (`CertificadoService::UpdateRutCertificado`) y a `electro_cardiogranas` (`ElectroCardiogramaService::UpdateRutECG`). |\n| 2 (tester) | Fija `fecha_atencion = now()` y `status = 'Testiado'`. |\n| otros | `fecha_atencion` se sobrescribe con el `created_at` del registro. |\n\nOtros detalles:\n\n- `nombre` solo se reemplaza si viene con contenido; si llega vacío se conserva el\n  actual.\n- Los campos clínicos vacíos vuelven a sus defaults (`No Presenta` /\n  `Sin Alteraciones`), **incluso si antes tenían un valor**: enviar el formulario\n  incompleto borra información clínica previa.\n- Un request vacío devuelve 400.\n- El id inexistente cae en `firstOrFail()` y sale como 500 con el mensaje del\n  `ModelNotFoundException`.\n- El email de la ruta debe ir URL-encoded (`@` -> `%40`).\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Chequeo modificado.\n- `400` - Request vacío.\n- `500` - Id inexistente o error al guardar. **Nota el cambio de sobre respecto del\n\n---\n\n_operationId_: `updateChequeo`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"nombre\": \"Matías Fuentes Rojas\",\n    \"edad\": \"15\",\n    \"estatura\": \"1.72\",\n    \"peso\": \"65.0\",\n    \"pulso\": \"66\",\n    \"presionArterial\": \"70\",\n    \"presion_sistolica\": \"118\",\n    \"saturacionOxigeno\": \"99\",\n    \"temperatura\": \"36.4\",\n    \"hemoglucotest\": \"90\",\n    \"user_email_perfil\": \"tester.terreno@ergosanitas.com\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Chequeos visibles para un usuario",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/chequeo-cardiovascular/user",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "chequeo-cardiovascular",
+                                "user"
+                            ]
+                        },
+                        "description": "Lista los chequeos con el join al ECG y el `estado_paciente` derivado.\n\nFiltrado: **solo el perfil 3 se restringe** a sus propios registros\n(`cc.user_email = :user_email`). Cualquier otro perfil, incluido el 6 (médico),\nrecibe la tabla completa.\n\nSin paginación: devuelve todo el universo visible ordenado por `cc.id` desc.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Chequeos con estado derivado.\n- `500` - Error de ejecución.\n\n---\n\n_operationId_: `findChequeoByEmail`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"user_email\": \"club.deportivo@ergosanitas.com\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Búsqueda simple por RUT o nombre (sin perfil)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/chequeo-cardiovascular/like-chequeo",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "chequeo-cardiovascular",
+                                "like-chequeo"
+                            ]
+                        },
+                        "description": "`WHERE rut LIKE %texto% OR nombre LIKE %texto%` sobre toda la tabla,\n**sin filtrado por perfil y sin paginación**. Devuelve las filas crudas de\n`chequeo_cardiovascular`, sin el join al ECG.\n\nRequiere cuerpo JSON parseable a array (lee `php://input`) o responde 400.\n\nDetalle del `catch`: si la query falla, el controlador **llama a `Index()` y\ndevuelve la tabla completa** en lugar del error.\n\nPrefiere `search-chequeo`, que respeta el perfil y pagina.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Coincidencias.\n- `400` - El cuerpo no es un JSON válido.\n\n---\n\n_operationId_: `likeChequeo`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"textoValue\": \"21345678\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Búsqueda por RUT o nombre respetando el perfil 3",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/chequeo-cardiovascular/like-chequeo/user",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "chequeo-cardiovascular",
+                                "like-chequeo",
+                                "user"
+                            ]
+                        },
+                        "description": "Igual que `like-chequeo`, pero con el join al ECG, el `estado_paciente` derivado y\nla restricción `cc.user_email = :user_email` **cuando el perfil es 3**.\n\nSigue sin paginar y sin aplicar la regla del perfil 6.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Coincidencias con estado derivado.\n- `400` - El cuerpo no es un JSON válido.\n- `500` - Error de ejecución.\n\n---\n\n_operationId_: `likeChequeoUser`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"textoValue\": \"Fuentes\",\n    \"user_email\": \"club.deportivo@ergosanitas.com\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Búsqueda paginada con filtros y reglas de perfil (endpoint principal de la UI)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/chequeo-cardiovascular/search-chequeo",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "chequeo-cardiovascular",
+                                "search-chequeo"
+                            ]
+                        },
+                        "description": "Es el endpoint que alimenta la grilla del sistema. Combina cuatro cosas:\n\n**1. Subquery del último ECG.** Une solo el ECG más reciente por `id_chequeo`\n(`ORDER BY created_at DESC LIMIT 1`), de modo que un paciente con varios ECG no\nduplica filas.\n\n**2. Filtros.**\n- `textoValue` -> `cc.rut LIKE %v% OR cc.nombre LIKE %v%`\n- `fechaCalendar` -> `DATE(cc.created_at) = f OR DATE(cc.fecha_atencion) = f`\n  (se parsea con Carbon, acepta `YYYY-MM-DD`)\n- `selectClub` -> `cc.user_email = club`, **ignorado si el perfil es 3**\n\n**3. Reglas de perfil.**\n- Perfil 3: `cc.user_email = :user_email` y orden\n  `FIELD(cc.status, 'ECG FOTO', 'REVISION MEDICA', 'Testiado', 'ingresado')` antes\n  de `created_at DESC`.\n- Perfil 6: `cc.status = 'ECG FOTO'` **y** join con `certificado_url` por\n  `(rut, id_chequeo)` con `cu.derivado_medico = 'SI'`.\n- Resto: sin restricción, orden `created_at DESC`.\n\n**4. Paginación con dos modos.**\n- **Sin ningún filtro** usa `simplePaginate(min(limit, 300))` y devuelve el campo\n  `total` con el literal **300**, que no es el total real de filas. No lo uses para\n  calcular el número de páginas en ese modo; guíate por `next_page_url`.\n- **Con al menos un filtro** usa `paginate($limit)` y `total` sí es el conteo real.\n\nDefaults: `limit = 20`, `page = 1`. El `limit` se topa en 300 solo en el modo sin\nfiltros.\n\nEl campo `data` trae un subconjunto de columnas (no la fila completa) más las\nderivadas.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Página de resultados.\n- `400` - El cuerpo no es un JSON válido.\n- `500` - Error de ejecución.\n\n---\n\n_operationId_: `searchChequeo`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"user_email\": \"club.deportivo@ergosanitas.com\",\n    \"textoValue\": \"\",\n    \"fechaCalendar\": \"\",\n    \"selectClub\": \"\",\n    \"limit\": 20,\n    \"page\": 1\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Chequeos de una fecha concreta",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/chequeo-cardiovascular/filter-calendar",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "chequeo-cardiovascular",
+                                "filter-calendar"
+                            ]
+                        },
+                        "description": "Devuelve los chequeos cuyo `created_at` **o** `fecha_atencion` cae en la fecha\nindicada, con el join al ECG y el `estado_paciente` derivado.\n\nAplica solo la regla del perfil 3 (`cc.user_email = :user_email`). Sin paginación.\n\n`fecha_calendar` se parsea con `Carbon::parse()`: acepta `YYYY-MM-DD` y otros\nformatos que Carbon entienda, pero una cadena no parseable lanza excepción y sale\ncomo 500.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Chequeos de esa fecha.\n- `400` - El cuerpo no es un JSON válido.\n- `500` - Fecha no parseable o error de ejecución.\n\n---\n\n_operationId_: `filterCalendar`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"fecha_calendar\": \"2026-09-04\",\n    \"user_email\": \"club.deportivo@ergosanitas.com\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Todos los chequeos de un club",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/chequeo-cardiovascular/club-deportivo",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "chequeo-cardiovascular",
+                                "club-deportivo"
+                            ]
+                        },
+                        "description": "Filtra **siempre** por `cc.user_email = :user_email`, sin mirar el perfil: devuelve\nlos chequeos de ese club con las columnas completas más `fecha_atencion_format`,\n`created_at_format` y los datos del último ECG.\n\nDiferencia con los otros listados: aquí el `estado_paciente` es\n`IFNULL(ec.estado_paciente, 'En Revision')` — el valor crudo del ECG, sin el prefijo\n`Diag. Card. -`.\n\nEl join es por `rut`, no por `id_chequeo`: un paciente con varios chequeos y varios\nECG puede producir filas duplicadas.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Chequeos del club.\n- `500` - Error de ejecución. **Este endpoint devuelve el mensaje como string plano**, no\n\n---\n\n_operationId_: `chequeoUserEmail`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"user_email\": \"club.deportivo@ergosanitas.com\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Export completo de chequeos con reglas de perfil",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/chequeo-cardiovascular/chequeo-all",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "chequeo-cardiovascular",
+                                "chequeo-all"
+                            ]
+                        },
+                        "description": "Pensado para exportes y envíos masivos. Devuelve un subconjunto plano de columnas\n(los datos clínicos que se usan en el informe) más `estado_paciente` y\n`frecuencia_cardiaca_paciente`.\n\nUne el **último ECG por `id_chequeo`** mediante `MAX(id)`, no por fecha.\n\nReglas de perfil aplicadas: 3 (solo su club) y 6 (`INNER JOIN certificado_url` con\n`derivado_medico = 'SI'` — nota que aquí es `join`, no `leftJoin`, así que el perfil\n6 nunca ve chequeos sin certificado).\n\n`fecha_atencion` viene formateada `dd-mm-YYYY` (con guiones) y cae a `created_at`\ncuando la atención no tiene fecha.\n\nSin paginación: es un export completo.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Export generado.\n- `400` - El cuerpo no es un JSON válido.\n- `500` - Error interno.\n\n---\n\n_operationId_: `chequeoEmailAll`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"user_email\": \"club.deportivo@ergosanitas.com\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Resumen del estado general de los pacientes del club",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/chequeo-cardiovascular/estado-general/{{user_email}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "chequeo-cardiovascular",
+                                "estado-general",
+                                "{{user_email}}"
+                            ]
+                        },
+                        "description": "Ejecuta `CALL SP_estado_general(:user_email)` y devuelve **el JSON del SP tal cual**,\nsin sobre.\n\nLa forma exacta la define el procedimiento almacenado, que no está versionado en el\nrepo. El ejemplo de abajo es representativo.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Resumen devuelto por el SP.\n- `500` - El SP no existe o falló.\n\n---\n\n_operationId_: `estadoGeneral`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Certificado del chequeo en PDF (por id)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/chequeo-cardiovascular/pdf/{{id_paciente}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "chequeo-cardiovascular",
+                                "pdf",
+                                "{{id_paciente}}"
+                            ]
+                        },
+                        "description": "Genera el certificado con **mPDF** a partir del HTML que arma\n`ChequeoCardiovascularPDFService::chequeoPDf()` y lo devuelve como descarga.\n\nEl nombre del archivo es `Certificado {Nombre Del Paciente}.pdf`.\n\nLos assets del documento (`logo.png`, `firmarDoctor.jpg`, `firmarErgo.jpg`,\n`watermark.png`, `firma_cardiologo.jpeg`) se leen con `public_path()`: si faltan en\nel contenedor, mPDF lanza excepción **no capturada** y sale un 500 de Laravel.\n\nUn id inexistente también revienta al leer el nombre del paciente sobre `null`.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - PDF del certificado.\n- `500` - Id inexistente, asset faltante o error de mPDF.\n\n---\n\n_operationId_: `chequeoPDF`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Certificado del chequeo en PDF (por RUT)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/chequeo-cardiovascular/pdfRut/{{rut_paciente}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "chequeo-cardiovascular",
+                                "pdfRut",
+                                "{{rut_paciente}}"
+                            ]
+                        },
+                        "description": "Busca el **último** chequeo del RUT (`ORDER BY id DESC`) y delega en\n`GET /chequeo-cardiovascular/pdf/{id}`.\n\nEs el único endpoint de PDF que responde un 404 limpio cuando no encuentra al\npaciente.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - PDF del certificado del último chequeo del paciente.\n- `404` - No hay chequeos para ese RUT.\n- `500` - Error al generar el PDF.\n\n---\n\n_operationId_: `chequeoPDFRut`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Certificado del chequeo en Word (.docx)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/chequeo-cardiovascular-word/{{id_paciente}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "chequeo-cardiovascular-word",
+                                "{{id_paciente}}"
+                            ]
+                        },
+                        "description": "Misma información que el PDF pero generada con **PHPWord** a partir del HTML de\n`ChequeoCardiovascularWordService::chequeoWord()`, y enviada con\n`response()->streamDownload()` sin escribir en disco.\n\nEl nombre del archivo es fijo: **`documento_desde_html.docx`** para todos los\npacientes.\n\nNo hay `try/catch`: un id inexistente o un fallo de conversión sale como 500 de\nLaravel.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Documento Word.\n- `500` - Id inexistente o error de PHPWord.\n\n---\n\n_operationId_: `chequeoWord`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Sube la foto del ECG y marca el chequeo",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/file-upload",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "file-upload"
+                            ]
+                        },
+                        "description": "Endpoint legado de subida de la foto del electrocardiograma. Guarda el archivo con\nnombre `{timestamp}.{jpg|png}` y actualiza el chequeo del RUT poniendo\n`fileStatus = 'OK'` y `fileName`.\n\nAdvertencias importantes del código:\n\n- Valida `file` como `jpg,png` de máximo ~5 MB. **Los mensajes de validación tienen\n  typos** (`file.requierd`, `file.mines`), así que nunca se muestran.\n- Usa `copy($_FILES['file']['tmp_name'], 'Electrocardiograma/'.$archivo)` con **ruta\n  relativa al directorio de trabajo de PHP**, no `public_path()`. Si la carpeta no\n  existe, el `copy()` falla con warning y el registro igual queda marcado como `OK`.\n- Un MIME distinto de `image/png` o `image/jpeg` deja `$archivo` sin definir.\n- `firstOrFail()` sobre el RUT: un RUT sin chequeos devuelve 404.\n- **No factura** ni cambia el `status` del chequeo, a diferencia de\n  `/certificado/save-url`.\n\nPara el flujo vigente de certificados usa `POST /certificado/save-url`.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Archivo procesado.\n- `404` - No existe un chequeo con ese RUT.\n- `422` - El archivo no es JPG/PNG o supera el tamaño máximo.\n\n---\n\n_operationId_: `fileUploadRes`",
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "file",
+                                    "type": "file",
+                                    "src": [],
+                                    "description": "Imagen JPG o PNG, máximo 5048 KB."
+                                },
+                                {
+                                    "key": "rut",
+                                    "type": "text",
+                                    "value": "21345678-9",
+                                    "description": ""
+                                }
+                            ]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Electrocardiograma",
+            "description": "Lectura del ECG por el cardiólogo. Guardar el informe mueve el chequeo a\n`REVISION MEDICA` y **factura** el valor `VALOR-ECG` al club.",
+            "item": [
+                {
+                    "name": "ECG registrados de un paciente",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/electro-cardiograma/find-by-rut",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "electro-cardiograma",
+                                "find-by-rut"
+                            ]
+                        },
+                        "description": "Devuelve **todas** las filas de `electro_cardiogranas` del RUT, sin sobre y sin\nordenar.\n\nSi la consulta falla, el `catch` **no devuelve un error**: responde 200 con un\nobjeto de placeholders (`estado_paciente: \"N/A\"`, `frecuencia_cardiaca_paciente: 0`,\nel resto vacío). Un cliente que solo mire el código HTTP no distingue el fallo.\n\nUn RUT sin ECG devuelve `[]` con 200 (no entra al `catch`).\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Lista de ECG del paciente — **o** el objeto placeholder si la consulta falló.\n\n---\n\n_operationId_: `findEcgByRut`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"rut_paciente\": \"21345678-9\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Guarda el informe del cardiólogo — CAMBIA EL ESTADO Y FACTURA",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/electro-cardiograma/save",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "electro-cardiograma",
+                                "save"
+                            ]
+                        },
+                        "description": "Registra la lectura del ECG. Secuencia exacta:\n\n1. **Borra todos los ECG previos** del `id_chequeo` (`DELETE WHERE id_chequeo = ?`).\n   Solo se conserva la última lectura; no hay historial.\n2. Inserta la fila nueva en `electro_cardiogranas`.\n3. Marca el chequeo con `status = 'REVISION MEDICA'` (`firstOrFail`).\n4. Lee `params.VALOR-ECG` y llama a\n   `SP_pago_mensual(hoy, club_del_chequeo, valor_ecg, 'ADD')`.\n\n**Cada guardado factura de nuevo**: corregir la lectura de un ECG suma otro cargo\nal mes del club. Es el segundo punto de facturación del sistema, junto con la subida\ndel certificado.\n\nRequiere cuerpo JSON parseable a array (lee `php://input`) o devuelve 400.\n\nNota: el request usa `id_paciente`, pero la columna se llama `id_chequeo` y es el id\ndel chequeo.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - ECG guardado, chequeo en `REVISION MEDICA` y mes facturado.\n- `400` - El cuerpo no es un JSON válido.\n- `500` - El `id_paciente` no existe, falta `VALOR-ECG` en `params` o falló\n\n---\n\n_operationId_: `saveEcg`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"rut_paciente\": \"21345678-9\",\n    \"id_paciente\": 1842,\n    \"estado_paciente\": \"Normal\",\n    \"frecuencia_cardiaca_paciente\": \"72\",\n    \"derivacion_paciente\": \"No requiere\",\n    \"observacion_paciente\": \"Ritmo sinusal. Sin criterios de derivación.\",\n    \"imc_paciente\": \"21.8\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Certificados",
+            "description": "Subida y consulta de los certificados/ECG en PDF. Subir un certificado marca el\nchequeo como `ECG FOTO` y **factura** el mes del club.",
+            "item": [
+                {
+                    "name": "Sube el certificado/ECG del paciente — CAMBIA EL ESTADO Y FACTURA",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/certificado/save-url",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "certificado",
+                                "save-url"
+                            ]
+                        },
+                        "description": "Endpoint vigente de subida del certificado. Hace **cinco cosas**, en este orden:\n\n1. **Borra** las filas previas de `certificado_url` del par `(rut_paciente,\n   id_chequeo)`. El archivo físico anterior no se elimina, pero el nombre es\n   determinista (`{rut}-{id_chequeo}.{ext}`), así que se sobrescribe.\n2. Mueve el archivo a `public/Certificado/{rut}-{id_chequeo}.{extensión}`.\n3. Inserta la fila nueva en `certificado_url` con `url_pdf`, `name_pdf`\n   (nombre con guiones), `titulo` y `derivado_medico`.\n4. Marca el chequeo con `status = 'ECG FOTO'` (`firstOrFail` sobre `id_paciente`).\n5. Lee `params.VALOR-ECG` y llama a\n   `SP_pago_mensual(hoy, club_del_chequeo, valor_ecg, 'ADD')`.\n\n### Consecuencias operativas\n\n- **Cada subida factura.** Reintentar una carga fallida vuelve a sumar el cargo al\n  mes del club. No hay idempotencia.\n- `derivado_medico = 'SI'` es lo que hace visible el chequeo para el perfil 6.\n- Si falta la fila `VALOR-ECG` en `params`, el `firstOrFail()` responde 500\n  **después** de haber movido el archivo, guardado la fila y cambiado el estado.\n- **No hay validación del archivo**: ni tipo, ni tamaño, ni extensión.\n- Si no llega archivo o el upload es inválido, la función **no retorna nada**:\n  respuesta 200 con cuerpo vacío y sin efecto alguno.\n- `API_PATH_CER` se lee con `env()` en el servicio: con `config:cache` la URL queda\n  mal armada.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Certificado guardado, chequeo marcado como `ECG FOTO` y mes facturado — **o**\n- `404` - El `id_paciente` no existe en `chequeo_cardiovascular` (`firstOrFail`).\n- `500` - Falta la fila `VALOR-ECG` en `params`, o falló `SP_pago_mensual`. El archivo y\n\n---\n\n_operationId_: `fileUploadCer`",
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "file",
+                                    "type": "file",
+                                    "src": [],
+                                    "description": "PDF o imagen del certificado/ECG. Sin validación."
+                                },
+                                {
+                                    "key": "rut_paciente",
+                                    "type": "text",
+                                    "value": "21345678-9",
+                                    "description": ""
+                                },
+                                {
+                                    "key": "id_paciente",
+                                    "type": "text",
+                                    "value": "1842",
+                                    "description": "Id del chequeo (`chequeo_cardiovascular.id`)."
+                                },
+                                {
+                                    "key": "nombre_paciente",
+                                    "type": "text",
+                                    "value": "matías fuentes rojas",
+                                    "description": "Se normaliza con `ucwords(strtolower(...))` para `titulo` y `name_pdf`."
+                                },
+                                {
+                                    "key": "derivado_medico",
+                                    "type": "text",
+                                    "value": "SI",
+                                    "description": "`SI` hace visible el chequeo para el perfil médico (6)."
+                                }
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Obtiene la URL del certificado por RUT y/o id de chequeo",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/certificado/path-url",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "certificado",
+                                "path-url"
+                            ]
+                        },
+                        "description": "Devuelve el certificado más reciente que cumpla los filtros enviados. Los dos\nfiltros son **opcionales e independientes**: si no envías ninguno devuelve el último\ncertificado de toda la tabla.\n\n**Todas las respuestas son HTTP 200**, incluido el \"no encontrado\" y el error: el\nresultado real está en el campo `status` del cuerpo.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Resultado de la consulta. **Mira `status` dentro del cuerpo**, no el código HTTP.\n\n---\n\n_operationId_: `pathUrlCertificado`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"rut_paciente\": \"21345678-9\",\n    \"id_paciente\": 1842\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Certificado de un chequeo ya cerrado por el médico",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/certificado/valida-certificado",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "certificado",
+                                "valida-certificado"
+                            ]
+                        },
+                        "description": "Igual que `path-url` pero **solo devuelve certificados de chequeos en estado\n`REVISION MEDICA`**, es decir, ya revisados por el cardiólogo. Es la consulta que\nusa el paciente o el club para descargar el documento final.\n\nEl join es por el par `(certificado_url.id_chequeo, cc.id)` **y**\n`(certificado_url.rut_paciente, cc.rut)`: si el admin cambió el RUT del chequeo sin\nque se propagara al certificado, la fila deja de aparecer.\n\n`rut_paciente` es opcional: sin él devuelve el último certificado en revisión médica\nde cualquier paciente.\n\nIgual que el anterior, **todas las respuestas son HTTP 200**.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Resultado de la consulta (revisa `status` en el cuerpo).\n\n---\n\n_operationId_: `validaCertificado`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"rut_paciente\": \"21345678-9\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Comprueba si el paciente tiene algún certificado",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/certificado/validar/{{rut_paciente}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "certificado",
+                                "validar",
+                                "{{rut_paciente}}"
+                            ]
+                        },
+                        "description": "Un `EXISTS` sobre `certificado_url.rut_paciente`. No devuelve el certificado, solo\nsi existe.\n\n**Siempre responde HTTP 200**, incluso en el caso \"no encontrado\" y en el error: el\nresultado está en el campo `status` del cuerpo.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Resultado de la comprobación.\n\n---\n\n_operationId_: `validarRutCertificado`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Último certificado del paciente (fila completa)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/certificado/{{rut_paciente}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "certificado",
+                                "{{rut_paciente}}"
+                            ]
+                        },
+                        "description": "Devuelve la fila completa de `certificado_url` más reciente (`latest('id')`) del RUT,\n**sin sobre**.\n\nA diferencia de los otros endpoints de certificados, este **sí usa códigos HTTP\nreales**: 404 cuando no hay certificado y 500 en error.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Certificado encontrado.\n- `404` - No hay certificados para ese RUT.\n- `500` - Error de ejecución.\n\n---\n\n_operationId_: `showCertificado`"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Bioimpedancia",
+            "description": "Extracción por IA de la hoja de resultados del equipo de bioimpedancia, listados y\ncertificado en PDF.",
+            "item": [
+                {
+                    "name": "Extrae la bioimpedancia desde la foto del informe (IA)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/bioimpedancia/form-upload",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "bioimpedancia",
+                                "form-upload"
+                            ]
+                        },
+                        "description": "Sube la foto de la hoja de resultados del equipo de bioimpedancia y la convierte en\ndatos estructurados con **`gpt-4.1-mini`** y el prompt\n`App\\IA\\AnalisisBioimpedanciaPrompt`.\n\nFlujo:\n\n1. Valida `file` (`jpg`, `jpeg`, `png`, máx. ~5 MB) y `rut`.\n2. Normaliza el RUT: quita puntos y pasa `K` a `k` (`rutSave`); para el nombre del\n   archivo también quita el guion.\n3. Guarda la imagen en `public/Bioimpedancia/{rut sin guion}_{HHmm}.{ext}`.\n   **El nombre solo tiene precisión de minutos**: dos cargas del mismo RUT en el\n   mismo minuto se sobrescriben.\n4. Busca el nombre y el club del paciente: primero en `bioimpedancia`, y si no\n   existe, en `chequeo_cardiovascular` (`BioimpedanciaService::firstByRutChequeoBio`).\n5. Manda la imagen en base64 al modelo (`temperature: 0.1`, `max_tokens: 2000`).\n6. Si la IA **no** devuelve JSON válido, guarda igualmente una fila con\n   `raw_json` = el texto crudo y responde **500** con\n   `\"IA no devolvió JSON válido\"` — el registro queda creado para auditoría.\n7. Si devuelve JSON, normaliza los valores (`cleanNumber`, `formatDate`) y hace\n   `updateOrCreate` **por RUT**: hay **una sola fila de bioimpedancia por paciente**,\n   la última medición pisa a la anterior.\n\nLa IA deja en `null` todo lo que no logre leer; `calidad_extraccion` indica su propia\nconfianza en la lectura.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Datos extraídos y guardados.\n- `422` - Archivo no permitido, demasiado grande, o falta el `rut`.\n- `500` - La IA no devolvió JSON válido (la fila con `raw_json` **ya quedó creada**), o\n\n---\n\n_operationId_: `bioFormUpload`",
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "file",
+                                    "type": "file",
+                                    "src": [],
+                                    "description": "Foto o escaneo de la hoja de resultados. JPG/JPEG/PNG, máx. 5048 KB."
+                                },
+                                {
+                                    "key": "rut",
+                                    "type": "text",
+                                    "value": "21345678-9",
+                                    "description": "RUT del paciente. Se normaliza en el servidor."
+                                }
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Lista todas las bioimpedancias",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/bioimpedancia/list-all",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "bioimpedancia",
+                                "list-all"
+                            ]
+                        },
+                        "description": "Devuelve todas las filas de `bioimpedancia` ordenadas por `created_at` descendente,\ncon **todas las columnas incluida `raw_json`** (la respuesta completa de la IA).\n\nSin paginación ni filtro por club: es un listado global.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Listado completo.\n- `500` - Error al listar.\n\n---\n\n_operationId_: `listBio`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Última bioimpedancia de un paciente (resumen)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/bioimpedancia/first-rut",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "bioimpedancia",
+                                "first-rut"
+                            ]
+                        },
+                        "description": "Devuelve solo `id`, `rut`, `nombre` y `archivo` de la medición más reciente del RUT.\nEl campo `archivo` se convierte a **URL absoluta** con `url('Bioimpedancia/...')`.\n\nSi el paciente no tiene mediciones, responde `200` con `data: null`.\n\nEl RUT debe enviarse ya normalizado como está guardado (sin puntos, con `k`\nminúscula si corresponde): la consulta es por igualdad exacta.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Resumen de la última medición.\n- `422` - Falta `rut_paciente`.\n- `500` - Error de consulta.\n\n---\n\n_operationId_: `bioFirstRut`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"rut_paciente\": \"21345678-9\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Crea una bioimpedancia vacía (solo identificación)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/bioimpedancia/create-bio",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "bioimpedancia",
+                                "create-bio"
+                            ]
+                        },
+                        "description": "Crea la fila con `rut`, `nombre` y `club`, sin ninguna medición. Sirve para\npreinscribir al paciente antes de subir la foto del informe.\n\nEl RUT se normaliza quitando los puntos y pasando `K` a `k`.\n\n**A diferencia de `form-upload`, aquí es un `INSERT` puro, no un `updateOrCreate`**:\nllamarlo dos veces con el mismo RUT crea dos filas, y `form-upload` después\nactualizará solo una de ellas.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Fila creada.\n- `422` - Falta `rut`, `nombre` o `club`.\n- `500` - Error al crear.\n\n---\n\n_operationId_: `createBio`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"rut\": \"21.345.678-9\",\n    \"nombre\": \"Matías Fuentes Rojas\",\n    \"club\": \"club.deportivo@ergosanitas.com\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Informe de bioimpedancia en PDF",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/bioimpedancia/pdfRut/{{rut_paciente}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "bioimpedancia",
+                                "pdfRut",
+                                "{{rut_paciente}}"
+                            ]
+                        },
+                        "description": "Genera con **mPDF** el informe de composición corporal del paciente. El HTML lo arma\n`BioimpedanciaService::BioPDFRut()`, que además llama a\n`AnalisisRutBioimpedanciaPrompt` para redactar la **interpretación clínica del\nresultado con IA** — por eso este endpoint tarda varios segundos y depende de que\nOpenAI responda.\n\nEl archivo se descarga como `Certificado-{rut}.pdf`.\n\nA diferencia del PDF de chequeo, aquí sí hay `try/catch`: los errores salen como\nJSON 500.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - PDF del informe.\n- `500` - Sin datos para ese RUT, fallo de la IA o error de mPDF.\n\n---\n\n_operationId_: `bioPDFRut`"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Ficha clínica",
+            "description": "Ficha clínica consolidada del paciente, armada íntegramente por `SP_ficha_clinica`.",
+            "item": [
+                {
+                    "name": "Ficha clínica consolidada del paciente",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/ficha-clinica/{{rut_paciente}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "ficha-clinica",
+                                "{{rut_paciente}}"
+                            ]
+                        },
+                        "description": "Ejecuta `CALL SP_ficha_clinica(:rut_paciente)` y devuelve el `resultado_json`\ndecodificado dentro del sobre A.\n\nToda la lógica de consolidación (chequeos, ECG, bioimpedancia, certificados,\nincidencias) vive en el procedimiento almacenado, que **no está versionado en el\nrepo**. `App\\Models\\FichaClinica` tiene el `$table` comentado a propósito: es solo un\nenvoltorio del SP, no mapea una tabla.\n\nLa estructura del ejemplo es representativa; la definitiva la fija el SP instalado.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Ficha clínica del paciente.\n- `500` - El SP no existe o falló.\n\n---\n\n_operationId_: `fichaClinica`"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Juego de cartas",
+            "description": "Convierte a cada paciente de un club en una \"carta\" con cuatro atributos comparables\n0-100, puntaje, estrellas, badge clínico y barra de completitud. Todo se calcula al\nvuelo en `SP_juego_cartas_club`; los umbrales y colores viven en la tabla\n`juego_niveles` y el catálogo de atributos en `juego_atributos`.",
+            "item": [
+                {
+                    "name": "Configuración de las cartas (bandas y catálogo de atributos)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/juego-cartas/niveles",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "juego-cartas",
+                                "niveles"
+                            ]
+                        },
+                        "description": "Devuelve las filas activas de `juego_niveles` agrupadas por eje, más el catálogo de\n`juego_atributos`. Existe para que el front **no hardcodee** umbrales, colores ni\niconos: retunear una banda es un `UPDATE` en la tabla, sin tocar el SP ni el código.\n\n**Ojo con el orden de las rutas**: esta se declara antes que\n`/juego-cartas/{user_email}` en `routes/api.php`. Si se invierten, `niveles` se\nresolvería como un club llamado `\"niveles\"`.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Configuración de los dos ejes y de los atributos.\n- `500` - Las tablas `juego_niveles` / `juego_atributos` no existen.\n\n---\n\n_operationId_: `juegoCartasNiveles`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Carta de un paciente por RUT",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/juego-cartas/detalle/{{rut_paciente}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "juego-cartas",
+                                "detalle",
+                                "{{rut_paciente}}"
+                            ]
+                        },
+                        "description": "`CALL SP_juego_cartas_club(:rut_paciente, NULL)` — **sin filtro de club**: cualquiera\nque conozca un RUT obtiene la evaluación de ese paciente. Es el mismo modelo de acceso\nque el resto de `routes/api.php`, que no lleva middleware de autenticación.\n\nUn RUT que no existe devuelve **200 con `data: null`**, no un 404.\n\nLa carta trae los mismos campos que en el listado, `atributos` incluidos: hay una sola\nfórmula, no una versión reducida para la grilla.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - La carta del paciente, o `null` si el RUT no tiene chequeos.\n- `500` - El SP no existe o falló.\n\n---\n\n_operationId_: `juegoCartaDetalle`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Todas las cartas de un club",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/juego-cartas/{{user_email}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "juego-cartas",
+                                "{{user_email}}"
+                            ],
+                            "query": [
+                                {
+                                    "key": "search",
+                                    "value": "25527383-3",
+                                    "disabled": true,
+                                    "description": "Filtro opcional; `LIKE '%search%'` contra `rut` y `nombre`, igual que\n`SP_chequeos_club_prompt`. Vacío o ausente = sin filtro."
+                                }
+                            ]
+                        },
+                        "description": "`CALL SP_juego_cartas_club(:search, :user_email)`. Devuelve **una carta por RUT\ndistinto** del club, sobre el chequeo más reciente de cada paciente.\n\nEl orden lo hace el service en PHP, no el SP: en MySQL 5.7 `JSON_ARRAYAGG` **no\nrespeta `ORDER BY`**. Se ordena por `puntaje` descendente, con `atributos_medidos`\ndescendente como desempate (una carta con los cuatro atributos gana a una que empata\ncon solo dos), y las cartas `sin_evaluar` van siempre al final.\n\nSin paginación: el club más grande tiene 147 pacientes. Un club inexistente devuelve\n200 con `total: 0` y `cartas: []`.\n\nA diferencia del resto del dominio de chequeos, aquí **no** se aplica el filtrado por\n`perfiles_id` 3/6: el ámbito es siempre el `user_email` recibido en la ruta.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Cartas del club, ordenadas de mejor a peor.\n- `500` - El SP no existe o falló.\n\n---\n\n_operationId_: `juegoCartasClub`"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Home comercial",
+            "description": "Mantenedor de las imágenes de promociones, alianzas y galería del Home comercial del\nfront (tabla `home_imagenes`, archivos en `public/HomeImagenes`). La lectura es\npública; las escrituras exigen un `user_email` de perfil Administrador (403 si no).",
+            "item": [
+                {
+                    "name": "Imágenes activas del Home (público)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/home-imagenes",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "home-imagenes"
+                            ]
+                        },
+                        "description": "Lectura pública para el Home comercial del front. Devuelve **solo las filas con\n`activo = 1`**, ordenadas por `seccion` (`promocion`, `alianza`, `galeria`, con\n`FIELD()`), luego `orden` y luego `id`. Sin paginación ni filtro por sección: el\ncliente agrupa por `seccion`.\n\nCon la siembra de la migración salen 23 de las 24 filas (la alianza\n`info-holter-instrucciones.jpg` se siembra inactiva).\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Imágenes visibles, en el orden del Home.\n- `500` - Excepción no controlada (p. ej. la tabla `home_imagenes` no existe).\n\n---\n\n_operationId_: `homeImagenesIndex`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Sube una imagen al Home",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/home-imagenes",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "home-imagenes"
+                            ]
+                        },
+                        "description": "Sube el archivo a `public/HomeImagenes` con `$file->move()` y crea la fila con\n`activo = 1`. **Nunca se usa el nombre que envía el cliente**: el archivo se guarda\ncomo `{seccion}-{Str::slug(caption o alt)}-{uniqid()}.{ext}`, con la extensión\ndeducida del MIME real (`guessExtension()`). Si falla el `INSERT`, el archivo recién\nmovido se borra.\n\nSi `orden` no viene, se usa `MAX(orden) + 1` de la sección.\n\nOrden de las comprobaciones: primero el perfil (**403**), después la validación\n(**422**). La validación usa `Validator::make`, así que el 422 sale con este sobre\naunque el cliente no envíe `Accept: application/json`.\n\nOjo: si el cuerpo supera `post_max_size` de PHP, el request llega sin campos y\nresponde **403** (no hay `user_email`), no 422.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - Imagen creada.\n- `403` - El `user_email` falta o no es de un Administrador.\n- `422` - Validación fallida. `message` es el primer error y `error` la lista completa.\n- `500` - Excepción no controlada al mover el archivo o al insertar.\n\n---\n\n_operationId_: `homeImagenesStore`",
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "file",
+                                    "type": "file",
+                                    "src": [],
+                                    "description": "Imagen JPG, JPEG, PNG o WEBP de 5 MB como máximo (`max:5120`)."
+                                },
+                                {
+                                    "key": "seccion",
+                                    "type": "text",
+                                    "value": "promocion",
+                                    "description": ""
+                                },
+                                {
+                                    "key": "alt",
+                                    "type": "text",
+                                    "value": "Oferta de bioimpedancia de Ergo SaniTas",
+                                    "description": "Texto alternativo. Obligatorio."
+                                },
+                                {
+                                    "key": "caption",
+                                    "type": "text",
+                                    "value": "Bioimpedancia",
+                                    "description": ""
+                                },
+                                {
+                                    "key": "orden",
+                                    "type": "text",
+                                    "value": "12",
+                                    "description": "Opcional. Si falta, va al final de la sección."
+                                },
+                                {
+                                    "key": "user_email",
+                                    "type": "text",
+                                    "value": "admin@ergosanitas.com",
+                                    "description": "Email de un usuario con perfil Administrador."
+                                }
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Todas las imágenes del Home (mantenedor)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/home-imagenes/admin",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "home-imagenes",
+                                "admin"
+                            ]
+                        },
+                        "description": "Igual que `GET /home-imagenes` pero **incluye las inactivas**, en el mismo orden.\nPensado para el mantenedor del Administrador. **No exige `user_email`**: cualquiera\npuede listarlo, inactivas incluidas.\n\nSe declara antes que las rutas `home-imagenes/{id}` en `routes/api.php`; además\n`{id}` lleva `whereNumber`, así que `admin` nunca se resuelve como id.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Todas las imágenes, activas e inactivas.\n- `500` - Excepción no controlada.\n\n---\n\n_operationId_: `homeImagenesAdmin`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Edita los metadatos de una imagen",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/home-imagenes/{{id}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "home-imagenes",
+                                "{{id}}"
+                            ]
+                        },
+                        "description": "Cambia `seccion`, `alt`, `caption` y `orden`. **El archivo no se puede reemplazar**:\npara cambiar la imagen hay que borrarla y subir otra.\n\nEs un reemplazo, no un parche: `seccion` y `alt` son obligatorios, y un `caption`\nausente **deja el caption en `null`**. `orden` ausente conserva el actual.\n\nOrden de las comprobaciones: 403 (perfil) → 404 (id) → 422 (validación).\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Imagen actualizada.\n- `403` - El `user_email` falta o no es de un Administrador.\n- `404` - No existe una imagen con ese id.\n- `422` - Validación fallida.\n- `500` - Excepción no controlada.\n\n---\n\n_operationId_: `homeImagenesUpdate`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"seccion\": \"promocion\",\n    \"alt\": \"Oferta de bioimpedancia de Ergo SaniTas\",\n    \"caption\": \"Bioimpedancia en oferta\",\n    \"orden\": 2,\n    \"user_email\": \"admin@ergosanitas.com\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Borra una imagen y su archivo",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/home-imagenes/{{id}}?user_email=admin@ergosanitas.com",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "home-imagenes",
+                                "{{id}}"
+                            ],
+                            "query": [
+                                {
+                                    "key": "user_email",
+                                    "value": "admin@ergosanitas.com",
+                                    "disabled": false,
+                                    "description": "Email de un usuario con perfil Administrador."
+                                }
+                            ]
+                        },
+                        "description": "Borra **primero la fila y después el archivo** de `public/HomeImagenes`. Si el\narchivo ya no existe o no se puede borrar, responde éxito igual y deja un\n`Log::warning`. No hay papelera: para ocultar sin borrar usa\n`PUT /home-imagenes/{id}/activo`.\n\n`user_email` viaja por **query string** (el `DELETE` no lleva cuerpo).\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Imagen eliminada.\n- `403` - El `user_email` falta o no es de un Administrador.\n- `404` - No existe una imagen con ese id.\n- `500` - Excepción no controlada.\n\n---\n\n_operationId_: `homeImagenesDestroy`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Muestra u oculta una imagen",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/home-imagenes/{{id}}/activo",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "home-imagenes",
+                                "{{id}}",
+                                "activo"
+                            ]
+                        },
+                        "description": "Cambia solo `activo`. Una imagen con `activo: false` deja de salir en\n`GET /home-imagenes` pero sigue en `GET /home-imagenes/admin`.\n\nEs `PUT` y no `PATCH` a propósito: el `ApiAdapter` del front no tiene `patch`.\n`activo` acepta lo que Laravel considera booleano (`true`/`false`, `1`/`0`,\n`\"1\"`/`\"0\"`).\n\nOrden de las comprobaciones: 403 (perfil) → 404 (id) → 422 (validación).\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Imagen actualizada. El `message` depende del nuevo valor.\n- `403` - El `user_email` falta o no es de un Administrador.\n- `404` - No existe una imagen con ese id.\n- `422` - Falta `activo` o no es booleano.\n- `500` - Excepción no controlada.\n\n---\n\n_operationId_: `homeImagenesUpdateActivo`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"activo\": false,\n    \"user_email\": \"admin@ergosanitas.com\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Incidencias deportivas",
+            "description": "Registro de lesiones deportivas y sus estadísticas por liga, categoría y parte del cuerpo.",
+            "item": [
+                {
+                    "name": "Registra una lesión deportiva",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/incidencia-deportivos/create",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "incidencia-deportivos",
+                                "create"
+                            ]
+                        },
+                        "description": "Inserta una fila en `incidentes_deportivos`. **No hay validación de ningún campo**:\nlo que no venga se guarda como `null` y, en modo estricto de MySQL, hace fallar el\ninsert.\n\nDiferencia clave entre dos columnas que parecen lo mismo:\n\n- `user_email` — quien registra la incidencia.\n- `club_deportivo` — **la columna por la que filtran todas las consultas y\n  estadísticas del módulo**. Si se deja vacía, la incidencia no aparecerá en ningún\n  listado ni estadística.\n\n`gravedad` es texto libre, pero el contador de gravedad compara con la cadena exacta\n`'Leve (sin tiempo fuera)'`.\n\nEl servicio captura la excepción, la registra en el log y devuelve `null`, lo que el\ncontrolador traduce a un 500 genérico sin el mensaje del error.\n\nDevuelve **201** con el `id` de la fila creada en `data`.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - Incidencia creada. `data` trae el id generado.\n- `500` - Falló el insert (mensaje genérico; el detalle queda en el log de Laravel).\n\n---\n\n_operationId_: `incidenciaCreate`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"nombres\": \"Matías Fuentes Rojas\",\n    \"edad\": \"15\",\n    \"deporte\": \"Fútbol\",\n    \"tipo_lesion\": \"Esguince\",\n    \"ubicacion\": \"Entrenamiento\",\n    \"parte_cuerpo\": \"Tobillo derecho\",\n    \"descripcion\": \"Torsión en cambio de dirección sobre pasto húmedo\",\n    \"primeros_auxilios\": \"Hielo local y vendaje compresivo\",\n    \"gravedad\": \"Leve (sin tiempo fuera)\",\n    \"estado\": \"En tratamiento\",\n    \"user_email\": \"kine.club@ergosanitas.com\",\n    \"liga\": \"Liga Regional O'Higgins\",\n    \"club_deportivo\": \"club.deportivo@ergosanitas.com\",\n    \"categoria\": \"Sub 17\",\n    \"rut_paciente\": \"21345678-9\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Incidencias de un club",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/incidencia-deportivos/find-by-user/{{user_email}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "incidencia-deportivos",
+                                "find-by-user",
+                                "{{user_email}}"
+                            ]
+                        },
+                        "description": "Lista las incidencias donde `club_deportivo = {user_email}`, ordenadas por `id`\ndescendente. **Filtra por `club_deportivo`, no por `user_email`.**\n\nDevuelve **201**, no 200 (convención propia del controlador).\n\nSi el club no tiene incidencias, la colección vacía se evalúa como falsa en el `if`\ndel controlador y la respuesta es **500 \"Error al listar las incidencias\"**, aunque\nno haya ocurrido ningún error.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - Listado de incidencias.\n- `500` - Error, **o simplemente que el club no tiene incidencias**.\n\n---\n\n_operationId_: `findIncidenciasByUserEmail`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Total de incidencias del club",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/incidencia-deportivos/count-club/{{user_email}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "incidencia-deportivos",
+                                "count-club",
+                                "{{user_email}}"
+                            ]
+                        },
+                        "description": "`COUNT(*)` de `incidentes_deportivos` con `club_deportivo = {user_email}`.\n\n**Un club con 0 incidencias devuelve 500**: el `0` se evalúa como falso en el `if`\ndel controlador. Nunca verás `data: 0`.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - Conteo.\n- `500` - Error, **o conteo igual a 0**.\n\n---\n\n_operationId_: `countClub`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Total de incidencias leves del club",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/incidencia-deportivos/count-gravedad/{{user_email}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "incidencia-deportivos",
+                                "count-gravedad",
+                                "{{user_email}}"
+                            ]
+                        },
+                        "description": "Cuenta las incidencias del club con\n`gravedad = 'Leve (sin tiempo fuera)'` — **comparación exacta**. Cualquier otra\nredacción de la gravedad no entra en el conteo.\n\nIgual que el anterior: un conteo de 0 sale como 500.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - Conteo de incidencias leves.\n- `500` - Error, o conteo igual a 0.\n\n---\n\n_operationId_: `countGravedad`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Cantidad de ligas distintas con incidencias",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/incidencia-deportivos/count-liga/{{user_email}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "incidencia-deportivos",
+                                "count-liga",
+                                "{{user_email}}"
+                            ]
+                        },
+                        "description": "`COUNT(DISTINCT liga)` de las incidencias del club.\n\nEsta ruta está **declarada dos veces** en `routes/api.php` (líneas 267 y 270) con el\nmismo destino; Laravel se queda con la última.\n\nUn resultado de 0 sale como 500.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - Cantidad de ligas.\n- `500` - Error, o resultado igual a 0.\n\n---\n\n_operationId_: `countLiga`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Tipo de lesión más frecuente del club",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/incidencia-deportivos/lesion-frecuente/{{user_email}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "incidencia-deportivos",
+                                "lesion-frecuente",
+                                "{{user_email}}"
+                            ]
+                        },
+                        "description": "`GROUP BY tipo_lesion ORDER BY COUNT(*) DESC LIMIT 1`. Devuelve un único objeto con\nel tipo de lesión y su cantidad.\n\nSi el club no tiene incidencias, `first()` devuelve `null` y la respuesta es 500.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - Lesión más frecuente.\n- `500` - Error, o el club no tiene incidencias.\n\n---\n\n_operationId_: `lesionFrecuente`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Liga con más casos del club",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/incidencia-deportivos/liga-casos/{{user_email}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "incidencia-deportivos",
+                                "liga-casos",
+                                "{{user_email}}"
+                            ]
+                        },
+                        "description": "`GROUP BY liga ORDER BY COUNT(*) DESC LIMIT 1`. Devuelve la liga con más incidencias\nregistradas y su cantidad.\n\nSi el club no tiene incidencias, la respuesta es 500.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - Liga con más casos.\n- `500` - Error, o el club no tiene incidencias.\n\n---\n\n_operationId_: `ligaCasos`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Estadística de incidencias por liga (SP)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/incidencia-deportivos/sp_estadistica_liga/{{user_email}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "incidencia-deportivos",
+                                "sp_estadistica_liga",
+                                "{{user_email}}"
+                            ]
+                        },
+                        "description": "`CALL SP_estadistica_liga(:user_email)`, envuelto en el sobre de incidencias.\n\n**El servicio captura cualquier excepción y devuelve `null`**, que el controlador\ntraduce a 500 \"Error al listar las incidencias\". El mensaje real del SP nunca llega\nal cliente: para diagnosticar hay que ejecutar el SP a mano en la base.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - Estadística por liga.\n- `500` - El SP falló, no existe, o no devolvió filas.\n\n---\n\n_operationId_: `spEstadisticaLiga`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Estadística de incidencias por categoría (SP)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/incidencia-deportivos/sp_estadistica_categoria/{{user_email}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "incidencia-deportivos",
+                                "sp_estadistica_categoria",
+                                "{{user_email}}"
+                            ]
+                        },
+                        "description": "`CALL SP_estadistica_categoria(:user_email)`. Mismo comportamiento de errores que `sp_estadistica_liga`.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - Estadística por categoría.\n- `500` - El SP falló, no existe, o no devolvió filas.\n\n---\n\n_operationId_: `spEstadisticaCategoria`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Estadística por tipo de lesión (SP)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/incidencia-deportivos/sp_estadistica_lesiones/{{user_email}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "incidencia-deportivos",
+                                "sp_estadistica_lesiones",
+                                "{{user_email}}"
+                            ]
+                        },
+                        "description": "`CALL SP_estadistica_lesiones(:user_email)`. Mismo comportamiento de errores que `sp_estadistica_liga`.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - Estadística por tipo de lesión.\n- `500` - El SP falló, no existe, o no devolvió filas.\n\n---\n\n_operationId_: `spEstadisticaLesiones`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Estadística por parte del cuerpo (SP)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/incidencia-deportivos/sp_estadistica_parte_cuerpo/{{user_email}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "incidencia-deportivos",
+                                "sp_estadistica_parte_cuerpo",
+                                "{{user_email}}"
+                            ]
+                        },
+                        "description": "`CALL SP_estadistica_parte_cuerpo(:user_email)`. Alimenta el mapa corporal del panel.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - Estadística por parte del cuerpo.\n- `500` - El SP falló, no existe, o no devolvió filas.\n\n---\n\n_operationId_: `spEstadisticaParteCuerpo`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Evolución temporal de las lesiones (SP)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/incidencia-deportivos/sp_estadistica_lesiones_fechas/{{user_email}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "incidencia-deportivos",
+                                "sp_estadistica_lesiones_fechas",
+                                "{{user_email}}"
+                            ]
+                        },
+                        "description": "`CALL SP_estadistica_lesiones_fechas(:user_email)`. Serie temporal para el gráfico de evolución.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - Serie temporal de lesiones.\n- `500` - El SP falló, no existe, o no devolvió filas.\n\n---\n\n_operationId_: `spEstadisticaLesionesFechas`"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Estadísticas y pagos",
+            "description": "Estadísticas clínicas por club y facturación mensual (tabla `pago_mensual`).",
+            "item": [
+                {
+                    "name": "Distribución de IMC de los pacientes del club",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/estadisticas/estadistica-imc/{{user_email}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "estadisticas",
+                                "estadistica-imc",
+                                "{{user_email}}"
+                            ]
+                        },
+                        "description": "`CALL SP_estadistica_IMC(:user_email)`. Devuelve el `resultado_json` decodificado,\n**sin sobre**.\n\nEl SP no está versionado en el repo: si no existe en la base, el endpoint responde\n500 con el error de MySQL. El ejemplo es representativo del uso en la UI (gráfico de\nbarras de categorías de IMC).\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Distribución de IMC.\n- `500` - El SP no existe o falló.\n\n---\n\n_operationId_: `estadisticaIMC`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Distribución de presión arterial",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/estadisticas/estadistica-presion/{{user_email}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "estadisticas",
+                                "estadistica-presion",
+                                "{{user_email}}"
+                            ]
+                        },
+                        "description": "`CALL sp_estadistica_presion(:user_email)` (nombre en minúsculas en la base). Devuelve el JSON del SP sin sobre.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Distribución de presión arterial.\n- `500` - El SP no existe o falló.\n\n---\n\n_operationId_: `estadisticaPresion`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Distribución de hemoglucotest (glicemia capilar)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/estadisticas/estadistica-hemoglucotest/{{user_email}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "estadisticas",
+                                "estadistica-hemoglucotest",
+                                "{{user_email}}"
+                            ]
+                        },
+                        "description": "`CALL SP_estadistica_hemoglucotest(:user_email)`. Devuelve el JSON del SP sin sobre.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Distribución de glicemia.\n- `500` - El SP no existe o falló.\n\n---\n\n_operationId_: `estadisticaHemoglucotest`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Distribución de saturación de oxígeno",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/estadisticas/estadistica-saturacion/{{user_email}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "estadisticas",
+                                "estadistica-saturacion",
+                                "{{user_email}}"
+                            ]
+                        },
+                        "description": "`CALL SP_estadistica_saturacion(:user_email)`.\n\n**Este SP no está declarado en `App\\Models\\ChequeoCardiovascular`** como los demás:\nel servicio llama a `ChequeoCardiovascular::SP_estadistica_saturacion()`, un método\nque no existe en el modelo. Verifica que esté implementado antes de depender de este\nendpoint; si no lo está, responde 500 con `Call to undefined method`.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Distribución de saturación.\n- `500` - Método o SP inexistente.\n\n---\n\n_operationId_: `estadisticaSaturacion`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Facturación mensual consolidada (todos los clubes)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/estadisticas/estadistica-pago-mensual",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "estadisticas",
+                                "estadistica-pago-mensual"
+                            ]
+                        },
+                        "description": "`CALL SP_estadistica_monto()`, sin parámetros. Devuelve el consolidado de\n`pago_mensual` para el panel de administración.\n\nNota: aquí el SP devuelve la columna **`resultado`**, no `resultado_json` como los\nde estadística clínica.\n\n**No filtra por club ni por usuario**: cualquiera que llegue a la URL ve la\nfacturación completa.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Consolidado de facturación.\n- `500` - El SP no existe o falló.\n\n---\n\n_operationId_: `estadisticaPagoMensual`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Facturación mensual del canal MDC",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/estadisticas/estadistica-pago-mdc",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "estadisticas",
+                                "estadistica-pago-mdc"
+                            ]
+                        },
+                        "description": "`CALL SP_estadistica_monto_mdc()`, sin parámetros. Variante del consolidado anterior para el canal MDC.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Consolidado MDC.\n- `500` - El SP no existe o falló.\n\n---\n\n_operationId_: `estadisticaPagoMDC`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Registra o ajusta el cargo mensual de un club — ESCRIBE FACTURACIÓN",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/estadisticas/pago-mensual",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "estadisticas",
+                                "pago-mensual"
+                            ]
+                        },
+                        "description": "Llama directamente a `CALL SP_pago_mensual(:periodo, :user_email, :valor_ecg, :modo)`.\nEs **el mismo procedimiento que ejecutan automáticamente la subida del certificado y\nel guardado del ECG**, expuesto aquí para ajustes manuales.\n\n- `modo = 'ADD'` suma el valor al periodo del club (lo que hace el flujo automático).\n- Los demás modos dependen de la implementación del SP en la base, que no está\n  versionada en el repo. **Verifica el código del SP antes de usar cualquier modo\n  distinto de `ADD`.**\n\nNo hay validación de los parámetros ni control de acceso: un `ADD` mal enviado\naltera la facturación del mes y hay que corregirlo a mano.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Resultado del SP.\n- `500` - El SP no existe o falló.\n\n---\n\n_operationId_: `pagoMensual`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"periodo\": \"2026-09-05\",\n    \"user_email\": \"club.deportivo@ergosanitas.com\",\n    \"valor_ecg\": 10000,\n    \"modo\": \"ADD\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Borra la facturación de un club en un periodo — DESTRUCTIVO",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/estadisticas/delete-pago-mensual",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "estadisticas",
+                                "delete-pago-mensual"
+                            ]
+                        },
+                        "description": "`DELETE FROM pago_mensual WHERE club = :user_email AND periodo = :periodo`.\n\n**Borrado físico y sin confirmación**: elimina el registro de facturación de ese club\npara ese periodo. No hay papelera ni log. Es el endpoint más destructivo de la API y\n**no tiene ningún control de acceso**.\n\n`deleted` indica cuántas filas se borraron; `0` significa que no había coincidencias\n(por ejemplo, por un formato de `periodo` distinto al almacenado).\n\nOjo con el mapeo de nombres: el campo del request se llama `user_email` pero la\ncolumna es `club`.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Borrado ejecutado.\n- `500` - Error de ejecución.\n\n---\n\n_operationId_: `deletePagoMensual`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"user_email\": \"club.deportivo@ergosanitas.com\",\n    \"periodo\": \"2026-09\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Agenda consolidada del mes",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/estadisticas/agenda-mensual",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "estadisticas",
+                                "agenda-mensual"
+                            ]
+                        },
+                        "description": "`CALL SP_agenda_mensual(:periodo)`. Devuelve el JSON del SP sin sobre.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Agenda del periodo.\n- `500` - El SP no existe o falló.\n\n---\n\n_operationId_: `agendaMensual`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"periodo\": \"2026-09\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Recalcula la facturación de un periodo — ESCRIBE FACTURACIÓN",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/estadisticas/update-pago-mensual",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "estadisticas",
+                                "update-pago-mensual"
+                            ]
+                        },
+                        "description": "`CALL SP_update_pago_mensual(:periodo)`. Recalcula/consolida `pago_mensual` para el\nperiodo indicado.\n\nQué hace exactamente depende del SP, que **no está versionado en el repo**. Al ser\nuna escritura sobre la facturación, revisa el código del procedimiento en la base\nantes de ejecutarlo en producción.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Resultado del recálculo.\n- `500` - El SP no existe o falló.\n\n---\n\n_operationId_: `updatePagoMensual`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"periodo\": \"2026-09\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Asistentes IA",
+            "description": "Asistente clínico por paciente, asistente por club, asistente de voz para digitación\ny lectura de ECG por imagen. Todos usan OpenAI.",
+            "item": [
+                {
+                    "name": "Chat clínico sobre UN paciente",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/sam-assistant/as-question",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "sam-assistant",
+                                "as-question"
+                            ]
+                        },
+                        "description": "Asistente conversacional que responde preguntas clínicas sobre un paciente concreto,\ncon memoria por sesión. Usa **`gpt-4o-mini`** con `temperature: 0.2` y el prompt\n`App\\IA\\AsistenteChatPacientePrompt`.\n\n### Flujo\n\n1. `OpenAIService::resolveSession()` recupera o crea la fila de `chat_sessions` por\n   `sessionId`.\n2. Si la sesión **aún no tiene paciente**, intenta extraerlo del `prompt` con\n   `PatientHelper::extractPatient()`: primero una regex de RUT y, si falla, una\n   llamada extra a `gpt-4o-mini`.\n3. Sin paciente resuelto responde `status: \"needs_identifier\"` con un mensaje\n   pidiendo el RUT o el nombre. **No es un error: es HTTP 200.**\n4. Con paciente, `handle()` guarda el mensaje del usuario en `chat_history` y\n   recupera los **20 mensajes más antiguos** de ese paciente\n   (`orderBy created_at ASC limit 20`) como contexto.\n5. `EstadisticasService::ChequeoPrompt()` (`SP_chequeos_prompt`) aporta los datos\n   clínicos. Si el SP no devuelve nada, responde otra vez `needs_identifier`.\n6. Llama a OpenAI y guarda la respuesta en `chat_history` con el contexto clínico\n   serializado en `context_json`.\n\n### Consideraciones para el cliente\n\n- El `sessionId` lo genera el cliente (por ejemplo un UUID) y debe mantenerse estable\n  durante la conversación.\n- El historial se guarda **por paciente**, no por sesión: dos sesiones distintas que\n  hablen del mismo paciente comparten el historial.\n- Para cambiar de paciente usa `POST /sam-assistant/reset-patient`.\n- `prompt` está limitado a 500 caracteres.\n- Latencia típica de varios segundos; puede haber dos llamadas a OpenAI en el mismo\n  request (extracción del paciente + respuesta).\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Respuesta del asistente **o** solicitud de identificador. Distingue ambos casos\n- `400` - Error de negocio que contiene el texto \"Debes ingresar\".\n- `500` - Falla de OpenAI, del SP o de validación (la `ValidationException` **no** se\n\n---\n\n_operationId_: `asQuestionUseCase`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"prompt\": \"¿Cómo está la presión del paciente 21345678-9?\",\n    \"sessionId\": \"9f1c2b7e-3a4d-4c88-9d2f-7a1b6c5e4d33\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Suelta el paciente de la sesión de chat",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/sam-assistant/reset-patient",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "sam-assistant",
+                                "reset-patient"
+                            ]
+                        },
+                        "description": "Pone `chat_sessions.patient_identifier = null` para que la siguiente pregunta vuelva\na pedir el identificador del paciente.\n\n**No borra el historial** de `chat_history`: como el historial se guarda por\npaciente, al volver a ese paciente se recupera la conversación anterior.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Paciente liberado.\n- `404` - No existe una sesión con ese `sessionId`.\n- `422` - Falta `sessionId`.\n\n---\n\n_operationId_: `resetPatient`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"sessionId\": \"9f1c2b7e-3a4d-4c88-9d2f-7a1b6c5e4d33\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Chat sobre TODOS los pacientes de un club",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/sam-assistant-club/as-question",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "sam-assistant-club",
+                                "as-question"
+                            ]
+                        },
+                        "description": "Asistente conversacional a nivel de club: responde preguntas sobre el conjunto de\npacientes **en revisión médica** de ese club. Usa **`gpt-4o-mini`** con\n`temperature: 0.2` y el prompt `App\\IA\\AsistenteChatClubPrompt`.\n\n### Semántica del campo `search`\n\nEs el detalle más importante de la integración. `search` filtra los pacientes que se\nmandan al modelo y **se persiste en la sesión** (`chat_club_sessions.search_actual`):\n\n| Cómo se envía | Efecto |\n|---|---|\n| El campo **no viene** en el JSON | Se conserva el `search_actual` que ya tenía la sesión. |\n| `\"search\": \"\"` (cadena vacía) | **Reset explícito**: `search_actual = null`, el chat pasa a hablar de todo el club. |\n| `\"search\": \"Fuentes\"` | Se guarda ese filtro y el chat queda acotado a ese paciente. |\n\n### Datos que recibe el modelo\n\n`SP_chequeos_club_prompt(search, club)` devuelve los pacientes. El servicio:\n\n- **Invierte la presión arterial** antes de mandarla al modelo: el SP la arma como\n  `CONCAT(presionArterial, '/', presion_sistolica)`, es decir\n  diastólica/sistólica (`\"70/130\"`), y se corrige a `\"130/70\"` para que el modelo no\n  lea una presión normal como una crisis hipertensiva.\n- **Trunca en 120 pacientes** (`ClubAssistantService::MAX_PACIENTES`). El prompt\n  recibe el total real y una marca de truncado, para que el asistente avise cuando\n  está viendo solo una parte.\n\nSi el SP no devuelve pacientes, responde `status: \"sin_datos\"` con HTTP 200.\n\n### Historial\n\nSe guarda en `chat_club_history` **por `session_id`** (no por club) y se recuperan\nlos 20 mensajes más recientes, desempatando por `id` cuando comparten `created_at`.\n\nEste es el único controlador que **captura `ValidationException` por separado** y\nresponde 422 correctamente.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Respuesta del asistente, o `sin_datos` si el filtro no arrojó pacientes.\n- `422` - Validación fallida (capturada explícitamente en este controlador).\n- `500` - Falla de OpenAI o del SP. **Filtra `file` y `line` antes de mostrar el error.**\n\n---\n\n_operationId_: `asQuestionClubUseCase`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"email\": \"club.deportivo@ergosanitas.com\",\n    \"prompt\": \"¿Cuántos pacientes tienen la presión alterada?\",\n    \"sessionId\": \"4b8e1d90-77aa-42c3-93d1-0f5e2a6c8b11\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Limpia el filtro de paciente de la sesión de club",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/sam-assistant-club/reset-search",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "sam-assistant-club",
+                                "reset-search"
+                            ]
+                        },
+                        "description": "Pone `chat_club_sessions.search_actual = null`. Equivale a enviar `\"search\": \"\"` en\nla siguiente pregunta.\n\n**No borra el historial** de `chat_club_history`.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Filtro reiniciado.\n- `404` - No existe una sesión con ese `sessionId`.\n- `422` - Falta `sessionId`.\n- `500` - Error inesperado.\n\n---\n\n_operationId_: `resetSearch`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"sessionId\": \"4b8e1d90-77aa-42c3-93d1-0f5e2a6c8b11\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Convierte un dictado por voz en el formulario del chequeo",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/GPT/asistente-voz",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "GPT",
+                                "asistente-voz"
+                            ]
+                        },
+                        "description": "Recibe la **transcripción** de un dictado hecho en terreno y devuelve el formulario\ndel chequeo estructurado. Usa **`gpt-4.1-mini`** con `temperature: 0.1` y\n`max_tokens: 1500`, con el prompt `App\\IA\\AsistenteVozPrompt`.\n\n**Este endpoint no transcribe audio**: recibe texto ya transcrito. La transcripción\nla hace el cliente.\n\n### Contrato de la salida\n\n`data` trae **siempre los 26 campos**, en el mismo orden, aunque estén vacíos. Sus\nnombres coinciden con las columnas de `chequeo_cardiovascular` y\n`electro_cardiogranas`, de modo que la respuesta se puede enviar casi tal cual a\n`POST /chequeo-cardiovascular`.\n\nReglas que aplica el prompt:\n\n- Solo extrae lo dicho **explícitamente**: no infiere la edad desde la fecha de\n  nacimiento, no calcula el IMC, no supone el sexo por el nombre.\n- Campo no dictado -> `\"\"` (cadena vacía). La excepción es\n  `frecuencia_cardiaca_paciente`, que va a `null`.\n- Si el profesional se corrige en voz alta, vale **siempre el último valor**.\n- Normaliza unidades: estatura a metros con punto decimal, RUT a `12345678-K`,\n  fechas a `YYYY-MM-DD`.\n- Lo ininteligible se copia en `observacion_paciente` en vez de inventarse.\n\nSi el modelo no devuelve JSON válido, responde **500** con el texto crudo en\n`raw_response` para poder diagnosticar.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Formulario extraído (26 campos, siempre presentes).\n- `422` - Falta `prompt`.\n- `500` - El modelo no devolvió JSON válido, o falló la llamada a OpenAI.\n\n---\n\n_operationId_: `asistenteVoz`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"prompt\": \"Paciente Matias Fuentes Rojas, rut veintiuno millones trescientos cuarenta y cinco mil seiscientos setenta y ocho guion nueve, trece anos... perdon, quince anos, peso sesenta y cuatro coma cinco kilos, un metro setenta y dos, presion ciento veinte sobre setenta, saturacion noventa y ocho por ciento, pulso sesenta y ocho\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Lectura del electrocardiograma desde una imagen",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/GPT/analisis-ecg",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "GPT",
+                                "analisis-ecg"
+                            ]
+                        },
+                        "description": "Analiza la imagen de un ECG de 12 derivaciones con **`gpt-4.1-mini`**\n(`temperature: 0.1`, `max_tokens: 2000`) y el prompt `App\\IA\\AnalisisECGPrompt`.\n\n**Es un apoyo al tamizaje, no un informe final**: el prompt lo dice explícitamente y\nla lectura la revisa y firma después un médico. El resultado de este endpoint **no se\nguarda en la base**; para registrar la lectura oficial se usa\n`POST /electro-cardiograma/save`.\n\n### Contexto clínico del prompt\n\nLa población es de deportistas **mayoritariamente menores de 18 años**, así que el\nprompt aplica los **Criterios Internacionales de ECG en deportistas (2017)** y el\npatrón juvenil pediátrico: bradicardia sinusal, bloqueo AV de primer grado,\nrepolarización precoz o inversión de onda T en V1–V3 en menores de 16 años se\ninforman como **normales para esta población**, no como patología.\n\n### Efecto secundario\n\nLa imagen se guarda en `public/Electrocardiograma/{timestamp}.{ext}` **antes** de\nanalizarla. La carpeta se crea si no existe.\n\n### Salida\n\n`analisis` trae los 20 campos del contrato, todos como cadenas de texto. `raw` es la\nrespuesta cruda del modelo: si el JSON viene mal formado, `analisis` queda en `null`\ny `raw` permite diagnosticarlo.\n\nValidación: `file` obligatorio, imagen `jpg`/`jpeg`/`png` de máximo 5 MB.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Lectura del trazado.\n- `422` - El archivo no es una imagen válida o supera los 5 MB.\n- `500` - Falló la llamada a OpenAI o la escritura de la imagen.\n\n---\n\n_operationId_: `analisisEcg`",
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "file",
+                                    "type": "file",
+                                    "src": [],
+                                    "description": "Imagen del ECG de 12 derivaciones. JPG/JPEG/PNG, máx. 5120 KB."
+                                }
+                            ]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Carga masiva",
+            "description": "Importación de chequeos desde Excel y carga masiva de ECG en PDF.",
+            "item": [
+                {
+                    "name": "Carga masiva de certificados/ECG — FACTURA UNA VEZ POR ARCHIVO",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/carga-masiva-ecg",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "carga-masiva-ecg"
+                            ]
+                        },
+                        "description": "Sube varios certificados de una vez. **El RUT se deduce del nombre del archivo**:\n`21345678-9.pdf` -> RUT `21345678-9`. Un archivo mal nombrado no se carga.\n\nPor cada archivo:\n\n1. Busca el **último** chequeo de ese RUT (`latest('id')`).\n2. Si no existe, agrega una entrada con `resultado: \"ERROR\"` y continúa con el\n   siguiente.\n3. Si existe, llama a `CertificadoService::subirCertificado()`, que hace lo mismo\n   que `POST /certificado/save-url`: guarda el archivo, marca `ECG FOTO` y\n   **factura** `VALOR-ECG` al club.\n\n**Un lote de 200 archivos genera 200 cargos.** Reprocesar el lote vuelve a facturar\ntodo.\n\nEl proceso es tolerante a fallos por archivo: nunca aborta el lote completo, cada\nresultado va detallado en `procesados`. La respuesta es siempre `success: true`\nmientras la petición en sí no falle, aunque todos los archivos hayan dado error.\n\nValidación: `files` debe ser un array y cada elemento un archivo. `derivado_medico`\nse aplica igual a todos los archivos del lote.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Lote procesado (revisa `procesados` archivo por archivo).\n- `422` - `files` ausente o no es un array de archivos.\n- `500` - Error general del lote.\n\n---\n\n_operationId_: `cargaMasivaEcg`",
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "files[]",
+                                    "type": "file",
+                                    "src": [],
+                                    "description": "Archivos nombrados como `{rut}.pdf`, por ejemplo `21345678-9.pdf`. En el\nformulario multipart el campo se repite como `files[]`, que es lo que\nLaravel valida con `files` / `files.*`."
+                                },
+                                {
+                                    "key": "derivado_medico",
+                                    "type": "text",
+                                    "value": "SI",
+                                    "description": "Se aplica a todos los archivos del lote."
+                                }
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Importa chequeos desde una planilla Excel",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/carga-masiva/excel",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "carga-masiva",
+                                "excel"
+                            ]
+                        },
+                        "description": "Importa chequeos con `maatwebsite/excel` y la clase `App\\Imports\\ChequeoImport`,\nque recibe el `user_email` para asignar el club dueño de todas las filas\nimportadas.\n\nComportamiento del importador:\n\n- Normaliza el RUT con `preg_replace` y lo valida contra `/^\\d{7,8}-[0-9kK]$/`,\n  **sin verificar el dígito verificador**.\n- **Las filas con RUT inválido se descartan en silencio**: no aparecen en la\n  respuesta salvo como diferencia entre las filas del archivo y `cantidad`.\n- `cantidad` es el conteo de filas efectivamente insertadas\n  (`ChequeoImport::getCantInser()`).\n- `message` trae **el último error registrado** durante la importación\n  (`getErrorMsg()`), no la lista completa. Puede venir vacío aunque se hayan\n  descartado filas.\n\nValidación: `file` obligatorio con extensión `xlsx`, `xls` o `csv`.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Importación terminada.\n- `400` - No llegó ningún archivo.\n- `422` - El archivo no es xlsx/xls/csv.\n- `500` - Error durante la importación.\n\n---\n\n_operationId_: `cargaMasivaExcel`",
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "file",
+                                    "type": "file",
+                                    "src": [],
+                                    "description": "Planilla `.xlsx`, `.xls` o `.csv`."
+                                },
+                                {
+                                    "key": "user_email",
+                                    "type": "text",
+                                    "value": "club.deportivo@ergosanitas.com",
+                                    "description": "Club al que se asignan todos los chequeos importados."
+                                }
+                            ]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Pagos WebPay",
+            "description": "Integración con Transbank por HTTP crudo, **sin el SDK oficial**. Es el único dominio\nque persiste errores (tabla `logs_api`) y no devuelve respuesta al fallar.",
+            "item": [
+                {
+                    "name": "Crea la transacción WebPay",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/transbank/web-pay-request",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "transbank",
+                                "web-pay-request"
+                            ]
+                        },
+                        "description": "Crea la transacción contra Transbank por **HTTP crudo** (`Http::withHeaders()`),\n**sin el SDK oficial**, usando `WEBPAY_URL`, `WEBPAY_ID`, `WEBPAY_SECRET` y\n`WEBPAY_RETURN` leídos con `env()` **dentro del propio controlador** — otro motivo\npor el que `config:cache` rompe el sistema.\n\nCampos que arma el servidor:\n\n- `buy_order` = fecha `Ymd` + el nombre del servicio (ej. `20260905Chequeo`).\n  **No incluye ningún identificador único**, así que dos compras del mismo servicio\n  en el mismo día comparten `buy_order`.\n- `session_id` = el RUT del paciente. Así lo recupera después `WebPayResponse`.\n- `return_url` = `WEBPAY_RETURN`.\n\nLa respuesta se devuelve **tal cual la entrega Transbank**: `token` y `url`. El\ncliente debe hacer un POST de formulario a `url` con el campo `token_ws = token`.\n\n### Comportamiento ante errores\n\n- Si Transbank responde algo distinto de 200, devuelve 500 con\n  `{\"Response\": {\"data\": \"Error al intentar pagar con WebPay\"}}` — nota la `R`\n  mayúscula, distinta del resto de la API.\n- Si se lanza una excepción, **el controlador graba en `logs_api` y NO retorna\n  nada**: el cliente recibe un cuerpo vacío con HTTP 200. Es el bug de fondo de este\n  controlador.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Transacción creada — **o cuerpo vacío** si hubo una excepción (el error queda\n- `500` - Transbank respondió con un código distinto de 200.\n\n---\n\n_operationId_: `webPayRequest`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"servicios_name\": \"Chequeo\",\n    \"rut\": \"21345678-9\",\n    \"monto\": 25000\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Callback de retorno de WebPay",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/transbank/web-pay-response?token_ws=01ab8f2c9d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "transbank",
+                                "web-pay-response"
+                            ],
+                            "query": [
+                                {
+                                    "key": "token_ws",
+                                    "value": "01ab8f2c9d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90",
+                                    "disabled": false,
+                                    "description": "Token que envía Transbank tras el pago. Se lee de `$_GET`."
+                                }
+                            ]
+                        },
+                        "description": "URL de retorno que invoca Transbank tras el pago (`WEBPAY_RETURN`). **No la llama el\ncliente directamente.**\n\nFlujo:\n\n1. Lee el token **desde `$_GET['token_ws']`**, no desde el `Request` de Laravel.\n2. Confirma la transacción con un `PUT` a `{WEBPAY_URL}/{token_ws}`.\n3. Guarda la respuesta completa en `web_pay_info` (incluido el número de tarjeta\n   enmascarado que devuelve Transbank).\n4. Busca la reserva por `rut_paciente` (= `session_id`) con `firstOrFail()` y la\n   marca `pagado_paciente = 'PAGADO'`.\n5. Redirige a `https://ergosanitas.com`.\n\n### Puntos frágiles\n\n- Marca la reserva como pagada **buscando solo por RUT** (`firstOrFail`, sin ordenar):\n  con varias reservas del mismo paciente, marca la primera que encuentre, no\n  necesariamente la que se pagó.\n- **No valida `response_code`**: guarda y marca como `PAGADO` aunque Transbank haya\n  rechazado la transacción.\n- Ante cualquier excepción graba en `logs_api` y **no devuelve nada**: el usuario ve\n  una página en blanco en lugar de la redirección.\n\n---\n\n**Respuestas documentadas**\n\n- `302` - Pago procesado. Redirección a `https://ergosanitas.com`.\n- `200` - **Cuerpo vacío**: hubo una excepción y el error quedó registrado solo en la tabla\n\n---\n\n_operationId_: `webPayResponse`"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Correo",
+            "description": "Envío del correo de confirmación de reserva de hora.",
+            "item": [
+                {
+                    "name": "Envía el correo de confirmación de la reserva",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/email/reserva-hora",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "email",
+                                "reserva-hora"
+                            ]
+                        },
+                        "description": "Busca la **última** reserva del RUT (`ORDER BY id DESC`), arma un HTML mínimo con el\nnombre y la fecha, y lo envía con `App\\Mail\\EmailMailable`:\n\n- Al `email_paciente` de la reserva.\n- **Y una copia fija a `ergosanitas@gmail.com`**, hardcodeada en el controlador.\n\nSon **dos envíos síncronos** (no hay cola): el request espera a que ambos terminen.\n\nSi el RUT no tiene reservas, `->first()` devuelve `null` y el acceso a\n`$agendaHora->nombre_paciente` sale como 500.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - Correos enviados.\n- `500` - RUT sin reservas, o fallo del transporte de correo.\n\n---\n\n_operationId_: `emailReservaHora`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"rut_paciente\": \"21345678-9\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Utilidades",
+            "description": "Health checks y comandos operativos expuestos por HTTP.",
+            "item": [
+                {
+                    "name": "Usuario autenticado por Sanctum (ejemplo de Laravel)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/user",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "user"
+                            ]
+                        },
+                        "description": "Ruta de ejemplo que trae Laravel. Es **la única del proyecto con middleware**\n(`auth:sanctum`).\n\nEstá declarada **dos veces** en `routes/api.php` (líneas 7 y 44) con el mismo\ncuerpo; Laravel se queda con la última.\n\nSin sesión ni token devuelve la redirección/401 que arma Sanctum, no un sobre del\nproyecto.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Usuario de la tabla `users`.\n- `401` - Sin autenticar.\n\n---\n\n_operationId_: `getUser`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Health check del módulo de agenda",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/agenda-horas/health",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "agenda-horas",
+                                "health"
+                            ]
+                        },
+                        "description": "Devuelve **texto plano**, no JSON. Útil para el liveness probe.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Servicio arriba.\n\n---\n\n_operationId_: `healthAgenda`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Health check del módulo de chequeos",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/chequeo-cardiovascular/health",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "chequeo-cardiovascular",
+                                "health"
+                            ]
+                        },
+                        "description": "Devuelve **texto plano**, no JSON.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Servicio arriba.\n\n---\n\n_operationId_: `healthCheckChequeo`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Ejecuta `php artisan storage:link` por HTTP",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/execute-link-simbolik",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "execute-link-simbolik"
+                            ]
+                        },
+                        "description": "Dispara `Artisan::call('storage:link')` desde una petición HTTP **sin\nautenticación** para enlazar `storage/app/public` con `public/storage`.\n\nPensado solo para ambientes de desarrollo; en producción el enlace lo hace\n`dockerHub/entrypoint.sh` al arrancar. Devuelve texto plano incluso si el comando\nfalla.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Comando ejecutado.\n\n---\n\n_operationId_: `executeLinkSimbolik`"
+                    },
+                    "response": []
+                }
+            ]
+        }
+    ],
+    "variable": [
+        {
+            "key": "baseUrl",
+            "value": "http://127.0.0.1:8000/api",
+            "type": "string",
+            "description": "Host + prefijo /api. Servidores documentados: http://127.0.0.1:8000/api | http://localhost:6162/api | https://api.ergosanitas.com/api"
+        },
+        {
+            "key": "id",
+            "value": "5",
+            "type": "string",
+            "description": "Id de `home_imagenes`. Solo dígitos (`whereNumber`); otro valor no encuentra ruta."
+        },
+        {
+            "key": "id_paciente",
+            "value": "1842",
+            "type": "string",
+            "description": "Identificador autoincremental del chequeo (`chequeo_cardiovascular.id`). Ojo: el"
+        },
+        {
+            "key": "name",
+            "value": "Chequeo Cardiovascular Deportivo",
+            "type": "string",
+            "description": "Nombre exacto del servicio, URL-encoded."
+        },
+        {
+            "key": "perfil",
+            "value": "3",
+            "type": "string",
+            "description": "Id del perfil en la tabla `perfiles`. 1 administrador, 2 tester, 3 club deportivo,"
+        },
+        {
+            "key": "rut_paciente",
+            "value": "21345678-9",
+            "type": "string",
+            "description": "RUT del paciente en formato `12345678-9` (sin puntos, con guion)."
+        },
+        {
+            "key": "user_email",
+            "value": "club.deportivo@ergosanitas.com",
+            "type": "string",
+            "description": "Email del usuario que edita. Su perfil define qué campos se aplican. URL-encoded."
+        }
+    ]
+}

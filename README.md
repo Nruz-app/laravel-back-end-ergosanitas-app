@@ -25,6 +25,7 @@ El proyecto es exclusivamente backend: no hay frontend propio. Todos los recurso
 - [Trampas conocidas](#trampas-conocidas)
 - [Diagramas](#diagramas)
 - [Contrato OpenAPI (Swagger)](#contrato-openapi-swagger)
+- [Colección Postman](#colección-postman)
 - [Endpoints](#endpoints)
 - [Despliegue](#despliegue)
 
@@ -103,8 +104,11 @@ Además de las variables estándar de Laravel, el proyecto usa:
 | `JWT_ALGO` | Algoritmo de firma JWT |
 | `API_PATH_CER` | URL pública base de la carpeta de certificados (ej. `https://ergosanitas.com/BackEnd/public/Certificado`) |
 | `API_PATH_LOGO` | URL pública base de la carpeta de logos de clubes |
+| `API_PATH_HOME` | URL pública base de `public/HomeImagenes`, sin barra final (ej. `http://127.0.0.1:8000/HomeImagenes`). Arma el `src` de las imágenes del Home |
 
 > `API_PATH_CER` y `API_PATH_LOGO` se leen con `env()` directamente desde los servicios. Si se cachea la configuración con `php artisan config:cache`, estas llamadas devolverán `null`. Evita `config:cache` en este proyecto o migra esos valores a un archivo de configuración.
+>
+> `API_PATH_HOME` es la excepción: se lee con `config('services.home_imagenes.url')` (definida en `config/services.php`, que le quita la `/` final), así que sobrevive a un `config:cache`. Si falta, `src` queda como `/nombre-del-archivo`.
 
 ---
 
@@ -237,7 +241,8 @@ Los nombres de provider son históricamente inconsistentes (`CertificadoProvider
 | `app/Mail/` | Mailables (`EmailMailable`) |
 | `docker-compose/nginx/` | Configuración de Nginx para los contenedores |
 | `dockerHub/` | Compose y entrypoint del despliegue en producción |
-| `public/Certificado`, `public/Logo`, `public/Electrocardiograma`, `public/Bioimpedancia` | Archivos subidos por los usuarios |
+| `public/Certificado`, `public/Logo`, `public/Electrocardiograma`, `public/Bioimpedancia`, `public/HomeImagenes` | Archivos subidos por los usuarios |
+| `resources/home-imagenes-semilla/` | Las 24 imágenes iniciales del Home, versionadas; desde aquí se siembra `public/HomeImagenes` |
 
 ---
 
@@ -265,6 +270,7 @@ Tablas principales del dominio:
 | `chat_club_sessions` | `ChatClubSessions` | Sesiones del asistente por club (filtro activo por `session_id`) |
 | `chat_club_history` | `ChatClubHistory` | Historial de mensajes por sesión de club |
 | `logs_api` | `LogsApi` | Errores de WebPay (es el único dominio que persiste errores) |
+| `home_imagenes` | `HomeImagen` | Imágenes de promociones, alianzas y galería del Home comercial (solo el nombre del archivo; la URL se arma al responder). La migración siembra 24 filas |
 
 Tres advertencias sobre este esquema:
 
@@ -301,7 +307,7 @@ Son **siete formas distintas**, no dos. La mayoría de los controladores mezcla 
 
 | Formato | Forma | Dónde aparece |
 |---|---|---|
-| **A** — `success` | `{"success": true, "message": "...", "data": {...}}` | `Auth/UserController` (usa `user` en vez de `data` en el login), `Auth/GoogleAuthControlle`, `BioimpedanciaController`, `FichaClinicaController`, `FileUploadController`, `CertificadoUrlController::FileUploadCer` y `::CargaMasivaEcg`, `OpenAIController::AsistenteVoz` y `::AnalisisEcg` |
+| **A** — `success` | `{"success": true, "message": "...", "data": {...}}` | `Auth/UserController` (usa `user` en vez de `data` en el login), `Auth/GoogleAuthControlle`, `BioimpedanciaController`, `FichaClinicaController`, `FileUploadController`, `JuegoCartasController`, `HomeImagenController` (con 201 en el alta y 403/404/422 propios), `CertificadoUrlController::FileUploadCer` y `::CargaMasivaEcg`, `OpenAIController::AsistenteVoz` y `::AnalisisEcg` |
 | **B** — `response` anidado | `{"response": {"status": "OK", "mensaje": "..."}}` | `EmailController`, `ElectroCardiogramaController::Save`, `ChequeoCardiovascularController::Store`; en `AgendaHorasController`, `EstadisticasController`, `GoogleAuthControlle` y `ChequeoCardiovascularController::Update` **solo en el `catch`** |
 | **C** — `status` plano | `{"status": ..., "mensaje": "..."}` — `status` a veces es texto (`'OK'`, `'Bad Request'`) y a veces un entero (`200`, `404`, `500`) | `ChequeoCardiovascularController` (`deleteById`, `FilterCalendar`, `LikeChequeo*`, `SearchChequeo`, `Update` en el camino feliz), `CertificadoUrlController` (`ValidarRut`, `PathUrlCertificado`, `ValidaCertificado`, `showCertificado`), `EstadisticasController::deletePagoMensual`, `CargaMasivaController` |
 | **D** — `status: 'success'` | `{"status": "success", "message": "...", "data": [...]}` | `IncidenciasController`, los 12 métodos. **Devuelve 201 también en los GET** |
@@ -550,8 +556,9 @@ Los archivos subidos se mueven con `$file->move()` a subdirectorios de `public/`
 | `public/Logo` | Logos de clubes deportivos |
 | `public/Electrocardiograma` | Imágenes de ECG para análisis con IA |
 | `public/Bioimpedancia` | Informes de bioimpedancia |
+| `public/HomeImagenes` | Imágenes del Home comercial, nombradas `{seccion}-{slug}-{uniqid}.{ext}` |
 
-Las URL públicas se componen con `env('API_PATH_CER')` y `env('API_PATH_LOGO')`.
+Las URL públicas se componen con `env('API_PATH_CER')` y `env('API_PATH_LOGO')`; las del Home, con `config('services.home_imagenes.url')`.
 
 > **En producción estos archivos no sobreviven a un redeploy.** `dockerHub/docker-compose.yml` monta volúmenes para `storage/` y `bootstrap/cache`, **pero no para `public/`**: lo subido vive en la capa escribible del contenedor y se pierde al desplegar `:latest`. Tenlo presente antes de proponer que algo nuevo se guarde en `public/`.
 
@@ -564,7 +571,8 @@ Además, la validación de estas subidas es desigual: `POST /api/carga-masiva/ex
 Comportamientos del proyecto que no se deducen leyendo un solo archivo y que rompen cosas si se ignoran:
 
 - **No ejecutes `php artisan config:cache`.** Varios controladores y servicios leen `env()` fuera de `config/`: `API_PATH_CER` (`CertificadoService`, `CertificadoUrlController`), `API_PATH_LOGO` (`Auth/UserController`), `WEBPAY_URL|ID|SECRET|RETURN` (`WebPayController`) y `GOOGLE_CLIENT_ID|SECRET` (`GoogleAuthControlle`). Con la config cacheada devuelven `null` y se rompen certificados, logos, pagos y login de Google. Por eso `dockerHub/entrypoint.sh` hace `config:clear` en cada arranque.
-- **`.env.example` está incompleto**: define `API_PATH_CER` pero no `API_PATH_LOGO`, que el código sí usa.
+- **`.env.example` está incompleto**: define `API_PATH_CER` y `API_PATH_HOME` pero no `API_PATH_LOGO`, que el código sí usa.
+- **Las escrituras de `home-imagenes` no tienen autenticación real.** Exigen un `user_email` de perfil Administrador, pero el email viaja en el request: quien conozca uno puede falsificarlo. Es deuda hasta que exista autenticación (Sanctum) en una spec aparte.
 - **El orden de `routes/api.php` importa.** Las rutas específicas (`chequeo-cardiovascular/pdf/{id}`) deben declararse antes que las genéricas (`chequeo-cardiovascular/{id_paciente}`).
 - **Hay rutas duplicadas**: `/user` (líneas 7 y 44) e `incidencia-deportivos/count-liga` (líneas 267 y 270). Laravel se queda con la última declaración; al editar una, asegúrate de tocar la que realmente se resuelve.
 - **Typos consolidados que no se corrigen sin actualizar rutas y clientes**: el controlador de Google se llama `GoogleAuthControlle` (sin la "r" final), `UserController` expone `UserUpdatePassowrd`, la tabla de ECG es `electro_cardiogranas` y la columna es `gradoIncidenciaPosterio`.
@@ -596,7 +604,7 @@ La carpeta [`docs/`](docs/) contiene la vista gráfica del sistema, en diagramas
 
 ## Contrato OpenAPI (Swagger)
 
-El contrato completo de la API vive en **[`docs/openapi.yaml`](docs/openapi.yaml)** (OpenAPI 3.0.3): las 84 operaciones de `routes/api.php`, con esquemas, parámetros, ejemplos de request y de respuesta para cada código de estado, y las particularidades reales del proyecto (los dos formatos de sobre incompatibles, los endpoints que facturan, los que devuelven 200 en caso de error, el filtrado por perfil).
+El contrato completo de la API vive en **[`docs/openapi.yaml`](docs/openapi.yaml)** (OpenAPI 3.0.3): las 90 operaciones de `routes/api.php`, con esquemas, parámetros, ejemplos de request y de respuesta para cada código de estado, y las particularidades reales del proyecto (los dos formatos de sobre incompatibles, los endpoints que facturan, los que devuelven 200 en caso de error, el filtrado por perfil).
 
 Las tablas de la sección [Endpoints](#endpoints) son el índice rápido; el YAML es la referencia detallada.
 
@@ -628,6 +636,28 @@ npx @redocly/cli lint
 ```bash
 php artisan route:list --json
 ```
+
+---
+
+## Colección Postman
+
+**[`docs/postman/`](docs/postman/)** trae la colección Postman v2.1 con las **90 operaciones** repartidas en 17 carpetas, más tres entornos (local, Docker y producción). A diferencia del contrato y los diagramas, esto **sí es generado**: la fuente es `docs/openapi.yaml`.
+
+```bash
+# Regenerar la colección y los entornos tras tocar el contrato
+php docs/postman/generar-coleccion.php
+
+# Comprobar que cubre todas las rutas registradas
+php docs/postman/verificar-cobertura.php
+
+# Ejecutar una carpeta desde la línea de comandos (requiere Node)
+npx newman run docs/postman/Ergosanitas-API.postman_collection.json \
+  -e docs/postman/Ergosanitas-Local.postman_environment.json --folder "Utilidades"
+```
+
+En Postman: **Import → Files**, selecciona el `.json` de la colección y el entorno que uses. Las variables `baseUrl`, `user_email`, `rut_paciente`, `id_paciente`, `perfil` y `name` traen ejemplos ficticios del contrato; apúntalas a datos reales antes de probar.
+
+Dos avisos antes de dispararle a un entorno con datos: los endpoints de certificados y ECG **facturan en cada ejecución** (`SP_pago_mensual(..., 'ADD')`, sin idempotencia) y la carpeta *Asistentes IA* **gasta tokens de OpenAI**. El detalle está en [`docs/postman/README.md`](docs/postman/README.md).
 
 ---
 
@@ -711,6 +741,24 @@ calcula `SP_juego_cartas_club` al vuelo; nada se persiste.
 
 **El orden de declaración es obligatorio**: las rutas literales van antes de la que
 captura `{user_email}`, o `juego-cartas/niveles` se resolvería con `user_email = "niveles"`.
+
+### Home comercial
+
+Mantenedor de las imágenes de promociones, alianzas y galería del Home del front (Spec 03).
+Sobre `{success, message, data}`. Las escrituras exigen un `user_email` de perfil
+Administrador y responden **403** si no lo es; no es autenticación real (ver
+[Trampas conocidas](#trampas-conocidas)).
+
+| Método | Ruta | Acción |
+|---|---|---|
+| `GET` | `home-imagenes` | Imágenes activas, por sección y orden. Público |
+| `GET` | `home-imagenes/admin` | Todas, activas e inactivas (no exige `user_email`) |
+| `POST` | `home-imagenes` | Sube una imagen (multipart: `file`, `seccion`, `alt`, `caption?`, `orden?`, `user_email`). JPG/PNG/WEBP de hasta 5 MB. Responde 201 |
+| `PUT` | `home-imagenes/{id}` | Edita `seccion`, `alt`, `caption` y `orden` (JSON + `user_email`) |
+| `PUT` | `home-imagenes/{id}/activo` | Muestra u oculta (`activo` booleano + `user_email`) |
+| `DELETE` | `home-imagenes/{id}` | Borra la fila y el archivo (`?user_email=`) |
+
+`home-imagenes/admin` se declara antes que las rutas con `{id}`, y `{id}` lleva `whereNumber`.
 
 ### Certificados
 

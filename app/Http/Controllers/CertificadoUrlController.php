@@ -8,6 +8,7 @@ use App\Models\CertificadoURl;
 use App\Services\EstadisticasService;
 use App\Services\CertificadoService;
 use App\Models\ChequeoCardiovascular;
+use App\Models\Bioimpedancia;
 
 class CertificadoUrlController extends Controller {
 
@@ -21,26 +22,44 @@ class CertificadoUrlController extends Controller {
         $this->estadisticasService = $estadisticasService;
         $this->certificadoService = $certificadoService;
     }
-    public function ValidarRut(string $rut_paciente) {
-
+    public function ValidarRut(string $rut_paciente)
+    {
         try {
-            $existe = CertificadoURl::where('rut_paciente', $rut_paciente)->exists();
 
-            if ($existe) {
+            // Buscar certificado
+            $existeCertificado = CertificadoURl::where('rut_paciente',$rut_paciente)->exists();
+
+            if ($existeCertificado) {
                 return response()->json([
                     'status' => 200,
-                    'mensaje' => 'El certificado existe.']);
-            } else {
-                return response()->json([
-                    'status' => 404,
-                    'mensaje' => 'No se encontró un Certificado Registrado para el RUT: ' . $rut_paciente]);
+                    'mensaje' => 'El certificado existe.'
+                ]);
             }
+
+            // Buscar bioimpedancia
+            $existeBioimpedancia = Bioimpedancia::where('rut',$rut_paciente)->exists();
+
+            if ($existeBioimpedancia) {
+                return response()->json([
+                    'status' => 200,
+                    'mensaje' => 'Existe una bioimpedancia registrada.'
+                ]);
+            }
+
+            // No existe ningún registro
+            return response()->json([
+                'status' => 404,
+                'mensaje' => 'No se encontró un registro para el RUT: ' . $rut_paciente
+            ]);
+
         } catch (\Exception $e) {
-            return response()->json(['status' => 500, 'error' => 'Error en la consulta: ' . $e->getMessage()]);
+
+            return response()->json([
+                'status' => 500,
+                'error' => 'Error en la consulta: ' . $e->getMessage()
+            ]);
         }
-
-    }
-
+}
     public function showCertificado(string $rut_paciente)
     {
         try {

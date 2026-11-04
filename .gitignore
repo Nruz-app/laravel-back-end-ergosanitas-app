@@ -6,6 +6,7 @@
 /storage/*.key
 /public/Certificado
 /public/Electrocardiograma
+/public/HomeImagenes
 /public/Bioimpedancia/*
 !/public/Bioimpedancia/.gitkeep
 /vendor

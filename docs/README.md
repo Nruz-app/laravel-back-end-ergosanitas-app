@@ -6,12 +6,13 @@ Esta carpeta contiene el contrato de la API y los diagramas del sistema. La docu
 
 | Archivo | Qué es |
 |---|---|
-| [`openapi.yaml`](openapi.yaml) | Contrato OpenAPI 3.0.3 con las 84 operaciones: request, respuestas por código y ejemplos |
+| [`openapi.yaml`](openapi.yaml) | Contrato OpenAPI 3.0.3 con las 90 operaciones: request, respuestas por código y ejemplos |
 | [`index.html`](index.html) | Visor Swagger UI del contrato, listo para abrir en el navegador |
+| [`postman/`](postman/) | **Generado** — colección Postman v2.1 con las 90 operaciones, tres entornos y el script que la regenera desde `openapi.yaml` |
 | [`arquitectura.md`](arquitectura.md) | Componentes, las tres capas y sus excepciones, inyección de dependencias y despliegue |
 | [`flujos.md`](flujos.md) | 13 diagramas de secuencia, uno por flujo de negocio end-to-end |
 | [`diagrama-clases.md`](diagrama-clases.md) | Clases UML por dominio: controladores, servicios, modelos y prompts |
-| [`modelo-datos.md`](modelo-datos.md) | ERD de las 20 tablas, máquina de estados del chequeo, autorización por perfil y catálogo de procedimientos almacenados |
+| [`modelo-datos.md`](modelo-datos.md) | ERD de las 21 tablas, máquina de estados del chequeo, autorización por perfil y catálogo de procedimientos almacenados |
 | [`diagramas/arquitectura.html`](diagramas/arquitectura.html) | **Explorable** — mapa de componentes: zoom, búsqueda, vistas guiadas y exportación |
 | [`diagramas/juego-cartas.html`](diagramas/juego-cartas.html) | **Explorable** — secuencia del juego de cartas: las tres capas, el SP y el orden en PHP |
 | [`diagramas/ciclo-chequeo.html`](diagramas/ciclo-chequeo.html) | **Explorable** — máquina de estados del chequeo y el efecto de facturación de `ECG FOTO` |
@@ -23,6 +24,7 @@ Esta carpeta contiene el contrato de la API y los diagramas del sistema. La docu
 - **¿Dónde vive la lógica de X?** → [`diagrama-clases.md`](diagrama-clases.md)
 - **¿Cómo se relacionan las tablas y qué significa `status`?** → [`modelo-datos.md`](modelo-datos.md)
 - **¿Qué recibe y devuelve un endpoint concreto?** → [`openapi.yaml`](openapi.yaml)
+- **¿Cómo pruebo un endpoint sin escribir el curl?** → [`postman/`](postman/README.md)
 - **¿Cómo se calcula el nivel de un alumno?** → [`flujos.md` §13](flujos.md) o el explorable [`diagramas/juego-cartas.html`](diagramas/juego-cartas.html)
 
 ## Ver la documentación
@@ -44,7 +46,7 @@ Nada de esto se genera automáticamente: **no hay anotaciones L5-Swagger ni extr
 
 | Si tocas… | Actualiza |
 |---|---|
-| Una ruta en `routes/api.php` | `openapi.yaml` (contrasta con `php artisan route:list --json`) y el catálogo del README |
+| Una ruta en `routes/api.php` | `openapi.yaml` (contrasta con `php artisan route:list --json`), el catálogo del README y la colección Postman (`php docs/postman/generar-coleccion.php`) |
 | Un flujo de negocio | El diagrama de secuencia correspondiente en `flujos.md` |
 | Un servicio, controlador o provider | `diagrama-clases.md` y, si cambia el cableado, `arquitectura.md` |
 | Un componente que salga en un explorable | El `.json` correspondiente en `diagramas/`, y vuelve a generar el HTML (ver abajo) |
@@ -61,6 +63,9 @@ npx @redocly/cli lint
 
 # Las rutas documentadas coinciden con las registradas
 php artisan route:list --json
+
+# La colección Postman cubre todas las rutas registradas
+php docs/postman/verificar-cobertura.php
 ```
 
 `redocly.yaml`, en la raíz, deja documentado qué reglas de estilo están desactivadas y por qué.

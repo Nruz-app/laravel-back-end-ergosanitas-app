@@ -7,17 +7,18 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion
 
 # Ergosanitas — mantenimiento de la documentación
 
-`docs/` tiene seis archivos y una carpeta de diagramas generados. **Nada se genera solo desde el código**: no hay anotaciones L5-Swagger ni extracción de diagramas desde el código. Todo se mantiene a mano, en el mismo commit que el cambio que lo provoca.
+`docs/` tiene seis archivos y dos carpetas generadas (`diagramas/` y `postman/`). **Nada se genera solo desde el código**: no hay anotaciones L5-Swagger ni extracción de diagramas desde el código. Todo se mantiene a mano, en el mismo commit que el cambio que lo provoca.
 
-| Archivo | Qué es | Tamaño aproximado |
+| Archivo | Qué es | Tamaño |
 |---|---|---|
-| `openapi.yaml` | Contrato OpenAPI 3.0.3, 81 operaciones | ~5.800 líneas |
+| `openapi.yaml` | Contrato OpenAPI 3.0.3, 90 operaciones (recuéntalas, ver Paso 0) | >6.000 líneas |
 | `index.html` | Visor Swagger UI del contrato | pequeño, casi nunca se toca |
-| `arquitectura.md` | Componentes, capas, providers, despliegue | ~315 líneas |
-| `flujos.md` | 12 diagramas de secuencia end-to-end | ~571 líneas |
-| `diagrama-clases.md` | Clases UML por dominio | ~600 líneas |
-| `modelo-datos.md` | ERD, estados, autorización, catálogo de SP | ~461 líneas |
-| `diagramas/` | Diagramas explorables en HTML generados con archify desde un `.json` | ~700 KB por artefacto |
+| `arquitectura.md` | Componentes, capas, providers, despliegue | ~300 líneas |
+| `flujos.md` | 13 diagramas de secuencia end-to-end | ~600 líneas |
+| `diagrama-clases.md` | Clases UML por dominio | ~650 líneas |
+| `modelo-datos.md` | ERD, estados, autorización, catálogo de SP | ~500 líneas |
+| `diagramas/` | Diagramas explorables en HTML generados con archify desde un `.json` (`architecture`, `lifecycle` o `sequence`) | ~700 KB por artefacto |
+| `postman/` | **Generado** desde `openapi.yaml`: colección v2.1, tres entornos, `generar-coleccion.php` y `verificar-cobertura.php`. Nunca a mano | — |
 
 `CLAUDE.md` (raíz) es la referencia de arquitectura y `docs/README.md` el índice de la carpeta. Esta skill es el **cómo hacerlo**.
 
@@ -46,11 +47,16 @@ grep -cE "^    (get|post|put|patch|delete):" docs/openapi.yaml
 
 **Filtra siempre por el prefijo `api/`.** `route:list` devuelve además cuatro rutas de Laravel que el contrato no documenta a propósito: `/`, `/sanctum/csrf-cookie`, `/storage/{path}` y `/up`. Contarlas te hace ver una divergencia que no existe.
 
-A día de hoy la comparación cuadra: **81 rutas únicas bajo `api/` = 81 operaciones documentadas**. Si te sale otro número, hay algo que documentar o que sobra.
+La última vez que se verificó (2026-11-03) la comparación cuadraba: **90 rutas únicas bajo `api/` = 90 operaciones documentadas** (tras la Spec 03). No te fíes de esta cifra: recuenta. Si te sale otro número, hay algo que documentar o que sobra.
+
+```bash
+# la colección Postman cubre las mismas rutas
+php docs/postman/verificar-cobertura.php
+```
 
 Salida de este paso: **la lista concreta de documentos a tocar**, según la tabla de impacto del agente `ergo-docs`. Enúmerala antes de editar.
 
-Si el delta no cambia comportamiento observable (un refactor interno, un rename privado, formateo), **no toques `docs/`**. Una edición cosmética en un archivo de 5.800 líneas es ruido puro en el diff.
+Si el delta no cambia comportamiento observable (un refactor interno, un rename privado, formateo), **no toques `docs/`**. Una edición cosmética en un archivo de más de 6.000 líneas es ruido puro en el diff.
 
 ---
 
@@ -70,9 +76,9 @@ Mete la ruta nueva en el bloque de su dominio, junto a sus hermanas. No la pegue
 
 ### 2. Elige el `tag`
 
-Los 15 tags ya declarados (líneas ~229-275). **No inventes uno nuevo** salvo que el dominio sea realmente nuevo; si lo creas, decláralo también en la sección `tags:` con su `description`.
+Los 17 tags ya declarados en la sección `tags:` del principio del archivo. **No inventes uno nuevo** salvo que el dominio sea realmente nuevo; si lo creas, decláralo también en la sección `tags:` con su `description`.
 
-`Autenticación y usuarios` · `Servicios` · `Agenda de horas` · `Chequeo cardiovascular` · `Electrocardiograma` · `Certificados` · `Bioimpedancia` · `Ficha clínica` · `Incidencias deportivas` · `Estadísticas y pagos` · `Asistentes IA` · `Carga masiva` · `Pagos WebPay` · `Correo` · `Utilidades`
+`Autenticación y usuarios` · `Servicios` · `Agenda de horas` · `Chequeo cardiovascular` · `Electrocardiograma` · `Certificados` · `Bioimpedancia` · `Ficha clínica` · `Juego de cartas` · `Home comercial` · `Incidencias deportivas` · `Estadísticas y pagos` · `Asistentes IA` · `Carga masiva` · `Pagos WebPay` · `Correo` · `Utilidades`
 
 ### 3. Escribe la operación en el estilo del archivo
 
@@ -133,8 +139,9 @@ grep -cE "^    (get|post|put|patch|delete):" docs/openapi.yaml
 
 Y actualiza:
 
-- `info.x-generated-from` en `openapi.yaml` (`"routes/api.php — 81 endpoints"`).
-- La tabla "Qué hay aquí" de `docs/README.md`, que repite la cifra.
+- `info.x-generated-from` en `openapi.yaml` (`"routes/api.php — N endpoints"`).
+- La tabla "Qué hay aquí" de `docs/README.md`, que repite la cifra (dos veces: contrato y Postman).
+- `docs/postman/`: regenera con `php docs/postman/generar-coleccion.php` (revisa también la cifra de su `README.md`) y comprueba con `php docs/postman/verificar-cobertura.php`.
 - El **catálogo de endpoints** del `README.md` de la raíz.
 - `CLAUDE.md` solo si cambió una regla de arquitectura (un sobre, una trampa), no por añadir una ruta.
 
@@ -142,12 +149,12 @@ Y actualiza:
 
 ## Receta B — Flujo de negocio → `flujos.md`
 
-El archivo tiene 12 secciones numeradas, cada una con un `sequenceDiagram` de Mermaid:
+El archivo tiene 13 secciones numeradas, cada una con un `sequenceDiagram` de Mermaid:
 
 1. Login y perfiles · 2. Carga masiva desde Excel · 3. Ciclo de vida del chequeo · 4. Certificado y facturación · 5. ECG del cardiólogo · 6. Generación de documentos · 7. Bioimpedancia con IA · 8. Informe de bioimpedancia · 9. Asistente clínico SAM · 10. Asistente por club · 11. Pago WebPay · 12. Agenda, correo y estadísticas
 
 - **Cambio en un flujo existente:** edita solo los mensajes del diagrama que cambiaron. No reescribas el diagrama entero.
-- **Flujo nuevo:** añádelo como **§13** al final. **No renumeres** los anteriores: `docs/README.md`, `arquitectura.md` y los enlaces del repo apuntan a los números actuales. Actualiza la cifra "12 diagramas" de `docs/README.md` y del `README.md` raíz.
+- **Flujo nuevo:** añádelo como la siguiente sección (hoy **§14**) al final. **No renumeres** los anteriores: `docs/README.md`, `arquitectura.md` y los enlaces del repo apuntan a los números actuales (`docs/README.md` enlaza `flujos.md §13`). Actualiza la cifra "13 diagramas" de `docs/README.md`, del `README.md` raíz y de `CLAUDE.md`.
 - Copia el estilo del vecino: mismos nombres de participantes (`Cliente`, el controlador, el servicio, `MySQL`, `OpenAI`…), `Note over` para las advertencias, y español.
 - **Si el flujo toca facturación** (`CertificadoService::subirCertificado()` → `EstadisticasService::PagoMensual(..., "ADD")`), eso va explícito en el diagrama. Es el efecto cruzado que más se pasa por alto.
 
@@ -206,7 +213,7 @@ Los cuatro `.md` de `docs/` usan **Mermaid** y son la documentación de referenc
 | El diagrama cambia a menudo con el código | La vista es estable (arquitectura general) |
 | Quieres que el cambio se revise en el diff | El valor está en navegarlo, no en leer su fuente |
 
-**El HTML es generado, no fuente.** La fuente es el `.architecture.json`. Nunca edites el `.html` a mano: el siguiente `deliver` lo pisa.
+**El HTML es generado, no fuente.** La fuente es su `.json` hermano: `arquitectura.architecture.json`, `ciclo-chequeo.lifecycle.json` o `juego-cartas.sequence.json`. El tipo del comando (`validate architecture|lifecycle|sequence`) debe coincidir con el sufijo. Nunca edites el `.html` a mano: el siguiente `deliver` lo pisa.
 
 ### Cómo regenerar un diagrama existente
 
@@ -245,7 +252,7 @@ Auditoría a demanda: ¿sigue el contrato describiendo la API real?
    - **Rutas sin documentar** → falta la operación en el contrato.
    - **Operaciones huérfanas** → documentan una ruta que ya no existe, o que quedó pisada por una duplicada.
    - **Método o path distinto** entre una y otra.
-3. Revisa la coherencia de los conteos: `x-generated-from`, `docs/README.md`, catálogo del `README.md` raíz, "12 diagramas" en `flujos.md`.
+3. Revisa la coherencia de los conteos: `x-generated-from`, `docs/README.md`, catálogo del `README.md` raíz, "13 diagramas" en `docs/README.md`, `README.md` y `CLAUDE.md`, y la cobertura de `php docs/postman/verificar-cobertura.php`.
 4. **Reporta las divergencias; no arregles el código.** Si el contrato está bien y el código está mal, eso es trabajo de `ergosanitas-developer`.
 
 ---
@@ -282,6 +289,7 @@ php -S localhost:8080 -t docs   # y abre http://localhost:8080
 - [ ] El YAML parsea y `redocly lint` está en verde (o consta por qué no corrió)
 - [ ] Rutas documentadas == rutas de `route:list` (sin huérfanas ni faltantes)
 - [ ] Conteo de operaciones actualizado en `x-generated-from`, `docs/README.md` y el catálogo del `README.md` raíz
+- [ ] Colección Postman regenerada y `verificar-cobertura.php` sin faltantes (si cambió una ruta)
 - [ ] Diagramas Mermaid afectados actualizados (`flujos.md`, `diagrama-clases.md`, `arquitectura.md`, `modelo-datos.md`)
 - [ ] Sobre de respuesta documentado == el que devuelve el código, incluido el del `catch`
 - [ ] Sin 4xx inventados; las rarezas reales (200 con error, 201 en GET, cuerpo vacío de WebPay) quedan documentadas

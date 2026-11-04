@@ -10,6 +10,7 @@ return [
     App\Providers\ElectroCardiogramaProvider::class,
     App\Providers\EstadisticasProvider::class,
     App\Providers\FichaClinicaServiceProvider::class,
+    App\Providers\HomeImagenServiceProvider::class,
     App\Providers\IncidenciaServiceProvider::class,
     App\Providers\JuegoCartasServiceProvider::class,
     App\Providers\OpenAIServiceProvider::class,

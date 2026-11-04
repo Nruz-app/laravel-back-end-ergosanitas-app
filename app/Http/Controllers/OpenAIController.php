@@ -10,6 +10,7 @@ use App\Services\EstadisticasService;
 use App\Models\ChatHistory;
 use App\Models\ChatSessions;
 use App\Services\OpenAIService;
+use App\Services\BioimpedanciaService;
 use App\IA\AsistenteChatPacientePrompt;
 
 class OpenAIController extends Controller {
@@ -18,12 +19,50 @@ class OpenAIController extends Controller {
     //
     protected $estadisticasService;
     protected $openAIService;
+    protected $bioimpedanciaService;
 
     public function __construct(
         EstadisticasService $estadisticasService,
-        OpenAIService $openAIService) {
+        OpenAIService $openAIService,
+        BioimpedanciaService $bioimpedanciaService) {
         $this->estadisticasService = $estadisticasService;
         $this->openAIService = $openAIService;
+        $this->bioimpedanciaService = $bioimpedanciaService;
+    }
+
+    /**
+     * Última bioimpedancia del RUT para el chat clínico, o null si no hay.
+     *
+     * SP_chequeos_prompt solo trae el chequeo: sin esto el asistente respondía
+     * "no se registró bioimpedancia" aunque la hubiera. Se quitan los campos que
+     * no aportan a la conversación (el JSON crudo de la extracción, el archivo y
+     * la auditoría). Un fallo aquí no debe tumbar el chat: se registra y se sigue
+     * sin bioimpedancia.
+     */
+    private function bioimpedanciaParaChat(?string $rut): ?array
+    {
+        if (!$rut) {
+            return null;
+        }
+
+        try {
+            $json = $this->bioimpedanciaService->SP_bioempdacia_rut($rut);
+            $bio = $json ? json_decode($json, true) : null;
+
+            if (!is_array($bio)) {
+                return null;
+            }
+
+            foreach (['raw_json', 'archivo', 'id', 'rut', 'nombre', 'created_at', 'updated_at'] as $campo) {
+                unset($bio[$campo]);
+            }
+
+            return $bio;
+        } catch (\Throwable $e) {
+            report($e);
+
+            return null;
+        }
     }
 
     public function resetPatient(Request $request)
@@ -115,14 +154,27 @@ class OpenAIController extends Controller {
             //CORRECCIÓN
             $data = (array) $result[0];
 
+            //BIOIMPEDANCIA (por el RUT exacto del chequeo encontrado, no por $search,
+            //que puede ser un nombre o un RUT parcial)
+            $rut = $data['personales']->rut ?? null;
+            $bioimpedancia = $this->bioimpedanciaParaChat($rut);
+
             //MENSAJES GPT
+
+            //El último mensaje del historial es la pregunta actual: el recordatorio
+            //va justo antes de ella, para que pese más que las respuestas viejas.
+            $historial = $chat['messages'];
+            $preguntaActual = array_pop($historial);
 
             $messages = array_merge(
                 AsistenteChatPacientePrompt::system(
                     $search,
-                    $data
+                    $data,
+                    $bioimpedancia
                 ),
-                $chat['messages']
+                $historial,
+                [AsistenteChatPacientePrompt::recordatorio($bioimpedancia)],
+                $preguntaActual ? [$preguntaActual] : []
             );
 
             $response = OpenAI::chat()->create([
