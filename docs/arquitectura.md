@@ -93,7 +93,7 @@ flowchart TB
     C1 --> C2 --> C3
 
     SALTAN["Sin servicio alguno<br/>ServiciosController · AgendaHorasController<br/>EmailController · WebPayController<br/>FileUploadController · Auth/GoogleAuthControlle"]
-    PARCIAL["Con servicio, pero lo saltan en algun metodo<br/>EstadisticasController::deletePagoMensual<br/>ClubAssistantController::ResetSearch<br/>CertificadoUrlController::FileUploadCer"]
+    PARCIAL["Con servicio, pero lo saltan en algun metodo<br/>EstadisticasController::deletePagoMensual<br/>ClubAssistantController::ResetSearch<br/>CertificadoUrlController::FileUploadCer<br/>HomeImagenController (HomeImagen::find del id)"]
 
     SALTAN -.-> C3
     PARCIAL -.-> C3
@@ -144,6 +144,9 @@ flowchart LR
         EMC["EmailController"]
         WPC["WebPayController"]
     end
+    subgraph D6["Home comercial"]
+        HIC["HomeImagenController"]
+    end
 
     S_CCS["ChequeoCardiovascularService"]
     S_PDF["ChequeoCardiovascularPDFService"]
@@ -158,6 +161,7 @@ flowchart LR
     S_BIS["BioimpedanciaService"]
     S_FCS["FichaClinicaService"]
     S_IS["IncidentesService"]
+    S_HIS["HomeImagenService"]
     IMP["App\Imports\ChequeoImport"]
 
     CCC --> S_CCS
@@ -183,6 +187,8 @@ flowchart LR
 
     UC --> S_UMS
     ESC --> S_ES
+
+    HIC --> S_HIS
 ```
 
 `ServiciosController`, `AgendaHorasController`, `EmailController`, `GoogleAuthControlle`, `FileUploadController` y `WebPayController` no aparecen conectados a ningún servicio porque no tienen ninguno: van directo al modelo.
@@ -231,7 +237,7 @@ flowchart LR
     classDef warn fill:#fff4e5,stroke:#d97706,stroke-width:2px,color:#5d4037
 ```
 
-Los 13 providers registrados en `bootstrap/providers.php`:
+Los 14 providers registrados en `bootstrap/providers.php`:
 
 | Provider | Registra |
 |---|---|
@@ -244,6 +250,7 @@ Los 13 providers registrados en `bootstrap/providers.php`:
 | `ElectroCardiogramaProvider` | `ElectroCardiogramaService` |
 | `EstadisticasProvider` | `EstadisticasService` |
 | `FichaClinicaServiceProvider` | `FichaClinicaService` |
+| `HomeImagenServiceProvider` | `HomeImagenService` |
 | `IncidenciaServiceProvider` | `IncidentesService` |
 | `JuegoCartasServiceProvider` | `JuegoCartasService` |
 | `OpenAIServiceProvider` | `OpenAIService` |
@@ -304,7 +311,7 @@ flowchart LR
         V4["laravel_mysql_data → /var/lib/mysql"]
     end
 
-    P["SIN volumen<br/>public/Certificado · public/Logo<br/>public/Electrocardiograma · public/Bioimpedancia"]
+    P["SIN volumen<br/>public/Certificado · public/Logo<br/>public/Electrocardiograma · public/Bioimpedancia<br/>public/HomeImagenes<br/>(produccion real: hosting, no este Docker)"]
     P --> PERDIDA["Viven en la capa escribible del contenedor:<br/>un redeploy de :latest los pierde"]
 
     P:::danger

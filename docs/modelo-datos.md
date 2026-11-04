@@ -288,16 +288,38 @@ erDiagram
         tinyint orden
         boolean activo
     }
+
+    HOME_IMAGENES {
+        bigint id PK
+        enum seccion "promocion | alianza | galeria"
+        varchar archivo "solo el nombre, en public/HomeImagenes"
+        varchar alt "NOT NULL, 255"
+        varchar caption "150, nullable"
+        boolean activo "default 1"
+        int orden "unsigned, default 0"
+        timestamp created_at
+        timestamp updated_at
+    }
 ```
 
 > `juego_niveles` y `juego_atributos` **no se relacionan con nadie por clave**: son tablas de
 > configuración que `SP_juego_cartas_club` consulta al vuelo. Ahí viven los umbrales y colores
 > de la carta, para poder retunearlos con un `UPDATE` sin tocar el procedimiento ni el código
-> PHP. Son las dos únicas tablas del repo cuya migración **siembra datos en el propio `up()`**.
+> PHP. Junto con `home_imagenes`, son las únicas tablas del repo cuya migración **siembra datos
+> en el propio `up()`**.
 >
 > La banda clínica `sin_evaluar` usa `-1/-1` como centinela: no es un puntaje, marca a los
 > pacientes sin ningún dato clínico (hoy 201 de 1.554) para que no caigan en `BAJO` por una
 > carga masiva incompleta.
+
+> `home_imagenes` (Spec 03) tampoco se relaciona con nadie: guarda los metadatos de las imágenes
+> de promociones, alianzas y galería del Home comercial del front. Guarda **solo el nombre del
+> archivo**; la URL pública (`src`) la arma el modelo `HomeImagen` al responder con
+> `config('services.home_imagenes.url')` (`API_PATH_HOME`), así que cambiar de dominio es un
+> cambio de `.env`. Índice `(seccion, activo, orden)`. La migración siembra 24 filas (11
+> `promocion`, 9 `alianza` con una inactiva, 4 `galeria`) y los archivos de origen están en
+> `resources/home-imagenes-semilla/`. Las escrituras exigen un `user_email` cuyo perfil se
+> llame `Administrador` (join `users_metadata` → `perfiles` por `perfiles.nombre`, no por id).
 
 **Perfiles conocidos:** 1 administrador · 2 tester · 3 club deportivo · 5 paciente · 6 médico.
 

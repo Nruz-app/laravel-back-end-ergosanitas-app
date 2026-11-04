@@ -3,7 +3,7 @@ openapi: 3.0.3
 info:
   title: Ergosanitas — API REST
   version: "1.0.0"
-  x-generated-from: "routes/api.php — 84 endpoints"
+  x-generated-from: "routes/api.php — 90 endpoints"
   description: |
     API REST en **Laravel 11 / PHP 8.2** de **Ergo SaniTas SpA**: gestión de chequeos
     cardiovasculares deportivos, electrocardiogramas, bioimpedancia, certificados médicos,
@@ -54,6 +54,11 @@ info:
     modo que el filtrado por perfil descrito más abajo es una **regla de presentación, no
     un control de acceso**. La única ruta con middleware es `GET /user` (`auth:sanctum`),
     que es el ejemplo que trae Laravel.
+
+    Las escrituras del mantenedor de imágenes del Home (`POST`, `PUT` y `DELETE` de
+    `/home-imagenes`) exigen además un `user_email` de perfil **Administrador** y responden
+    **403** si no lo es. Tampoco es autenticación: el email viaja en el request y quien
+    conozca uno de administrador puede falsificarlo.
 
     Coexisten tres mecanismos de autenticación:
 
@@ -143,6 +148,10 @@ info:
     al disco de storage de Laravel. Las URLs públicas se arman con `env('API_PATH_CER')` y
     `env('API_PATH_LOGO')`.
 
+    Las imágenes del Home van a `public/HomeImagenes` con el mismo `move()`, pero su URL se
+    lee con `config('services.home_imagenes.url')` (variable `API_PATH_HOME`), no con
+    `env()`. En la base se guarda solo el nombre del archivo; `src` se arma al responder.
+
     En producción `dockerHub/docker-compose.yml` monta volúmenes para `storage/` y
     `bootstrap/cache` **pero no para `public/`**: un redeploy de `:latest` pierde los
     archivos subidos.
@@ -202,7 +211,9 @@ info:
       `incidencia-deportivos/count-liga` (líneas 267 y 270). Laravel se queda con la última
       declaración.
     - En `routes/api.php` el orden importa: `chequeo-cardiovascular/pdf/{id}` está declarada
-      antes que `chequeo-cardiovascular/{id_paciente}` a propósito.
+      antes que `chequeo-cardiovascular/{id_paciente}` a propósito, igual que
+      `home-imagenes/admin` antes de las rutas `home-imagenes/{id}` (que además restringen
+      `{id}` a números con `whereNumber`).
 
   contact:
     name: Ergo SaniTas SpA
@@ -261,6 +272,11 @@ tags:
       0-100, puntaje, estrellas, badge clínico y barra de completitud. Todo se calcula al
       vuelo en `SP_juego_cartas_club`; los umbrales y colores viven en la tabla
       `juego_niveles` y el catálogo de atributos en `juego_atributos`.
+  - name: Home comercial
+    description: |
+      Mantenedor de las imágenes de promociones, alianzas y galería del Home comercial del
+      front (tabla `home_imagenes`, archivos en `public/HomeImagenes`). La lectura es
+      pública; las escrituras exigen un `user_email` de perfil Administrador (403 si no).
   - name: Incidencias deportivas
     description: Registro de lesiones deportivas y sus estadísticas por liga, categoría y parte del cuerpo.
   - name: Estadísticas y pagos
@@ -1101,6 +1117,48 @@ components:
             ecg: { type: boolean, example: true }
             bioimpedancia: { type: boolean, example: false }
             certificado: { type: boolean, example: true }
+
+    # ------------------------------------------------------------------
+    # Home comercial
+    # ------------------------------------------------------------------
+
+    HomeImagen:
+      type: object
+      description: |
+        Fila de `home_imagenes` tal como la serializa el modelo `HomeImagen`. La columna
+        `archivo` (nombre en disco) y los timestamps van ocultos; en su lugar sale `src`, la
+        URL absoluta armada con `config('services.home_imagenes.url')` + `/` +
+        `rawurlencode(archivo)`. Si `API_PATH_HOME` falta en el `.env`, `src` queda como
+        `/nombre-del-archivo`.
+      properties:
+        id: { type: integer, example: 5 }
+        seccion: { type: string, enum: [promocion, alianza, galeria], example: "promocion" }
+        alt: { type: string, maxLength: 255, example: "Oferta de bioimpedancia de Ergo SaniTas" }
+        caption: { type: string, maxLength: 150, nullable: true, example: "Bioimpedancia" }
+        activo: { type: boolean, example: true }
+        orden: { type: integer, minimum: 0, description: "Orden dentro de la sección.", example: 5 }
+        src:
+          type: string
+          format: uri
+          example: "http://127.0.0.1:8000/HomeImagenes/promo-bioimpedancia-01.png"
+      required: [id, seccion, alt, activo, orden, src]
+
+    ErrorHomeImagen:
+      type: object
+      description: |
+        Sobre de error de `HomeImagenController`. `error` es `"forbidden"` (403),
+        `"not_found"` (404), el **array** de mensajes de validación (422, con `message` = el
+        primero) o el mensaje crudo de la excepción (500).
+      properties:
+        success: { type: boolean, example: false }
+        message: { type: string, example: "La imagen no existe" }
+        error:
+          oneOf:
+            - type: string
+            - type: array
+              items: { type: string }
+          example: "not_found"
+      required: [success, message, error]
 
     ResultadoSP:
       description: |
@@ -4517,6 +4575,469 @@ paths:
                 success: false
                 message: "Error obteniendo las cartas"
                 error: "SQLSTATE[42000]: PROCEDURE ergosan1_bdd.SP_juego_cartas_club does not exist"
+
+  # ====================================================================
+  # HOME COMERCIAL
+  # ====================================================================
+
+  /home-imagenes:
+    get:
+      tags: [Home comercial]
+      summary: Imágenes activas del Home (público)
+      operationId: homeImagenesIndex
+      description: |
+        Lectura pública para el Home comercial del front. Devuelve **solo las filas con
+        `activo = 1`**, ordenadas por `seccion` (`promocion`, `alianza`, `galeria`, con
+        `FIELD()`), luego `orden` y luego `id`. Sin paginación ni filtro por sección: el
+        cliente agrupa por `seccion`.
+
+        Con la siembra de la migración salen 23 de las 24 filas (la alianza
+        `info-holter-instrucciones.jpg` se siembra inactiva).
+      responses:
+        '200':
+          description: Imágenes visibles, en el orden del Home.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Imagenes obtenidas correctamente" }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/HomeImagen' }
+              example:
+                success: true
+                message: "Imagenes obtenidas correctamente"
+                data:
+                  - { id: 1, seccion: promocion, alt: "Promoción de agosto, mes del corazón, de Ergo SaniTas", caption: "Agosto, mes del corazón", activo: true, orden: 1, src: "http://127.0.0.1:8000/HomeImagenes/promo-mes-corazon-01.png" }
+                  - { id: 5, seccion: promocion, alt: "Oferta de bioimpedancia de Ergo SaniTas", caption: "Bioimpedancia", activo: true, orden: 5, src: "http://127.0.0.1:8000/HomeImagenes/promo-bioimpedancia-01.png" }
+                  - { id: 12, seccion: alianza, alt: "Alianza de Ergo SaniTas para el chequeo cardiovascular deportivo", caption: "Alianza — Chequeo cardiovascular deportivo", activo: true, orden: 1, src: "http://127.0.0.1:8000/HomeImagenes/alianza-chequeo-cardiovascular.png" }
+                  - { id: 21, seccion: galeria, alt: "Profesional de Ergo SaniTas tomando un electrocardiograma en un operativo en terreno", caption: "Electrocardiogramas en terreno", activo: true, orden: 1, src: "http://127.0.0.1:8000/HomeImagenes/operativo-electrocardiograma-01.jpg" }
+        '500':
+          description: Excepción no controlada (p. ej. la tabla `home_imagenes` no existe).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHomeImagen'
+              example:
+                success: false
+                message: "Error obteniendo las imagenes"
+                error: "SQLSTATE[42S02]: Base table or view not found: 1146 Table 'ergosan1_bdd.home_imagenes' doesn't exist"
+
+    post:
+      tags: [Home comercial]
+      summary: Sube una imagen al Home
+      operationId: homeImagenesStore
+      description: |
+        Sube el archivo a `public/HomeImagenes` con `$file->move()` y crea la fila con
+        `activo = 1`. **Nunca se usa el nombre que envía el cliente**: el archivo se guarda
+        como `{seccion}-{Str::slug(caption o alt)}-{uniqid()}.{ext}`, con la extensión
+        deducida del MIME real (`guessExtension()`). Si falla el `INSERT`, el archivo recién
+        movido se borra.
+
+        Si `orden` no viene, se usa `MAX(orden) + 1` de la sección.
+
+        Orden de las comprobaciones: primero el perfil (**403**), después la validación
+        (**422**). La validación usa `Validator::make`, así que el 422 sale con este sobre
+        aunque el cliente no envíe `Accept: application/json`.
+
+        Ojo: si el cuerpo supera `post_max_size` de PHP, el request llega sin campos y
+        responde **403** (no hay `user_email`), no 422.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Imagen JPG, JPEG, PNG o WEBP de 5 MB como máximo (`max:5120`).
+                seccion:
+                  type: string
+                  enum: [promocion, alianza, galeria]
+                  example: "promocion"
+                alt:
+                  type: string
+                  maxLength: 255
+                  description: Texto alternativo. Obligatorio.
+                  example: "Oferta de bioimpedancia de Ergo SaniTas"
+                caption:
+                  type: string
+                  maxLength: 150
+                  nullable: true
+                  example: "Bioimpedancia"
+                orden:
+                  type: integer
+                  minimum: 0
+                  description: Opcional. Si falta, va al final de la sección.
+                  example: 12
+                user_email:
+                  type: string
+                  format: email
+                  description: Email de un usuario con perfil Administrador.
+                  example: "admin@ergosanitas.com"
+              required: [file, seccion, alt, user_email]
+      responses:
+        '201':
+          description: Imagen creada.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Imagen agregada correctamente" }
+                  data: { $ref: '#/components/schemas/HomeImagen' }
+              example:
+                success: true
+                message: "Imagen agregada correctamente"
+                data: { id: 25, seccion: promocion, alt: "Oferta de bioimpedancia de Ergo SaniTas", caption: "Bioimpedancia", activo: true, orden: 12, src: "http://127.0.0.1:8000/HomeImagenes/promocion-bioimpedancia-6727a1c3e4b5f.png" }
+        '403':
+          description: El `user_email` falta o no es de un Administrador.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHomeImagen'
+              example:
+                success: false
+                message: "Solo un Administrador puede modificar las imagenes del Home"
+                error: "forbidden"
+        '422':
+          description: Validación fallida. `message` es el primer error y `error` la lista completa.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHomeImagen'
+              examples:
+                tipoInvalido:
+                  summary: Archivo PDF
+                  value:
+                    success: false
+                    message: "La imagen debe ser JPG, PNG o WEBP"
+                    error: ["La imagen debe ser JPG, PNG o WEBP"]
+                sinAlt:
+                  summary: Falta el texto alternativo
+                  value:
+                    success: false
+                    message: "El texto alternativo es obligatorio"
+                    error: ["El texto alternativo es obligatorio"]
+        '500':
+          description: Excepción no controlada al mover el archivo o al insertar.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHomeImagen'
+              example:
+                success: false
+                message: "Error agregando la imagen"
+                error: "SQLSTATE[HY000] [2002] Connection refused"
+
+  /home-imagenes/admin:
+    get:
+      tags: [Home comercial]
+      summary: Todas las imágenes del Home (mantenedor)
+      operationId: homeImagenesAdmin
+      description: |
+        Igual que `GET /home-imagenes` pero **incluye las inactivas**, en el mismo orden.
+        Pensado para el mantenedor del Administrador. **No exige `user_email`**: cualquiera
+        puede listarlo, inactivas incluidas.
+
+        Se declara antes que las rutas `home-imagenes/{id}` en `routes/api.php`; además
+        `{id}` lleva `whereNumber`, así que `admin` nunca se resuelve como id.
+      responses:
+        '200':
+          description: Todas las imágenes, activas e inactivas.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Imagenes obtenidas correctamente" }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/HomeImagen' }
+              example:
+                success: true
+                message: "Imagenes obtenidas correctamente"
+                data:
+                  - { id: 19, seccion: alianza, alt: "Alianza de Ergo SaniTas con La Voz de San Bernardo", caption: "Alianza — La Voz de San Bernardo", activo: true, orden: 8, src: "http://127.0.0.1:8000/HomeImagenes/alianza-la-voz-san-bernardo.png" }
+                  - { id: 20, seccion: alianza, alt: "Instrucciones para el paciente que usa un Holter de presión arterial", caption: "Instrucciones para el paciente — Holter de presión arterial", activo: false, orden: 9, src: "http://127.0.0.1:8000/HomeImagenes/info-holter-instrucciones.jpg" }
+        '500':
+          description: Excepción no controlada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHomeImagen'
+              example:
+                success: false
+                message: "Error obteniendo las imagenes"
+                error: "SQLSTATE[HY000] [2002] Connection refused"
+
+  /home-imagenes/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id de `home_imagenes`. Solo dígitos (`whereNumber`); otro valor no encuentra ruta.
+        schema:
+          type: integer
+          example: 5
+    put:
+      tags: [Home comercial]
+      summary: Edita los metadatos de una imagen
+      operationId: homeImagenesUpdate
+      description: |
+        Cambia `seccion`, `alt`, `caption` y `orden`. **El archivo no se puede reemplazar**:
+        para cambiar la imagen hay que borrarla y subir otra.
+
+        Es un reemplazo, no un parche: `seccion` y `alt` son obligatorios, y un `caption`
+        ausente **deja el caption en `null`**. `orden` ausente conserva el actual.
+
+        Orden de las comprobaciones: 403 (perfil) → 404 (id) → 422 (validación).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                seccion: { type: string, enum: [promocion, alianza, galeria], example: "promocion" }
+                alt: { type: string, maxLength: 255, example: "Oferta de bioimpedancia de Ergo SaniTas" }
+                caption: { type: string, maxLength: 150, nullable: true, example: "Bioimpedancia en oferta" }
+                orden: { type: integer, minimum: 0, nullable: true, example: 2 }
+                user_email: { type: string, format: email, example: "admin@ergosanitas.com" }
+              required: [seccion, alt, user_email]
+            example:
+              seccion: "promocion"
+              alt: "Oferta de bioimpedancia de Ergo SaniTas"
+              caption: "Bioimpedancia en oferta"
+              orden: 2
+              user_email: "admin@ergosanitas.com"
+      responses:
+        '200':
+          description: Imagen actualizada.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Imagen actualizada correctamente" }
+                  data: { $ref: '#/components/schemas/HomeImagen' }
+              example:
+                success: true
+                message: "Imagen actualizada correctamente"
+                data: { id: 5, seccion: promocion, alt: "Oferta de bioimpedancia de Ergo SaniTas", caption: "Bioimpedancia en oferta", activo: true, orden: 2, src: "http://127.0.0.1:8000/HomeImagenes/promo-bioimpedancia-01.png" }
+        '403':
+          description: El `user_email` falta o no es de un Administrador.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHomeImagen'
+              example:
+                success: false
+                message: "Solo un Administrador puede modificar las imagenes del Home"
+                error: "forbidden"
+        '404':
+          description: No existe una imagen con ese id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHomeImagen'
+              example:
+                success: false
+                message: "La imagen no existe"
+                error: "not_found"
+        '422':
+          description: Validación fallida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHomeImagen'
+              example:
+                success: false
+                message: "La seccion debe ser promocion, alianza o galeria"
+                error: ["La seccion debe ser promocion, alianza o galeria"]
+        '500':
+          description: Excepción no controlada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHomeImagen'
+              example:
+                success: false
+                message: "Error actualizando la imagen"
+                error: "SQLSTATE[HY000] [2002] Connection refused"
+
+    delete:
+      tags: [Home comercial]
+      summary: Borra una imagen y su archivo
+      operationId: homeImagenesDestroy
+      description: |
+        Borra **primero la fila y después el archivo** de `public/HomeImagenes`. Si el
+        archivo ya no existe o no se puede borrar, responde éxito igual y deja un
+        `Log::warning`. No hay papelera: para ocultar sin borrar usa
+        `PUT /home-imagenes/{id}/activo`.
+
+        `user_email` viaja por **query string** (el `DELETE` no lleva cuerpo).
+      parameters:
+        - name: user_email
+          in: query
+          required: true
+          description: Email de un usuario con perfil Administrador.
+          schema:
+            type: string
+            format: email
+            example: "admin@ergosanitas.com"
+      responses:
+        '200':
+          description: Imagen eliminada.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Imagen eliminada correctamente" }
+                  data: { type: object, nullable: true, example: null }
+              example:
+                success: true
+                message: "Imagen eliminada correctamente"
+                data: null
+        '403':
+          description: El `user_email` falta o no es de un Administrador.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHomeImagen'
+              example:
+                success: false
+                message: "Solo un Administrador puede modificar las imagenes del Home"
+                error: "forbidden"
+        '404':
+          description: No existe una imagen con ese id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHomeImagen'
+              example:
+                success: false
+                message: "La imagen no existe"
+                error: "not_found"
+        '500':
+          description: Excepción no controlada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHomeImagen'
+              example:
+                success: false
+                message: "Error eliminando la imagen"
+                error: "SQLSTATE[HY000] [2002] Connection refused"
+
+  /home-imagenes/{id}/activo:
+    put:
+      tags: [Home comercial]
+      summary: Muestra u oculta una imagen
+      operationId: homeImagenesUpdateActivo
+      description: |
+        Cambia solo `activo`. Una imagen con `activo: false` deja de salir en
+        `GET /home-imagenes` pero sigue en `GET /home-imagenes/admin`.
+
+        Es `PUT` y no `PATCH` a propósito: el `ApiAdapter` del front no tiene `patch`.
+        `activo` acepta lo que Laravel considera booleano (`true`/`false`, `1`/`0`,
+        `"1"`/`"0"`).
+
+        Orden de las comprobaciones: 403 (perfil) → 404 (id) → 422 (validación).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Id de `home_imagenes`. Solo dígitos (`whereNumber`).
+          schema:
+            type: integer
+            example: 5
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                activo: { type: boolean, example: false }
+                user_email: { type: string, format: email, example: "admin@ergosanitas.com" }
+              required: [activo, user_email]
+            example:
+              activo: false
+              user_email: "admin@ergosanitas.com"
+      responses:
+        '200':
+          description: Imagen actualizada. El `message` depende del nuevo valor.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Imagen oculta del Home" }
+                  data: { $ref: '#/components/schemas/HomeImagen' }
+              examples:
+                oculta:
+                  summary: activo = false
+                  value:
+                    success: true
+                    message: "Imagen oculta del Home"
+                    data: { id: 5, seccion: promocion, alt: "Oferta de bioimpedancia de Ergo SaniTas", caption: "Bioimpedancia", activo: false, orden: 5, src: "http://127.0.0.1:8000/HomeImagenes/promo-bioimpedancia-01.png" }
+                visible:
+                  summary: activo = true
+                  value:
+                    success: true
+                    message: "Imagen visible en el Home"
+                    data: { id: 5, seccion: promocion, alt: "Oferta de bioimpedancia de Ergo SaniTas", caption: "Bioimpedancia", activo: true, orden: 5, src: "http://127.0.0.1:8000/HomeImagenes/promo-bioimpedancia-01.png" }
+        '403':
+          description: El `user_email` falta o no es de un Administrador.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHomeImagen'
+              example:
+                success: false
+                message: "Solo un Administrador puede modificar las imagenes del Home"
+                error: "forbidden"
+        '404':
+          description: No existe una imagen con ese id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHomeImagen'
+              example:
+                success: false
+                message: "La imagen no existe"
+                error: "not_found"
+        '422':
+          description: Falta `activo` o no es booleano.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHomeImagen'
+              example:
+                success: false
+                message: "Debe indicar si la imagen esta activa"
+                error: ["Debe indicar si la imagen esta activa"]
+        '500':
+          description: Excepción no controlada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorHomeImagen'
+              example:
+                success: false
+                message: "Error cambiando la visibilidad de la imagen"
+                error: "SQLSTATE[HY000] [2002] Connection refused"
 
   # ====================================================================
   # ESTADÍSTICAS Y PAGOS

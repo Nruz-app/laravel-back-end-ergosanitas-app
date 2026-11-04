@@ -9,6 +9,8 @@ Clases reales del proyecto por dominio, con sus firmas tal como están en el có
 - [Incidencias y ficha clínica](#incidencias-y-ficha-clínica)
 - [Usuarios y perfiles](#usuarios-y-perfiles)
 - [Agenda, servicios y pagos](#agenda-servicios-y-pagos)
+- [Juego de cartas](#juego-de-cartas)
+- [Home comercial](#home-comercial)
 - [Convenciones y anomalías](#convenciones-y-anomalías)
 
 ---
@@ -631,6 +633,68 @@ Detalles que no se ven en el diagrama:
 - `llamarSP()` usa la variante **defensiva** de `json_decode` (la de `ClubAssistantService`, no la de `FichaClinicaService`): comprueba `empty($results[0]->resultado_json)` y valida `is_array()` antes de seguir.
 - `ordenar()` existe porque **en MySQL 5.7 `JSON_ARRAYAGG` no respeta `ORDER BY`**. Ordena por `puntaje` descendente, desempata por `atributos_medidos` descendente —para que una carta con los cuatro atributos gane a otra que empata con solo dos— y manda las `sin_evaluar` al final.
 - `JuegoCartasServiceProvider` está registrado en `bootstrap/providers.php`, en orden alfabético entre `IncidenciaServiceProvider` y `OpenAIServiceProvider`.
+
+---
+
+## Home comercial
+
+Mantenedor de las imágenes del Home comercial del front (Spec 03). Mismo vertical slice que el juego de cartas, con un modelo Eloquent real y sin procedimientos almacenados.
+
+```mermaid
+classDiagram
+    class HomeImagenController {
+        -HomeImagenService homeImagenService
+        +__construct(HomeImagenService)
+        +Index()
+        +Admin()
+        +Store(Request)
+        +Update(Request, int id)
+        +UpdateActivo(Request, int id)
+        +Destroy(Request, int id)
+        -listar(bool soloActivas) JsonResponse
+        -exigirAdministrador(Request) ?JsonResponse
+        -reglasMetadatos() array
+    }
+
+    class HomeImagenService {
+        +listar(bool soloActivas) Collection
+        +esAdministrador(?string userEmail) bool
+        +crear(UploadedFile, array datos) HomeImagen
+        +actualizar(HomeImagen, array datos) HomeImagen
+        +cambiarActivo(HomeImagen, bool activo) HomeImagen
+        +borrar(HomeImagen) void
+        -nombreArchivo(UploadedFile, seccion, caption, alt) string
+    }
+
+    class HomeImagen {
+        +string table = "home_imagenes"
+        +array SECCIONES$
+        +string CARPETA$
+        +array appends = "src"
+        +array hidden
+        #src() Attribute
+        +rutaArchivo() string
+    }
+
+    class HomeImagenServiceProvider {
+        +register() void
+        +boot() void
+    }
+
+    HomeImagenController --> HomeImagenService : constructor
+    HomeImagenController --> HomeImagen : find(id)
+    HomeImagenService --> HomeImagen : Eloquent
+    HomeImagenServiceProvider ..> HomeImagenService : singleton
+```
+
+Detalles que no se ven en el diagrama:
+
+- `SECCIONES` = `promocion`, `alianza`, `galeria` (también es el orden del listado) y `CARPETA` = `HomeImagenes`. `$hidden` oculta `archivo`, `created_at` y `updated_at`.
+- `src` es un accessor: `config('services.home_imagenes.url')` + `/` + `rawurlencode(archivo)`. Es el único lugar del repo que arma una URL pública desde `config()` y no desde `env()`; `grep -rn "API_PATH_HOME" app/` sale vacío a propósito.
+- `esAdministrador()` hace un join `users_metadata` → `perfiles` y compara `perfiles.nombre = 'Administrador'`, no `perfiles_id = 1` como el resto del código.
+- El controlador valida con `Validator::make` y no con `$request->validate()`: el front no envía `Accept: application/json`, y sin ese header un fallo de `validate()` respondería con un redirect.
+- El controlador busca la imagen con `HomeImagen::find($id)` antes de pasarla al servicio; es el único acceso al modelo que salta la capa de servicio.
+- `HomeImagenServiceProvider` está registrado en `bootstrap/providers.php` entre `FichaClinicaServiceProvider` e `IncidenciaServiceProvider`.
 
 ---
 
