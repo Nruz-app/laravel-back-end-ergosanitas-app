@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Console\Commands\CartFlowImportarCatalogo;
 use App\Services\CartFlow\AgendaService;
 use App\Services\CartFlow\CalculadoraCarroService;
 use App\Services\CartFlow\CarritoService;
@@ -42,8 +43,14 @@ class CartFlowServiceProvider extends ServiceProvider
         ));
     }
 
+    /**
+     * bootstrap/app.php pasa routes/console.php a withRouting(), y con eso Laravel ya no
+     * auto-descubre app/Console/Commands: el comando se registra aqui.
+     */
     public function boot(): void
     {
-        //
+        if ($this->app->runningInConsole()) {
+            $this->commands([CartFlowImportarCatalogo::class]);
+        }
     }
 }

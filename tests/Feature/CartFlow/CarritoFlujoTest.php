@@ -6,7 +6,6 @@ use App\Models\CartFlow\BloqueAgenda;
 use App\Models\CartFlow\Comuna;
 use App\Models\CartFlow\Pedido;
 use App\Models\CartFlow\Producto;
-use App\Services\CartFlow\ImportadorCatalogoService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -167,7 +166,8 @@ class CarritoFlujoTest extends CartFlowTestCase
             ->assertJsonPath('data.avisos.0.codigo', 'producto_no_disponible')
             ->assertJsonCount(0, 'data.pacientes.0.lineas');
 
-        app(ImportadorCatalogoService::class)->importar(database_path('data/cart-flow'));
+        // Por el comando, que es como se reimporta en el hosting (y prueba que esta registrado).
+        $this->artisan('cart-flow:importar-catalogo')->assertExitCode(0);
 
         $this->assertFalse(Producto::where('sku', 'LAB-301045')->value('visible_tienda'));
         $this->assertSame(245, Producto::count());
