@@ -284,6 +284,11 @@ tags:
       bloques con cupo, checkout y pago por Webpay, transferencia o efectivo. **El total se
       calcula siempre en el servidor.** Sobre `{success, message, data}`. Convive con
       `servicios`, `agenda-horas` y `transbank/*`, que no cambian.
+  - name: Carro de servicios — administración
+    description: |
+      SPEC 05 — Mantenedor «Carrito Compra» del Administrador: resumen, pedidos y pagos, gestión de estados con
+      historial (`cf_pedido_historial`), orden médica por URL firmada, cotizaciones y catálogo completo. Todo exige
+      `user_email` de perfil Administrador (403 si no).
   - name: Incidencias deportivas
     description: Registro de lesiones deportivas y sus estadísticas por liga, categoría y parte del cuerpo.
   - name: Estadísticas y pagos
@@ -1395,6 +1400,51 @@ components:
         apoderado_nombre: { type: string }
         apoderado_rut: { type: string }
         consentimiento_apoderado: { type: boolean }
+
+    CartFlowAdminPedido:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string, example: "OK" }
+        data:
+          type: object
+          properties:
+            numero: { type: string, example: "ES-2026-000001" }
+            creado: { type: string, format: date-time }
+            estado: { type: string, enum: [pendiente_pago, pagado, confirmado, atendido, anulado] }
+            estado_pago: { type: string, enum: [pendiente, pagado, rechazado] }
+            medio_pago: { type: string, enum: [webpay, transferencia, efectivo] }
+            anulado_motivo: { type: string, nullable: true }
+            atendido_en: { type: string, format: date-time, nullable: true }
+            acciones: { type: array, items: { type: string, enum: [confirmar_pago, confirmar, atender, anular] } }
+            contacto: { type: object, properties: { nombre: { type: string }, email: { type: string }, telefono: { type: string } } }
+            visita: { type: object, additionalProperties: true }
+            desglose: { $ref: '#/components/schemas/CartFlowDesglose' }
+            pacientes: { type: array, items: { type: object, additionalProperties: true } }
+            pagos:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: integer }
+                  medio: { type: string }
+                  monto: { type: integer }
+                  estado: { type: string, enum: [iniciado, aprobado, rechazado, error] }
+                  buy_order: { type: string, nullable: true }
+                  status: { type: string, nullable: true }
+                  response_code: { type: integer, nullable: true }
+                  authorization_code: { type: string, nullable: true }
+            historial:
+              type: array
+              items:
+                type: object
+                properties:
+                  campo: { type: string, enum: [estado, estado_pago] }
+                  anterior: { type: string, nullable: true }
+                  nuevo: { type: string }
+                  motivo: { type: string, nullable: true }
+                  user_email: { type: string }
+                  fecha: { type: string, format: date-time }
 
     ResultadoSP:
       description: |
@@ -7675,6 +7725,363 @@ paths:
                       estado: { type: string, example: "nueva" }
         '422':
           description: Validación.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+
+  # ------------------------------------------------------------------
+  # SPEC 05 — Mantenedor del carro para el Administrador
+  # ------------------------------------------------------------------
+  /cart-flow/admin/resumen:
+    get:
+      tags: [Carro de servicios — administración]
+      summary: KPIs del carro
+      operationId: cartFlowAdminResumen
+      description: Pedidos de hoy, pendientes de pago (por medio), pagados y monto del mes, pedidos por estado, próximas visitas (7 días) y cotizaciones nuevas.
+      parameters:
+        - { name: user_email, in: query, required: true, schema: { type: string, format: email, example: "admin@ergosanitas.com" } }
+      responses:
+        '200':
+          description: Resumen.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "OK" }
+                  data:
+                    type: object
+                    properties:
+                      pedidos_hoy: { type: integer, example: 3 }
+                      pendientes_pago:
+                        type: object
+                        properties:
+                          cantidad: { type: integer }
+                          monto: { type: integer }
+                          por_medio: { type: object, additionalProperties: true }
+                      pagados_mes:
+                        type: object
+                        properties:
+                          cantidad: { type: integer }
+                          monto: { type: integer }
+                      por_estado: { type: object, additionalProperties: { type: integer } }
+                      proximas_visitas: { type: integer }
+                      cotizaciones_nuevas: { type: integer }
+        '403':
+          description: El email no es de perfil Administrador.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+
+  /cart-flow/admin/pedidos:
+    get:
+      tags: [Carro de servicios — administración]
+      summary: Pedidos paginados con filtros
+      operationId: cartFlowAdminPedidos
+      description: |
+        20 por página, del más nuevo al más antiguo. `por=visita` filtra `desde`/`hasta` sobre la fecha de la visita;
+        `por=creacion` (defecto) sobre la fecha de creación. `q` busca en número, contacto y RUT o nombre de pacientes.
+      parameters:
+        - { name: user_email, in: query, required: true, schema: { type: string, format: email, example: "admin@ergosanitas.com" } }
+        - { name: estado, in: query, required: false, schema: { type: string, enum: [pendiente_pago, pagado, confirmado, atendido, anulado] } }
+        - { name: estado_pago, in: query, required: false, schema: { type: string, enum: [pendiente, pagado, rechazado] } }
+        - { name: medio_pago, in: query, required: false, schema: { type: string, enum: [webpay, transferencia, efectivo] } }
+        - { name: desde, in: query, required: false, schema: { type: string, format: date } }
+        - { name: hasta, in: query, required: false, schema: { type: string, format: date } }
+        - { name: por, in: query, required: false, schema: { type: string, enum: [visita, creacion] } }
+        - { name: q, in: query, required: false, schema: { type: string, example: "11111111-1" } }
+        - { name: page, in: query, required: false, schema: { type: integer, minimum: 1 } }
+      responses:
+        '200':
+          description: Página de pedidos.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "OK" }
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            numero: { type: string, example: "ES-2026-000001" }
+                            creado: { type: string, format: date-time }
+                            fecha: { type: string, format: date }
+                            bloque: { type: string }
+                            comuna: { type: string }
+                            contacto_nombre: { type: string }
+                            contacto_telefono: { type: string }
+                            total: { type: integer }
+                            medio_pago: { type: string }
+                            estado: { type: string }
+                            estado_pago: { type: string }
+                            pacientes: { type: integer }
+                      total: { type: integer }
+                      pagina: { type: integer }
+                      por_pagina: { type: integer, example: 20 }
+                      ultima_pagina: { type: integer }
+        '403':
+          description: No es Administrador.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+        '422':
+          description: Filtro inválido.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+
+  /cart-flow/admin/pedidos/{numero}:
+    get:
+      tags: [Carro de servicios — administración]
+      summary: Detalle completo de un pedido
+      operationId: cartFlowAdminPedido
+      description: |
+        Contacto, visita, desglose, pacientes con RUT y fecha de nacimiento, líneas, preparación, órdenes médicas
+        (sin path), pagos (`buy_order`, `status`, `response_code`, `authorization_code`; sin token ni payload),
+        historial y `acciones` permitidas por el estado actual.
+      parameters:
+        - { name: numero, in: path, required: true, schema: { type: string, example: "ES-2026-000001" } }
+        - { name: user_email, in: query, required: true, schema: { type: string, format: email, example: "admin@ergosanitas.com" } }
+      responses:
+        '200':
+          description: Pedido.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowAdminPedido' }
+        '403':
+          description: No es Administrador.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+        '404':
+          description: Pedido inexistente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+
+  /cart-flow/admin/pedidos/{numero}/estado:
+    put:
+      tags: [Carro de servicios — administración]
+      summary: Cambia el estado del pedido
+      operationId: cartFlowAdminPedidoEstado
+      description: |
+        `confirmar_pago` (pendiente_pago → pagado, solo transferencia/efectivo), `confirmar` (pagado → confirmado),
+        `atender` (confirmado, o efectivo pendiente/pagado → atendido) y `anular` (motivo obligatorio; no desde
+        atendido). Cada cambio queda en `cf_pedido_historial`. Nada se borra.
+      parameters:
+        - { name: numero, in: path, required: true, schema: { type: string, example: "ES-2026-000001" } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_email, accion]
+              properties:
+                user_email: { type: string, format: email, example: "admin@ergosanitas.com" }
+                accion: { type: string, enum: [confirmar_pago, confirmar, atender, anular] }
+                motivo: { type: string, example: "Cliente pidió cancelar" }
+      responses:
+        '200':
+          description: Pedido actualizado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowAdminPedido' }
+        '403':
+          description: No es Administrador.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+        '404':
+          description: Pedido inexistente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+        '409':
+          description: "Transición inválida (`transicion_invalida`)."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+        '422':
+          description: Validación o anulación sin motivo.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+
+  /cart-flow/admin/ordenes/{id}/enlace:
+    post:
+      tags: [Carro de servicios — administración]
+      summary: Enlace firmado y temporal a una orden médica
+      operationId: cartFlowAdminOrdenEnlace
+      description: URL firmada válida 5 minutos hacia `cart-flow/admin/ordenes/{id}/descarga`. El archivo sigue en el disco privado.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, example: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_email]
+              properties:
+                user_email: { type: string, format: email, example: "admin@ergosanitas.com" }
+      responses:
+        '200':
+          description: Enlace.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "OK" }
+                  data:
+                    type: object
+                    properties:
+                      url: { type: string }
+                      expira: { type: string, format: date-time }
+        '403':
+          description: No es Administrador.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+        '404':
+          description: Orden inexistente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+
+  /cart-flow/admin/ordenes/{id}/descarga:
+    get:
+      tags: [Carro de servicios — administración]
+      summary: Descarga de la orden médica (URL firmada)
+      operationId: cartFlowAdminOrdenDescarga
+      description: Solo responde con la firma (`expires`, `signature`) que entrega el endpoint de enlace. Sin firma válida o vencida, 403.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, example: 1 } }
+        - { name: expires, in: query, required: true, schema: { type: integer } }
+        - { name: signature, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Archivo (PDF o imagen).
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '403':
+          description: Firma inválida o vencida.
+        '404':
+          description: Orden o archivo inexistente.
+
+  /cart-flow/admin/cotizaciones:
+    get:
+      tags: [Carro de servicios — administración]
+      summary: Solicitudes de cotización
+      operationId: cartFlowAdminCotizaciones
+      parameters:
+        - { name: user_email, in: query, required: true, schema: { type: string, format: email, example: "admin@ergosanitas.com" } }
+        - { name: estado, in: query, required: false, schema: { type: string, enum: [nueva, contactada, cerrada] } }
+        - { name: q, in: query, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: Hasta 500 cotizaciones, de la más nueva a la más antigua.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "OK" }
+                  data: { type: array, items: { type: object, additionalProperties: true } }
+        '403':
+          description: No es Administrador.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+
+  /cart-flow/admin/cotizaciones/{id}/estado:
+    put:
+      tags: [Carro de servicios — administración]
+      summary: Cambia el estado de una cotización
+      operationId: cartFlowAdminCotizacionEstado
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, example: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_email, estado]
+              properties:
+                user_email: { type: string, format: email, example: "admin@ergosanitas.com" }
+                estado: { type: string, enum: [nueva, contactada, cerrada] }
+      responses:
+        '200':
+          description: Cotización actualizada.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Cotización actualizada" }
+                  data: { type: object, additionalProperties: true }
+        '403':
+          description: No es Administrador.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+        '404':
+          description: Cotización inexistente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CartFlowError' }
+
+  /cart-flow/admin/productos:
+    get:
+      tags: [Carro de servicios — administración]
+      summary: Catálogo completo para el mantenedor
+      operationId: cartFlowAdminProductos
+      description: Incluye los productos ocultos, con `publicable` y `motivo_no_publicable`. Nunca los costos.
+      parameters:
+        - { name: user_email, in: query, required: true, schema: { type: string, format: email, example: "admin@ergosanitas.com" } }
+        - { name: q, in: query, required: false, schema: { type: string } }
+        - { name: categoria, in: query, required: false, schema: { type: string } }
+        - { name: visible, in: query, required: false, schema: { type: string, enum: ['0', '1'] } }
+      responses:
+        '200':
+          description: Productos.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "OK" }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        sku: { type: string }
+                        tipo: { type: string }
+                        categoria: { type: string }
+                        nombre: { type: string }
+                        precio: { type: integer, nullable: true }
+                        publicable: { type: boolean }
+                        visible_tienda: { type: boolean }
+                        motivo_no_publicable: { type: string, nullable: true }
+                        observacion: { type: string, nullable: true }
+        '403':
+          description: No es Administrador.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CartFlowError' }

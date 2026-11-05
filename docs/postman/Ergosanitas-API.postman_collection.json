@@ -3,7 +3,7 @@
         "name": "Ergosanitas — API REST v1.0.0",
         "_postman_id": "6f2c1a34-e0a1-4a11-9c8e-e12345678901",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-        "description": "Generada desde `docs/openapi.yaml` (110 operaciones).\n\nLas rutas de negocio **no llevan middleware de autenticacion**: `user_email` y `perfiles_id` viajan como parametros del request.\n\nAjusta `baseUrl` y las variables de coleccion (`user_email`, `rut_paciente`, `id_paciente`, `perfil`) antes de ejecutar.\n\nLos cuerpos son los ejemplos del contrato OpenAPI; en los `multipart/form-data` hay que seleccionar el archivo a mano."
+        "description": "Generada desde `docs/openapi.yaml` (119 operaciones).\n\nLas rutas de negocio **no llevan middleware de autenticacion**: `user_email` y `perfiles_id` viajan como parametros del request.\n\nAjusta `baseUrl` y las variables de coleccion (`user_email`, `rut_paciente`, `id_paciente`, `perfil`) antes de ejecutar.\n\nLos cuerpos son los ejemplos del contrato OpenAPI; en los `multipart/form-data` hay que seleccionar el archivo a mano."
     },
     "item": [
         {
@@ -2590,6 +2590,417 @@
             ]
         },
         {
+            "name": "Carro de servicios — administración",
+            "description": "SPEC 05 — Mantenedor «Carrito Compra» del Administrador: resumen, pedidos y pagos, gestión de estados con\nhistorial (`cf_pedido_historial`), orden médica por URL firmada, cotizaciones y catálogo completo. Todo exige\n`user_email` de perfil Administrador (403 si no).",
+            "item": [
+                {
+                    "name": "KPIs del carro",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/admin/resumen?user_email=admin@ergosanitas.com",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "admin",
+                                "resumen"
+                            ],
+                            "query": [
+                                {
+                                    "key": "user_email",
+                                    "value": "admin@ergosanitas.com",
+                                    "disabled": false,
+                                    "description": ""
+                                }
+                            ]
+                        },
+                        "description": "Pedidos de hoy, pendientes de pago (por medio), pagados y monto del mes, pedidos por estado, próximas visitas (7 días) y cotizaciones nuevas.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Resumen.\n- `403` - El email no es de perfil Administrador.\n\n---\n\n_operationId_: `cartFlowAdminResumen`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Pedidos paginados con filtros",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/admin/pedidos?user_email=admin@ergosanitas.com",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "admin",
+                                "pedidos"
+                            ],
+                            "query": [
+                                {
+                                    "key": "user_email",
+                                    "value": "admin@ergosanitas.com",
+                                    "disabled": false,
+                                    "description": ""
+                                },
+                                {
+                                    "key": "estado",
+                                    "value": "pendiente_pago",
+                                    "disabled": true,
+                                    "description": ""
+                                },
+                                {
+                                    "key": "estado_pago",
+                                    "value": "pendiente",
+                                    "disabled": true,
+                                    "description": ""
+                                },
+                                {
+                                    "key": "medio_pago",
+                                    "value": "webpay",
+                                    "disabled": true,
+                                    "description": ""
+                                },
+                                {
+                                    "key": "desde",
+                                    "value": "",
+                                    "disabled": true,
+                                    "description": ""
+                                },
+                                {
+                                    "key": "hasta",
+                                    "value": "",
+                                    "disabled": true,
+                                    "description": ""
+                                },
+                                {
+                                    "key": "por",
+                                    "value": "visita",
+                                    "disabled": true,
+                                    "description": ""
+                                },
+                                {
+                                    "key": "q",
+                                    "value": "11111111-1",
+                                    "disabled": true,
+                                    "description": ""
+                                },
+                                {
+                                    "key": "page",
+                                    "value": "0",
+                                    "disabled": true,
+                                    "description": ""
+                                }
+                            ]
+                        },
+                        "description": "20 por página, del más nuevo al más antiguo. `por=visita` filtra `desde`/`hasta` sobre la fecha de la visita;\n`por=creacion` (defecto) sobre la fecha de creación. `q` busca en número, contacto y RUT o nombre de pacientes.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Página de pedidos.\n- `403` - No es Administrador.\n- `422` - Filtro inválido.\n\n---\n\n_operationId_: `cartFlowAdminPedidos`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Detalle completo de un pedido",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/admin/pedidos/{{numero}}?user_email=admin@ergosanitas.com",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "admin",
+                                "pedidos",
+                                "{{numero}}"
+                            ],
+                            "query": [
+                                {
+                                    "key": "user_email",
+                                    "value": "admin@ergosanitas.com",
+                                    "disabled": false,
+                                    "description": ""
+                                }
+                            ]
+                        },
+                        "description": "Contacto, visita, desglose, pacientes con RUT y fecha de nacimiento, líneas, preparación, órdenes médicas\n(sin path), pagos (`buy_order`, `status`, `response_code`, `authorization_code`; sin token ni payload),\nhistorial y `acciones` permitidas por el estado actual.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Pedido.\n- `403` - No es Administrador.\n- `404` - Pedido inexistente.\n\n---\n\n_operationId_: `cartFlowAdminPedido`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Cambia el estado del pedido",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/admin/pedidos/{{numero}}/estado",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "admin",
+                                "pedidos",
+                                "{{numero}}",
+                                "estado"
+                            ]
+                        },
+                        "description": "`confirmar_pago` (pendiente_pago → pagado, solo transferencia/efectivo), `confirmar` (pagado → confirmado),\n`atender` (confirmado, o efectivo pendiente/pagado → atendido) y `anular` (motivo obligatorio; no desde\natendido). Cada cambio queda en `cf_pedido_historial`. Nada se borra.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Pedido actualizado.\n- `403` - No es Administrador.\n- `404` - Pedido inexistente.\n- `409` - Transición inválida (`transicion_invalida`).\n- `422` - Validación o anulación sin motivo.\n\n---\n\n_operationId_: `cartFlowAdminPedidoEstado`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"user_email\": \"admin@ergosanitas.com\",\n    \"accion\": \"confirmar_pago\",\n    \"motivo\": \"Cliente pidió cancelar\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Enlace firmado y temporal a una orden médica",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/admin/ordenes/{{id}}/enlace",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "admin",
+                                "ordenes",
+                                "{{id}}",
+                                "enlace"
+                            ]
+                        },
+                        "description": "URL firmada válida 5 minutos hacia `cart-flow/admin/ordenes/{id}/descarga`. El archivo sigue en el disco privado.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Enlace.\n- `403` - No es Administrador.\n- `404` - Orden inexistente.\n\n---\n\n_operationId_: `cartFlowAdminOrdenEnlace`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"user_email\": \"admin@ergosanitas.com\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Descarga de la orden médica (URL firmada)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/admin/ordenes/{{id}}/descarga?expires=0&signature=",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "admin",
+                                "ordenes",
+                                "{{id}}",
+                                "descarga"
+                            ],
+                            "query": [
+                                {
+                                    "key": "expires",
+                                    "value": "0",
+                                    "disabled": false,
+                                    "description": ""
+                                },
+                                {
+                                    "key": "signature",
+                                    "value": "",
+                                    "disabled": false,
+                                    "description": ""
+                                }
+                            ]
+                        },
+                        "description": "Solo responde con la firma (`expires`, `signature`) que entrega el endpoint de enlace. Sin firma válida o vencida, 403.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Archivo (PDF o imagen).\n- `403` - Firma inválida o vencida.\n- `404` - Orden o archivo inexistente.\n\n---\n\n_operationId_: `cartFlowAdminOrdenDescarga`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Solicitudes de cotización",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/admin/cotizaciones?user_email=admin@ergosanitas.com",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "admin",
+                                "cotizaciones"
+                            ],
+                            "query": [
+                                {
+                                    "key": "user_email",
+                                    "value": "admin@ergosanitas.com",
+                                    "disabled": false,
+                                    "description": ""
+                                },
+                                {
+                                    "key": "estado",
+                                    "value": "nueva",
+                                    "disabled": true,
+                                    "description": ""
+                                },
+                                {
+                                    "key": "q",
+                                    "value": "",
+                                    "disabled": true,
+                                    "description": ""
+                                }
+                            ]
+                        },
+                        "description": "**Respuestas documentadas**\n\n- `200` - Hasta 500 cotizaciones, de la más nueva a la más antigua.\n- `403` - No es Administrador.\n\n---\n\n_operationId_: `cartFlowAdminCotizaciones`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Cambia el estado de una cotización",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/admin/cotizaciones/{{id}}/estado",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "admin",
+                                "cotizaciones",
+                                "{{id}}",
+                                "estado"
+                            ]
+                        },
+                        "description": "**Respuestas documentadas**\n\n- `200` - Cotización actualizada.\n- `403` - No es Administrador.\n- `404` - Cotización inexistente.\n\n---\n\n_operationId_: `cartFlowAdminCotizacionEstado`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"user_email\": \"admin@ergosanitas.com\",\n    \"estado\": \"nueva\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Catálogo completo para el mantenedor",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/admin/productos?user_email=admin@ergosanitas.com",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "admin",
+                                "productos"
+                            ],
+                            "query": [
+                                {
+                                    "key": "user_email",
+                                    "value": "admin@ergosanitas.com",
+                                    "disabled": false,
+                                    "description": ""
+                                },
+                                {
+                                    "key": "q",
+                                    "value": "",
+                                    "disabled": true,
+                                    "description": ""
+                                },
+                                {
+                                    "key": "categoria",
+                                    "value": "",
+                                    "disabled": true,
+                                    "description": ""
+                                },
+                                {
+                                    "key": "visible",
+                                    "value": "0",
+                                    "disabled": true,
+                                    "description": ""
+                                }
+                            ]
+                        },
+                        "description": "Incluye los productos ocultos, con `publicable` y `motivo_no_publicable`. Nunca los costos.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Productos.\n- `403` - No es Administrador.\n\n---\n\n_operationId_: `cartFlowAdminProductos`"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
             "name": "Incidencias deportivas",
             "description": "Registro de lesiones deportivas y sus estadísticas por liga, categoría y parte del cuerpo.",
             "item": [
@@ -3750,7 +4161,7 @@
         },
         {
             "key": "id",
-            "value": "5",
+            "value": "1",
             "type": "string",
             "description": "Id de `home_imagenes`. Solo dígitos (`whereNumber`); otro valor no encuentra ruta."
         },

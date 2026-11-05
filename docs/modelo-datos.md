@@ -395,6 +395,27 @@ erDiagram
 
 Tablas sin relación: `cf_reglas` (reglas de negocio en JSON por clave), `cf_operativo_tramos` (precios por tramo, referencia para cotizar) y `cf_cotizaciones` (solicitudes con estado `nueva|contactada|cerrada`).
 
+**SPEC 05:** `cf_pedido_historial` (`pedido_id` FK → `cf_pedidos`) guarda cada cambio de `estado` o `estado_pago` con el `user_email` del Administrador y el motivo. `cf_pedidos` suma `anulado_motivo` y `atendido_en`.
+
+### Máquina de estados del pedido del carro
+
+Webpay pasa a `pagado` solo por el commit de Transbank; transferencia y efectivo, por `confirmar_pago` del Administrador.
+
+```mermaid
+stateDiagram-v2
+    [*] --> pendiente_pago: checkout
+    pendiente_pago --> pagado: Webpay AUTHORIZED · confirmar_pago (transferencia/efectivo)
+    pagado --> confirmado: confirmar
+    confirmado --> atendido: atender
+    pendiente_pago --> atendido: atender (solo efectivo)
+    pagado --> atendido: atender (solo efectivo)
+    pendiente_pago --> anulado: anular (motivo)
+    pagado --> anulado: anular (motivo)
+    confirmado --> anulado: anular (motivo)
+    atendido --> [*]
+    anulado --> [*]
+```
+
 ---
 
 ## Las tres claves de cruce

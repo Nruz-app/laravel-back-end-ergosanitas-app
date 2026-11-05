@@ -41,10 +41,35 @@ abstract class CartFlowTestCase extends TestCase
                 'database/migrations/2026_11_04_120000_create_cf_catalogo_tables.php',
                 'database/migrations/2026_11_04_120100_create_cf_agenda_carrito_tables.php',
                 'database/migrations/2026_11_04_120200_create_cf_pedido_pago_tables.php',
+                'database/migrations/2026_11_05_120000_create_cf_pedido_historial_table.php',
             ],
         ])->assertExitCode(0);
 
         $this->seed(CartFlowSeeder::class);
+    }
+
+    /**
+     * users_metadata y perfiles no tienen migración en el repo: se crean mínimas para que
+     * esAdministrador() funcione en SQLite. Devuelve el email del Administrador ficticio.
+     */
+    protected function crearAdministrador(string $email = 'admin@example.com'): string
+    {
+        if (! \Illuminate\Support\Facades\Schema::hasTable('perfiles')) {
+            \Illuminate\Support\Facades\Schema::create('perfiles', function ($t) {
+                $t->id();
+                $t->string('nombre');
+            });
+            \Illuminate\Support\Facades\Schema::create('users_metadata', function ($t) {
+                $t->id();
+                $t->string('user_email');
+                $t->unsignedBigInteger('perfiles_id');
+            });
+        }
+
+        $perfil = \Illuminate\Support\Facades\DB::table('perfiles')->insertGetId(['nombre' => 'Administrador']);
+        \Illuminate\Support\Facades\DB::table('users_metadata')->insert(['user_email' => $email, 'perfiles_id' => $perfil]);
+
+        return $email;
     }
 
     protected function tearDown(): void

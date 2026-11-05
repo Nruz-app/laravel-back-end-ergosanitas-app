@@ -34,7 +34,13 @@ class Pedido extends Model
         'ajuste_redondeo' => 'integer',
         'total' => 'integer',
         'requiere_manana' => 'boolean',
+        'atendido_en' => 'datetime',
     ];
+
+    public function historial(): HasMany
+    {
+        return $this->hasMany(PedidoHistorial::class, 'pedido_id')->orderBy('id');
+    }
 
     public function pacientes(): HasMany
     {

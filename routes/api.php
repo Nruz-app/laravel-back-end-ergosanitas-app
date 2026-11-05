@@ -16,6 +16,7 @@ use App\Http\Controllers\FileUploadController;
 
 use App\Http\Controllers\ServiciosController;
 use App\Http\Controllers\WebPayController;
+use App\Http\Controllers\CartFlow\AdminCartFlowController;
 use App\Http\Controllers\CartFlow\AgendaPedidoController;
 use App\Http\Controllers\CartFlow\CarritoController;
 use App\Http\Controllers\CartFlow\CatalogoController;
@@ -380,6 +381,39 @@ Route::get('cart-flow/catalogo/{sku}', [CatalogoController::class, 'Show'])
 
 Route::put('cart-flow/admin/productos/{sku}/visibilidad', [CatalogoController::class, 'UpdateVisibilidad'])
     ->name('CartFlowVisibilidad');
+
+// SPEC 05 — Mantenedor «Carrito Compra» del Administrador. Literales antes de {numero}/{id};
+// la descarga de la orden médica solo acepta una URL firmada y temporal (middleware signed).
+Route::get('cart-flow/admin/resumen', [AdminCartFlowController::class, 'Resumen'])
+    ->name('CartFlowAdminResumen');
+
+Route::get('cart-flow/admin/productos', [AdminCartFlowController::class, 'Productos'])
+    ->name('CartFlowAdminProductos');
+
+Route::get('cart-flow/admin/cotizaciones', [AdminCartFlowController::class, 'Cotizaciones'])
+    ->name('CartFlowAdminCotizaciones');
+
+Route::put('cart-flow/admin/cotizaciones/{id}/estado', [AdminCartFlowController::class, 'CotizacionEstado'])
+    ->whereNumber('id')
+    ->name('CartFlowAdminCotizacionEstado');
+
+Route::post('cart-flow/admin/ordenes/{id}/enlace', [AdminCartFlowController::class, 'OrdenEnlace'])
+    ->whereNumber('id')
+    ->name('CartFlowAdminOrdenEnlace');
+
+Route::get('cart-flow/admin/ordenes/{id}/descarga', [AdminCartFlowController::class, 'OrdenDescarga'])
+    ->whereNumber('id')
+    ->middleware('signed')
+    ->name('CartFlowOrdenDescarga');
+
+Route::get('cart-flow/admin/pedidos', [AdminCartFlowController::class, 'Pedidos'])
+    ->name('CartFlowAdminPedidos');
+
+Route::get('cart-flow/admin/pedidos/{numero}', [AdminCartFlowController::class, 'Pedido'])
+    ->name('CartFlowAdminPedido');
+
+Route::put('cart-flow/admin/pedidos/{numero}/estado', [AdminCartFlowController::class, 'PedidoEstado'])
+    ->name('CartFlowAdminPedidoEstado');
 
 Route::get('cart-flow/agenda/bloques', [AgendaPedidoController::class, 'Bloques'])
     ->name('CartFlowAgendaBloques');

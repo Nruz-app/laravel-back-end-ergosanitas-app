@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Console\Commands\CartFlowImportarCatalogo;
+use App\Services\CartFlow\AdminPedidoService;
 use App\Services\CartFlow\AgendaService;
 use App\Services\CartFlow\CalculadoraCarroService;
 use App\Services\CartFlow\CarritoService;
@@ -27,6 +28,7 @@ class CartFlowServiceProvider extends ServiceProvider
         $this->app->singleton(AgendaService::class, fn () => new AgendaService);
         $this->app->singleton(PedidoService::class, fn () => new PedidoService);
         $this->app->singleton(WebPayCartFlowService::class, fn () => new WebPayCartFlowService);
+        $this->app->singleton(AdminPedidoService::class, fn () => new AdminPedidoService);
 
         $this->app->singleton(ImportadorCatalogoService::class, fn ($app) => new ImportadorCatalogoService(
             $app->make(CatalogoCsv::class)

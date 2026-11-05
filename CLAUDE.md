@@ -8,11 +8,11 @@ API REST en Laravel 11 (PHP 8.2) para **Ergosanitas**: gestión de chequeos card
 
 El código y los comentarios están en español. Los métodos de controlador van en `PascalCase` (`FindByEmail`, `ChequeoPDFRut`), a diferencia de la convención Laravel por defecto.
 
-`README.md` documenta el stack, la instalación y el catálogo de endpoints. `docs/openapi.yaml` es el contrato OpenAPI 3.0.3 con las 110 operaciones detalladas (request, respuestas por código y ejemplos); `docs/index.html` lo muestra con Swagger UI. Este archivo cubre lo que no se deduce leyendo un solo archivo.
+`README.md` documenta el stack, la instalación y el catálogo de endpoints. `docs/openapi.yaml` es el contrato OpenAPI 3.0.3 con las 119 operaciones detalladas (request, respuestas por código y ejemplos); `docs/index.html` lo muestra con Swagger UI. Este archivo cubre lo que no se deduce leyendo un solo archivo.
 
 La vista gráfica vive en cuatro documentos Mermaid: `docs/arquitectura.md` (componentes, capas, providers, despliegue), `docs/flujos.md` (14 diagramas de secuencia end-to-end), `docs/diagrama-clases.md` (clases UML por dominio) y `docs/modelo-datos.md` (ERD, máquina de estados, autorización por perfil, catálogo de SP). `docs/README.md` los indexa. Ademas, `docs/diagramas/` tiene tres artefactos **explorables** en HTML generados con archify (arquitectura, juego de cartas y ciclo de vida del chequeo): el `.html` es generado, la fuente es su `.json` hermano.
 
-`docs/postman/` es la excepción generada: `Ergosanitas-API.postman_collection.json` (110 requests, 18 carpetas) y sus tres entornos salen de `openapi.yaml` con `php docs/postman/generar-coleccion.php`. No los edites a mano; `php docs/postman/verificar-cobertura.php` contrasta la colección con `route:list`.
+`docs/postman/` es la excepción generada: `Ergosanitas-API.postman_collection.json` (119 requests, 19 carpetas) y sus tres entornos salen de `openapi.yaml` con `php docs/postman/generar-coleccion.php`. No los edites a mano; `php docs/postman/verificar-cobertura.php` contrasta la colección con `route:list`.
 
 El contrato y los diagramas **se mantienen a mano**: no hay generación automática ni anotaciones L5-Swagger. Al agregar o modificar una ruta en `routes/api.php`, actualiza `docs/openapi.yaml` en el mismo commit y contrasta con `php artisan route:list --json`. Si cambia un flujo, una clase o el esquema, actualiza también el `.md` de diagramas correspondiente.
 
@@ -177,7 +177,8 @@ Flujo **paralelo** al de `servicios` / `agenda-horas` / `transbank/*`, que sigue
 - Nada se borra: quitar paciente o línea del carro es soft delete; un pedido se anula (`estado = anulado`).
 - Webpay del carro (`WebPayCartFlowService`) reutiliza `WEBPAY_URL|ID|SECRET` vía `config('services.cart_flow')` y suma dos variables **opcionales**: `WEBPAY_CART_FLOW_RETURN` (si falta, `route('CartFlowWebPayRetorno')`, el mismo host que atiende) y `CART_FLOW_FRONT_URL` (si falta, `http://localhost:5173` con `APP_ENV=local`, si no `https://ergosanitas.com`). Probado de punta a punta contra la integración `webpay3gint` con la tarjeta de prueba VISA (2026-11-05). Cobra `cf_pedidos.total`, `buy_order` único por intento, y solo marca `pagado` con `AUTHORIZED` + `response_code = 0` + monto y `buy_order` iguales.
 - La orden médica va al disco privado `local` (`storage/app/private/cart-flow/ordenes`), nunca a `public/`.
-- **Tests**: `php artisan test --filter=CartFlow`. `tests/Feature/CartFlow/CartFlowTestCase.php` fuerza SQLite en memoria antes de arrancar la app y migra solo las tres migraciones `cf_*`, así que no tocan el MySQL remoto aunque `phpunit.xml` lo tenga configurado. El test unitario no arranca Laravel: crea los `Producto` con `Model::unguarded()` porque `fill()` con `$guarded` consulta las columnas en la base.
+- **Tests**: `php artisan test --filter=CartFlow`. `tests/Feature/CartFlow/CartFlowTestCase.php` fuerza SQLite en memoria antes de arrancar la app y migra solo las migraciones `cf_*`, así que no tocan el MySQL remoto aunque `phpunit.xml` lo tenga configurado. El test unitario no arranca Laravel: crea los `Producto` con `Model::unguarded()` porque `fill()` con `$guarded` consulta las columnas en la base. `CartFlowTestCase::crearAdministrador()` crea `perfiles` y `users_metadata` mínimas para probar lo que exige Administrador.
+- **Mantenedor del Administrador (Spec 05, `specs/05-mantenedor-carrito-compra.md`)**: `AdminCartFlowController` + `AdminPedidoService`, rutas `cart-flow/admin/*`, todas con `user_email` Administrador. El estado del pedido cambia **solo** por acciones nombradas (`confirmar_pago`, `confirmar`, `atender`, `anular`); `accionesPermitidas()` es la única fuente de qué se puede hacer, y cada cambio escribe en `cf_pedido_historial`. La orden médica se descarga por `URL::temporarySignedRoute` (5 min, middleware `signed`), nunca con `user_email` en la URL.
 
 ### Generación de documentos
 
@@ -208,7 +209,7 @@ Todo en `routes/api.php`, plano y sin agrupar, con prefijo automático `/api`. O
 
 - Agentes en `.claude/agents/`: `ergosanitas-developer` (implementa y corrige), `ergosanitas-laravel` (dudas de framework/PHP), `ergosanitas-mysql` (queries, SP, MySQL 5.7) y `ergo-docs` (mantiene `docs/`; documenta, nunca toca código). Cada uno carga su skill homónima de `.claude/skills/`.
 - Al cerrar un cambio que toque `routes/`, controladores, servicios, modelos o el esquema, pasa por `ergo-docs` para poner al día el contrato, los diagramas y la colección Postman.
-- Las features nuevas se hacen por spec: `/spec` redacta `specs/NN-nombre.md` y `/spec-impl` o `/spec-impl-ergo` la implementan por pasos. Hoy existen `01-asistente-chat-club`, `02-juego-cartas-niveles`, `03-mantenedor-imagenes-home` y `04-servicio-cart-flow`; léelas antes de tocar esos dominios.
+- Las features nuevas se hacen por spec: `/spec` redacta `specs/NN-nombre.md` y `/spec-impl` o `/spec-impl-ergo` la implementan por pasos. Hoy existen `01-asistente-chat-club`, `02-juego-cartas-niveles`, `03-mantenedor-imagenes-home`, `04-servicio-cart-flow` y `05-mantenedor-carrito-compra`; léelas antes de tocar esos dominios.
 
 ## Trampas conocidas
 
