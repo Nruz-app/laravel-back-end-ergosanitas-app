@@ -175,19 +175,9 @@ class CarritoFlujoTest extends CartFlowTestCase
 
     public function test_webpay_cobra_el_total_del_pedido_y_valida_el_commit(): void
     {
-        config(['services.cart_flow.webpay_url' => 'https://webpay.test/transactions',
-            'services.cart_flow.webpay_return' => 'https://api.test/api/cart-flow/webpay/retorno',
-            'services.cart_flow.front_url' => 'https://front.test']);
+        $this->configurarWebPay('https://api.test/api/cart-flow/webpay/retorno');
 
-        $carrito = $this->crearCarrito('Maipú');
-        $uuid = $carrito['uuid'];
-        $this->agregar($uuid, $carrito['pacientes'][0]['id'], 'PERF-BASICO');
-        $this->datosPaciente($uuid, $carrito['pacientes'][0]['id']);
-
-        $pedido = $this->checkout($uuid, $this->primerBloque($uuid), ['medio_pago' => 'webpay'])->assertCreated();
-        $numero = $pedido->json('data.numero');
-        $token = $pedido->json('data.token_consulta');
-        $total = $pedido->json('data.desglose.total');
+        [$numero, $token, $total] = $this->pedidoWebPay();
         $buyOrder = null;
 
         $intento = 0;
@@ -220,6 +210,63 @@ class CarritoFlujoTest extends CartFlowTestCase
             ->assertRedirect("https://front.test/servicios/resultado?pago=aprobado&pedido={$numero}&t={$token}");
 
         $this->assertSame('pagado', Pedido::where('numero', $numero)->value('estado'));
+    }
+
+    public function test_sin_webpay_cart_flow_return_usa_la_ruta_propia(): void
+    {
+        $this->configurarWebPay(null);
+
+        [$numero, $token] = $this->pedidoWebPay();
+        $retorno = null;
+
+        Http::fake(function ($request) use (&$retorno) {
+            $retorno = $request['return_url'];
+
+            return Http::response(['token' => 'tok-r', 'url' => 'https://webpay.test/pay']);
+        });
+
+        $this->postJson("/api/cart-flow/pedidos/{$numero}/webpay", ['t' => $token])->assertOk();
+
+        $this->assertStringEndsWith('/api/cart-flow/webpay/retorno', (string) $retorno);
+    }
+
+    public function test_sin_credenciales_webpay_responde_503_con_la_variable_faltante(): void
+    {
+        $this->configurarWebPay('https://api.test/retorno');
+        config(['services.cart_flow.webpay_secret' => null]);
+
+        [$numero, $token] = $this->pedidoWebPay();
+
+        $this->postJson("/api/cart-flow/pedidos/{$numero}/webpay", ['t' => $token])
+            ->assertStatus(503)
+            ->assertJsonPath('error', 'webpay_no_configurado');
+
+        $this->assertStringContainsString('WEBPAY_SECRET', $this->postJson("/api/cart-flow/pedidos/{$numero}/webpay", ['t' => $token])->json('message'));
+    }
+
+    /** Credenciales ficticias: los tests nunca dependen del .env. */
+    private function configurarWebPay(?string $retorno): void
+    {
+        config([
+            'services.cart_flow.webpay_url' => 'https://webpay.test/transactions',
+            'services.cart_flow.webpay_id' => 'id-de-prueba',
+            'services.cart_flow.webpay_secret' => 'secreto-de-prueba',
+            'services.cart_flow.webpay_return' => $retorno,
+            'services.cart_flow.front_url' => 'https://front.test',
+        ]);
+    }
+
+    /** @return array{0:string, 1:string, 2:int} numero, token_consulta y total de un pedido Webpay nuevo */
+    private function pedidoWebPay(): array
+    {
+        $carrito = $this->crearCarrito('Maipú');
+        $uuid = $carrito['uuid'];
+        $this->agregar($uuid, $carrito['pacientes'][0]['id'], 'PERF-BASICO');
+        $this->datosPaciente($uuid, $carrito['pacientes'][0]['id']);
+
+        $pedido = $this->checkout($uuid, $this->primerBloque($uuid), ['medio_pago' => 'webpay'])->assertCreated();
+
+        return [$pedido->json('data.numero'), $pedido->json('data.token_consulta'), $pedido->json('data.desglose.total')];
     }
 
     public function test_visibilidad_exige_administrador_y_deja_registro(): void

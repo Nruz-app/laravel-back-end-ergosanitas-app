@@ -42,14 +42,17 @@ return [
     ],
 
     // SPEC 04 — Carro de servicios (servicio-cart-flow). Reutiliza las credenciales de Webpay del
-    // flujo anterior; la URL de retorno es propia (apunta a api/cart-flow/webpay/retorno) y
-    // front_url es donde se redirige al cliente despues de pagar (/servicios/resultado).
+    // flujo anterior. Las dos variables propias son opcionales:
+    // - WEBPAY_CART_FLOW_RETURN vacia → WebPayCartFlowService usa route('CartFlowWebPayRetorno'),
+    //   es decir, el mismo host que atendio la peticion (local o hosting).
+    // - CART_FLOW_FRONT_URL vacia → http://localhost:5173 en APP_ENV=local, https://ergosanitas.com si no.
     'cart_flow' => [
         'webpay_url' => env('WEBPAY_URL'),
         'webpay_id' => env('WEBPAY_ID'),
         'webpay_secret' => env('WEBPAY_SECRET'),
         'webpay_return' => env('WEBPAY_CART_FLOW_RETURN'),
-        'front_url' => rtrim((string) env('CART_FLOW_FRONT_URL', 'https://ergosanitas.com'), '/'),
+        'front_url' => rtrim((string) (env('CART_FLOW_FRONT_URL')
+            ?: (env('APP_ENV') === 'local' ? 'http://localhost:5173' : 'https://ergosanitas.com')), '/'),
     ],
 
 ];

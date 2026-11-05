@@ -7593,7 +7593,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/CartFlowError' }
         '503':
-          description: Faltan `WEBPAY_URL` o `WEBPAY_CART_FLOW_RETURN`.
+          description: "Faltan `WEBPAY_URL`, `WEBPAY_ID` o `WEBPAY_SECRET` (el mensaje nombra cuál). `WEBPAY_CART_FLOW_RETURN` es opcional; sin ella se usa la ruta propia del mismo host."
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CartFlowError' }

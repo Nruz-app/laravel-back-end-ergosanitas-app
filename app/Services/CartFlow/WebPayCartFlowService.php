@@ -29,9 +29,18 @@ class WebPayCartFlowService
 
         $config = config('services.cart_flow');
 
-        if (empty($config['webpay_url']) || empty($config['webpay_return'])) {
-            throw new CartFlowException('El pago con Webpay no está configurado.', 503, 'webpay_no_configurado');
+        $faltan = array_keys(array_filter([
+            'WEBPAY_URL' => empty($config['webpay_url']),
+            'WEBPAY_ID' => empty($config['webpay_id']),
+            'WEBPAY_SECRET' => empty($config['webpay_secret']),
+        ]));
+
+        if ($faltan !== []) {
+            throw new CartFlowException('El pago con Webpay no está configurado (falta '.implode(', ', $faltan).').', 503, 'webpay_no_configurado');
         }
+
+        // Sin WEBPAY_CART_FLOW_RETURN, el retorno es la ruta propia en el mismo host de la peticion.
+        $retorno = $config['webpay_return'] ?: route('CartFlowWebPayRetorno');
 
         $pago = Pago::create([
             'pedido_id' => $pedido->id,
@@ -49,8 +58,15 @@ class WebPayCartFlowService
                 'buy_order' => $buyOrder,
                 'session_id' => $pedido->numero,
                 'amount' => $pedido->total,
-                'return_url' => $config['webpay_return'],
+                'return_url' => $retorno,
             ]);
+
+        Log::info('cart-flow webpay create', [
+            'pedido' => $pedido->numero,
+            'buy_order' => $buyOrder,
+            'ambiente' => str_contains((string) $config['webpay_url'], 'webpay3gint') ? 'int' : 'prod',
+            'status' => $respuesta->status(),
+        ]);
 
         if (! $respuesta->successful() || ! $respuesta->json('token')) {
             $pago->update(['estado' => 'error', 'payload' => ['http' => $respuesta->status(), 'body' => $respuesta->json()]]);

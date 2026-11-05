@@ -2467,7 +2467,7 @@
                                 "webpay"
                             ]
                         },
-                        "description": "Crea la transacción por **`cf_pedidos.total`** (nunca por un monto del cliente) con\n`buy_order` único por intento (`CF{pedido}-{pago}`) y `session_id` = número de pedido.\nEl front hace un form POST a `url` con el campo `token_ws`.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Transacción creada.\n- `404` - Pedido inexistente o token incorrecto.\n- `409` - El pedido no es Webpay o ya no está pendiente de pago.\n- `502` - Transbank rechazó la creación.\n- `503` - Faltan `WEBPAY_URL` o `WEBPAY_CART_FLOW_RETURN`.\n\n---\n\n_operationId_: `cartFlowPedidoWebPay`",
+                        "description": "Crea la transacción por **`cf_pedidos.total`** (nunca por un monto del cliente) con\n`buy_order` único por intento (`CF{pedido}-{pago}`) y `session_id` = número de pedido.\nEl front hace un form POST a `url` con el campo `token_ws`.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Transacción creada.\n- `404` - Pedido inexistente o token incorrecto.\n- `409` - El pedido no es Webpay o ya no está pendiente de pago.\n- `502` - Transbank rechazó la creación.\n- `503` - Faltan `WEBPAY_URL`, `WEBPAY_ID` o `WEBPAY_SECRET` (el mensaje nombra cuál). `WEBPAY_CART_FLOW_RETURN` es opcional; sin ella se usa la ruta propia del mismo host.\n\n---\n\n_operationId_: `cartFlowPedidoWebPay`",
                         "body": {
                             "mode": "raw",
                             "raw": "{\n    \"t\": \"3f1c2a7e-8d4b-4c1a-9e2f-5b6a7c8d9e0f\"\n}",
