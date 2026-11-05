@@ -3,6 +3,17 @@
  * Convierte docs/openapi.yaml en una coleccion Postman v2.1.
  * Uso, desde la raiz del repo:
  *   php docs/postman/generar-coleccion.php
+ *
+ * Extension opcional `x-postman` por operacion (la usan las carpetas del carro, para que se
+ * puedan correr en orden sin copiar ids a mano). No cambia el contrato que ve Swagger:
+ *   orden   int                 orden dentro de la carpeta (las demas van despues, en orden del YAML)
+ *   vars    {param: variable}   renombra la variable de un {param} de ruta (p. ej. id -> linea_id)
+ *   query   {clave: valor}      valor de un query param (se habilita aunque sea opcional)
+ *   body    objeto              cuerpo JSON en lugar del ejemplo del contrato
+ *   form    {clave: valor}      valor de un campo de texto multipart
+ *   guardar {variable: expr}    script de Tests: guarda expr (JS sobre `r`, el JSON de la respuesta)
+ *   redirecciones false         no seguir el 302 (para ver la redireccion en vez de seguirla)
+ * Y en la raiz, `x-postman-variables`: [{key, value, description}] variables extra de coleccion.
  */
 
 require __DIR__.'/../../vendor/autoload.php';
@@ -147,6 +158,9 @@ foreach ($spec['paths'] as $path => $pathItem) {
         $op = $pathItem[$method];
         $count++;
 
+        $xp = $op['x-postman'] ?? [];
+        $renombres = $xp['vars'] ?? [];
+
         $params = array_merge($sharedParams, $op['parameters'] ?? []);
         $params = array_map(fn ($p) => deref($spec, $p), $params);
 
@@ -161,7 +175,10 @@ foreach ($spec['paths'] as $path => $pathItem) {
             $example = sample($spec, $p['schema'] ?? ['type' => 'string']);
             $example = is_scalar($example) ? (string) $example : '';
 
-            if (($p['in'] ?? '') === 'path') {
+            if (($p['in'] ?? '') === 'path' && isset($renombres[$name])) {
+                $collectionVars[$renombres[$name]] = $collectionVars[$renombres[$name]] ?? $example;
+                $varDescriptions[$renombres[$name]] = $varDescriptions[$renombres[$name]] ?? '';
+            } elseif (($p['in'] ?? '') === 'path') {
                 $collectionVars[$name] = $collectionVars[$name] ?? $example;
                 if ($example !== '') {
                     $varSamples[$name][$example] = ($varSamples[$name][$example] ?? 0) + 1;
@@ -169,10 +186,11 @@ foreach ($spec['paths'] as $path => $pathItem) {
                 $varDescriptions[$name] = $varDescriptions[$name]
                     ?? trim(explode("\n", trim($p['description'] ?? ''))[0]);
             } elseif (($p['in'] ?? '') === 'query') {
+                $fijo = array_key_exists($name, $xp['query'] ?? []);
                 $query[] = [
                     'key' => $name,
-                    'value' => $example,
-                    'disabled' => ! ($p['required'] ?? false),
+                    'value' => $fijo ? (string) $xp['query'][$name] : $example,
+                    'disabled' => ! ($fijo || ($p['required'] ?? false)),
                     'description' => trim($p['description'] ?? ''),
                 ];
             }
@@ -182,10 +200,11 @@ foreach ($spec['paths'] as $path => $pathItem) {
         // igual se registran como variable de coleccion.
         if (preg_match_all('/\{([a-zA-Z0-9_]+)\}/', $path, $m)) {
             foreach ($m[1] as $name) {
-                $collectionVars[$name] = $collectionVars[$name] ?? '';
+                $var = $renombres[$name] ?? $name;
+                $collectionVars[$var] = $collectionVars[$var] ?? '';
             }
         }
-        $rawPath = preg_replace('/\{([a-zA-Z0-9_]+)\}/', '{{$1}}', $path);
+        $rawPath = preg_replace_callback('/\{([a-zA-Z0-9_]+)\}/', fn ($m) => '{{'.($renombres[$m[1]] ?? $m[1]).'}}', $path);
 
         $segments = array_values(array_filter(explode('/', ltrim($rawPath, '/')), fn ($s) => $s !== ''));
 
@@ -208,7 +227,7 @@ foreach ($spec['paths'] as $path => $pathItem) {
 
         $content = $op['requestBody']['content'] ?? [];
         if (isset($content['application/json'])) {
-            $value = bodyExample($spec, $content['application/json']);
+            $value = array_key_exists('body', $xp) ? $xp['body'] : bodyExample($spec, $content['application/json']);
             $headers[] = ['key' => 'Content-Type', 'value' => 'application/json'];
             $body = [
                 'mode' => 'raw',
@@ -235,7 +254,7 @@ foreach ($spec['paths'] as $path => $pathItem) {
                         'description' => $desc !== '' ? $desc : 'Archivo a subir (seleccionalo en Postman).',
                     ];
                 } else {
-                    $val = sample($spec, $prop);
+                    $val = array_key_exists($name, $xp['form'] ?? []) ? $xp['form'][$name] : sample($spec, $prop);
                     $formdata[] = [
                         'key' => $name,
                         'type' => 'text',
@@ -263,6 +282,28 @@ foreach ($spec['paths'] as $path => $pathItem) {
             'response' => [],
         ];
 
+        // Guarda valores de la respuesta en variables: en el entorno activo (que tiene prioridad
+        // sobre la coleccion) y en la coleccion, para que funcione con o sin entorno.
+        if (! empty($xp['guardar'])) {
+            $lineas = [
+                'const r = pm.response.json();',
+                'const guardar = (k, v) => { if (v === undefined || v === null) return; if (pm.environment.name) pm.environment.set(k, String(v)); pm.collectionVariables.set(k, String(v)); };',
+            ];
+            foreach ($xp['guardar'] as $var => $expr) {
+                $lineas[] = 'try { guardar('.json_encode($var).', '.$expr.'); } catch (e) { console.log('.json_encode('No se pudo guardar '.$var).', e); }';
+            }
+            $item['event'] = [[
+                'listen' => 'test',
+                'script' => ['type' => 'text/javascript', 'exec' => $lineas],
+            ]];
+        }
+
+        if (($xp['redirecciones'] ?? true) === false) {
+            $item['protocolProfileBehavior'] = ['followRedirects' => false];
+        }
+
+        $item['_orden'] = $xp['orden'] ?? 1000 + $count;
+
         $tag = $op['tags'][0] ?? 'Sin categoria';
         if (! isset($folders[$tag])) {
             $folders[$tag] = [];
@@ -283,6 +324,12 @@ foreach ($tagOrder as $tag) {
     if (empty($folders[$tag])) {
         continue;
     }
+    usort($folders[$tag], fn ($a, $b) => $a['_orden'] <=> $b['_orden']);
+    $folders[$tag] = array_map(function ($i) {
+        unset($i['_orden']);
+
+        return $i;
+    }, $folders[$tag]);
     $items[] = [
         'name' => $tag,
         'description' => $tagDescriptions[$tag] ?? '',
@@ -299,6 +346,10 @@ $variables = [
             .implode(' | ', array_map(fn ($s) => $s['url'], $spec['servers'] ?? [])),
     ],
 ];
+foreach (($spec['x-postman-variables'] ?? []) as $extra) {
+    $collectionVars[$extra['key']] = $collectionVars[$extra['key']] ?? (string) ($extra['value'] ?? '');
+    $varDescriptions[$extra['key']] = $extra['description'] ?? ($varDescriptions[$extra['key']] ?? '');
+}
 ksort($collectionVars);
 foreach ($collectionVars as $name => $value) {
     // Con varios ejemplos para el mismo parametro gana el mas repetido en el
@@ -322,7 +373,7 @@ $collection = [
         'schema' => 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
         'description' => 'Generada desde `docs/openapi.yaml` ('.$count." operaciones).\n\n"
             ."Las rutas de negocio **no llevan middleware de autenticacion**: `user_email` y `perfiles_id` viajan como parametros del request.\n\n"
-            ."Ajusta `baseUrl` y las variables de coleccion (`user_email`, `rut_paciente`, `id_paciente`, `perfil`) antes de ejecutar.\n\n"
+            ."Ajusta `baseUrl` y las variables de coleccion (`user_email`, `admin_email`, `rut_paciente`, `id_paciente`, `perfil`) antes de ejecutar. Las carpetas del carro se ejecutan en orden: cada request guarda en variables lo que necesita el siguiente.\n\n"
             .'Los cuerpos son los ejemplos del contrato OpenAPI; en los `multipart/form-data` hay que seleccionar el archivo a mano.',
     ],
     'item' => $items,

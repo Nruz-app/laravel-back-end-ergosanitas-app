@@ -10,9 +10,9 @@ Esta carpeta contiene el contrato de la API y los diagramas del sistema. La docu
 | [`index.html`](index.html) | Visor Swagger UI del contrato, listo para abrir en el navegador |
 | [`postman/`](postman/) | **Generado** — colección Postman v2.1 con las 119 operaciones, tres entornos y el script que la regenera desde `openapi.yaml` |
 | [`arquitectura.md`](arquitectura.md) | Componentes, las tres capas y sus excepciones, inyección de dependencias y despliegue |
-| [`flujos.md`](flujos.md) | 14 diagramas de secuencia, uno por flujo de negocio end-to-end |
+| [`flujos.md`](flujos.md) | 15 diagramas de secuencia, uno por flujo de negocio end-to-end |
 | [`diagrama-clases.md`](diagrama-clases.md) | Clases UML por dominio: controladores, servicios, modelos y prompts |
-| [`modelo-datos.md`](modelo-datos.md) | ERD de las 21 tablas, máquina de estados del chequeo, autorización por perfil y catálogo de procedimientos almacenados |
+| [`modelo-datos.md`](modelo-datos.md) | ERD de las 21 tablas del dominio clínico y de negocio más las 18 `cf_*` del carro, máquinas de estados del chequeo y del pedido, autorización por perfil y catálogo de procedimientos almacenados |
 | [`diagramas/arquitectura.html`](diagramas/arquitectura.html) | **Explorable** — mapa de componentes: zoom, búsqueda, vistas guiadas y exportación |
 | [`diagramas/juego-cartas.html`](diagramas/juego-cartas.html) | **Explorable** — secuencia del juego de cartas: las tres capas, el SP y el orden en PHP |
 | [`diagramas/ciclo-chequeo.html`](diagramas/ciclo-chequeo.html) | **Explorable** — máquina de estados del chequeo y el efecto de facturación de `ECG FOTO` |
@@ -26,6 +26,7 @@ Esta carpeta contiene el contrato de la API y los diagramas del sistema. La docu
 - **¿Qué recibe y devuelve un endpoint concreto?** → [`openapi.yaml`](openapi.yaml)
 - **¿Cómo pruebo un endpoint sin escribir el curl?** → [`postman/`](postman/README.md)
 - **¿Cómo se calcula el nivel de un alumno?** → [`flujos.md` §13](flujos.md) o el explorable [`diagramas/juego-cartas.html`](diagramas/juego-cartas.html)
+- **¿Cómo funciona el carro de `/servicios` y su mantenedor?** → [`flujos.md` §14 y §15](flujos.md), [`modelo-datos.md`](modelo-datos.md) (ERD `cf_*` y estados del pedido) y las specs `specs/04-servicio-cart-flow.md` y `specs/05-mantenedor-carrito-compra.md`
 
 ## Ver la documentación
 
@@ -68,7 +69,12 @@ php artisan route:list --json
 php docs/postman/verificar-cobertura.php
 ```
 
-`redocly.yaml`, en la raíz, deja documentado qué reglas de estilo están desactivadas y por qué.
+`redocly.yaml`, en la raíz, deja documentado qué reglas de estilo están desactivadas y por qué; `.redocly.lint-ignore.yaml`, las 3 excepciones puntuales (con su motivo).
+
+```bash
+# Tests del carro, siempre sobre SQLite en memoria (nunca el MySQL remoto)
+php artisan test --filter=CartFlow
+```
 
 ### Regenerar los explorables
 

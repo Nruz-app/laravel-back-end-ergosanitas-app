@@ -18,6 +18,7 @@ Un diagrama de secuencia por flujo de negocio, con el endpoint que lo dispara y 
 | 12 | [Agenda, correo y estadísticas](#12-agenda-correo-y-estadísticas) | `POST agenda-horas` · `POST email/reserva-hora` |
 | 13 | [Juego de cartas por niveles](#13-juego-de-cartas-por-niveles) | `GET juego-cartas/{user_email}` |
 | 14 | [Carro de servicios](#14-carro-de-servicios) | `POST cart-flow/carritos/{uuid}/checkout` |
+| 15 | [Mantenedor del carro (Administrador)](#15-mantenedor-del-carro-administrador) | `PUT cart-flow/admin/pedidos/{numero}/estado` |
 
 ---
 
@@ -676,6 +677,56 @@ sequenceDiagram
 - **Cupo**: `cupo` del bloque menos los pedidos no anulados de esa fecha y bloque. El `lockForUpdate` sobre la fila del bloque serializa el último cupo; el segundo recibe 409 `bloque_lleno`.
 - **Producto oculto con carro abierto**: al leer el carro la línea se quita (soft delete) y sale el aviso `producto_no_disponible`; el checkout responde 409 para que el cliente revise el total.
 - **Webpay rechazado o cancelado**: el pedido sigue `pendiente_pago` y admite otro intento, con un `buy_order` nuevo.
+
+---
+
+## 15. Mantenedor del carro (Administrador)
+
+Spec 05. El ítem «Carrito Compra» del front (`src/carrito-compra/`) lista, controla y cierra lo que entró por el flujo 14.
+Todas las llamadas llevan el `user_email` de la sesión, y el back exige que sea de perfil `Administrador`.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor A as Administrador (front /carrito-compra)
+    participant AC as AdminCartFlowController
+    participant CS as CatalogoService
+    participant AS as AdminPedidoService
+    participant DB as MySQL (cf_*)
+    participant FS as Disco privado local
+
+    A->>AC: GET cart-flow/admin/resumen · pedidos?filtros&page
+    AC->>CS: esAdministrador(user_email)
+    CS->>DB: users_metadata JOIN perfiles (nombre = Administrador)
+    alt no es Administrador
+        AC-->>A: 403 forbidden
+    end
+    AC->>AS: resumen() · listar(filtros)
+    AS->>DB: COUNT/SUM por estado · paginate(20)
+    AC-->>A: KPIs + pagina de pedidos
+    A->>AC: GET cart-flow/admin/pedidos/{numero}
+    AC-->>A: detalle + pagos + ordenes + historial + acciones permitidas
+    A->>AC: PUT .../estado {accion: confirmar_pago}
+    AC->>AS: cambiarEstado()
+    AS->>AS: accionesPermitidas() — si no esta, 409
+    AS->>DB: BEGIN · lockForUpdate(pedido) · pago aprobado · estado_pago y estado = pagado
+    AS->>DB: cf_pedido_historial (x2) · COMMIT
+    AC-->>A: detalle actualizado
+    A->>AC: POST cart-flow/admin/ordenes/{id}/enlace
+    AC->>AS: enlaceOrden() → URL::temporarySignedRoute (5 min)
+    AC-->>A: {url, expira}
+    A->>AC: GET .../ordenes/{id}/descarga?expires&signature
+    Note over AC: middleware signed: firma invalida o vencida → 403
+    AC->>FS: Storage::disk(local)->download()
+    AC-->>A: archivo
+```
+
+- **Máquina de estados**: ver `modelo-datos.md` § «Máquina de estados del pedido del carro». `anular` exige motivo y
+  libera el cupo, porque `AgendaService::usados()` no cuenta los anulados.
+- **Webpay no se confirma a mano**: `confirmar_pago` solo existe para transferencia y efectivo. `atender` sobre un pedido
+  en efectivo pendiente registra también el pago.
+- **Catálogo**: `PUT cart-flow/admin/productos/{sku}/visibilidad` deja registro en `cf_visibilidad_log`. Si el producto
+  no es publicable, responde 409 `requiere_confirmacion` y el front reenvía con `confirmar: true`.
 
 ---
 

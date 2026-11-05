@@ -22,17 +22,18 @@ flowchart TB
     end
 
     subgraph laravel["API Laravel 11 · PHP 8.2"]
-        RUTAS["routes/api.php<br/>81 operaciones · prefijo /api<br/>plano, sin agrupar, sin middleware"]
-        CTRL["18 controladores<br/>app/Http/Controllers"]
-        SRV["12 servicios<br/>app/Services"]
-        MOD["21 modelos Eloquent<br/>app/Models"]
+        RUTAS["routes/api.php<br/>119 operaciones · prefijo /api<br/>plano, sin agrupar; solo la descarga<br/>de ordenes medicas usa middleware signed"]
+        CTRL["23 controladores<br/>app/Http/Controllers<br/>(4 en CartFlow/)"]
+        SRV["24 servicios<br/>app/Services<br/>(10 en CartFlow/)"]
+        MOD["42 modelos Eloquent<br/>app/Models<br/>(19 en CartFlow/)"]
         IA["6 prompts estaticos<br/>app/IA"]
     end
 
     subgraph datos["Persistencia"]
-        MYSQL[("MySQL 5.7<br/>18 tablas de negocio")]
+        MYSQL[("MySQL 5.7<br/>18 tablas de negocio<br/>+ 18 tablas cf_* del carro")]
         SP[["19 procedimientos almacenados<br/>solo uno versionado en el repo"]]
         FS["public/<br/>Certificado · Logo<br/>Electrocardiograma · Bioimpedancia"]
+        PRIV["storage/app/private/<br/>cart-flow/ordenes<br/>ordenes medicas del carro"]
     end
 
     subgraph externos["Servicios externos"]
@@ -64,6 +65,8 @@ flowchart TB
     CTRL --> OAI
     SRV --> OAI
     CTRL --> TBK
+    SRV -->|"WebPayCartFlowService"| TBK
+    SRV --> PRIV
     NAV --> TBK
     TBK -->|"return_url"| RUTAS
     CTRL --> SMTP
@@ -76,7 +79,7 @@ flowchart TB
 Dos cosas que el diagrama deja ver y conviene no olvidar:
 
 - **`user_email` y `perfiles_id` llegan como datos del request**, no como identidad verificada. El filtrado por perfil es una regla de presentación, no un control de acceso.
-- **Los archivos subidos van a `public/` con `$file->move()`**, no al disco de storage de Laravel, y `public/` no está montado como volumen en producción (ver [Despliegue](#despliegue)).
+- **Los archivos subidos van a `public/` con `$file->move()`**, no al disco de storage de Laravel, y `public/` no está montado como volumen en producción (ver [Despliegue](#despliegue)). La excepción es la orden médica del carro: dato clínico, va al disco privado `local` y solo se descarga por URL firmada.
 
 ---
 
@@ -147,6 +150,12 @@ flowchart LR
     subgraph D6["Home comercial"]
         HIC["HomeImagenController"]
     end
+    subgraph D7["Carro de servicios (cart-flow)"]
+        CFC["CartFlow/CatalogoController"]
+        CFK["CartFlow/CarritoController"]
+        CFA["CartFlow/AgendaPedidoController"]
+        CFM["CartFlow/AdminCartFlowController"]
+    end
 
     S_CCS["ChequeoCardiovascularService"]
     S_PDF["ChequeoCardiovascularPDFService"]
@@ -162,6 +171,14 @@ flowchart LR
     S_FCS["FichaClinicaService"]
     S_IS["IncidentesService"]
     S_HIS["HomeImagenService"]
+    S_CFCAT["CartFlow/CatalogoService"]
+    S_CFCAR["CartFlow/CarritoService"]
+    S_CFCAL["CartFlow/CalculadoraCarroService"]
+    S_CFAG["CartFlow/AgendaService"]
+    S_CFCK["CartFlow/CheckoutService"]
+    S_CFPE["CartFlow/PedidoService"]
+    S_CFWP["CartFlow/WebPayCartFlowService"]
+    S_CFAD["CartFlow/AdminPedidoService"]
     IMP["App\Imports\ChequeoImport"]
 
     CCC --> S_CCS
@@ -189,9 +206,28 @@ flowchart LR
     ESC --> S_ES
 
     HIC --> S_HIS
+
+    CFC --> S_CFCAT
+    CFK --> S_CFCAR
+    CFK --> S_CFCK
+    CFK --> S_CFPE
+    CFA --> S_CFAG
+    CFA --> S_CFCAR
+    CFA --> S_CFPE
+    CFA --> S_CFWP
+    CFM --> S_CFAD
+    CFM --> S_CFCAT
+    S_CFCAR --> S_CFCAL
+    S_CFCK --> S_CFCAR
+    S_CFCK --> S_CFAG
 ```
 
 `ServiciosController`, `AgendaHorasController`, `EmailController`, `GoogleAuthControlle`, `FileUploadController` y `WebPayController` no aparecen conectados a ningún servicio porque no tienen ninguno: van directo al modelo.
+
+El carro (`cart-flow`, Specs 04 y 05) es el único dominio con servicios que dependen de otros servicios dentro del mismo
+provider: `CheckoutService` usa `CarritoService` y `AgendaService`, y `CarritoService` usa `CalculadoraCarroService`
+(función pura, sin base de datos) y `CatalogoService`. El comando `cart-flow:importar-catalogo` usa
+`ImportadorCatalogoService` + `CatalogoCsv`.
 
 > `CargaMasivaController` **sí inyecta** `ChequeoCardiovascularService` en su constructor, pero nunca lo usa: la carga masiva pasa por `App\Imports\ChequeoImport`. El diagrama muestra la llamada real, no la dependencia declarada.
 
@@ -199,7 +235,7 @@ flowchart LR
 
 ## Inyección de dependencias
 
-Todos los servicios se registran **a mano** en `bootstrap/providers.php` — no hay auto-discovery. Cada provider es un `singleton()` con una closure trivial; el único que resuelve una dependencia es `CertificadoProvider`.
+Todos los servicios se registran **a mano** en `bootstrap/providers.php` — no hay auto-discovery. Cada provider es un `singleton()` con una closure trivial; los que resuelven dependencias son `CertificadoProvider` y `CartFlowServiceProvider`.
 
 ```mermaid
 flowchart LR
@@ -243,6 +279,7 @@ Los 14 providers registrados en `bootstrap/providers.php`:
 |---|---|
 | `AppServiceProvider` | nada (`register` y `boot` vacíos) |
 | `BioimpedanciaServiceProvider` | `BioimpedanciaService` |
+| `CartFlowServiceProvider` | Los 10 servicios de `app/Services/CartFlow/` (`CalculadoraCarroService`, `CatalogoCsv`, `CatalogoService`, `AgendaService`, `PedidoService`, `WebPayCartFlowService`, `AdminPedidoService`, más `ImportadorCatalogoService`, `CarritoService` y `CheckoutService` **con sus dependencias inyectadas**). Registra además el comando `cart-flow:importar-catalogo` en `boot()` |
 | `CertificadoProvider` | `CertificadoService`, **inyectándole `EstadisticasService`** |
 | `ChequeoCardiovascularPDFProvider` | `ChequeoCardiovascularPDFService` |
 | `ChequeoCardiovascularProvider` | `ChequeoCardiovascularService` |

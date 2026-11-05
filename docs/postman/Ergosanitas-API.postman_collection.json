@@ -3,7 +3,7 @@
         "name": "Ergosanitas — API REST v1.0.0",
         "_postman_id": "6f2c1a34-e0a1-4a11-9c8e-e12345678901",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-        "description": "Generada desde `docs/openapi.yaml` (119 operaciones).\n\nLas rutas de negocio **no llevan middleware de autenticacion**: `user_email` y `perfiles_id` viajan como parametros del request.\n\nAjusta `baseUrl` y las variables de coleccion (`user_email`, `rut_paciente`, `id_paciente`, `perfil`) antes de ejecutar.\n\nLos cuerpos son los ejemplos del contrato OpenAPI; en los `multipart/form-data` hay que seleccionar el archivo a mano."
+        "description": "Generada desde `docs/openapi.yaml` (119 operaciones).\n\nLas rutas de negocio **no llevan middleware de autenticacion**: `user_email` y `perfiles_id` viajan como parametros del request.\n\nAjusta `baseUrl` y las variables de coleccion (`user_email`, `admin_email`, `rut_paciente`, `id_paciente`, `perfil`) antes de ejecutar. Las carpetas del carro se ejecutan en orden: cada request guarda en variables lo que necesita el siguiente.\n\nLos cuerpos son los ejemplos del contrato OpenAPI; en los `multipart/form-data` hay que seleccionar el archivo a mano."
     },
     "item": [
         {
@@ -1841,7 +1841,20 @@
                         },
                         "description": "Comunas activas de `cf_comunas`, ordenadas por nombre. Las que están fuera de RM (sin\nzona) o marcadas `a_cotizar` salen con `a_cotizar: true` y cargos `null`: el front solo\nofrece \"Solicitar cotización\".\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Comunas.\n- `500` - Error inesperado.\n\n---\n\n_operationId_: `cartFlowComunas`"
                     },
-                    "response": []
+                    "response": [],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "const r = pm.response.json();",
+                                    "const guardar = (k, v) => { if (v === undefined || v === null) return; if (pm.environment.name) pm.environment.set(k, String(v)); pm.collectionVariables.set(k, String(v)); };",
+                                    "try { guardar(\"comuna_id\", (r.data.find(c => c.comuna === 'Maipú') || r.data.find(c => !c.a_cotizar)).id); } catch (e) { console.log(\"No se pudo guardar comuna_id\", e); }"
+                                ]
+                            }
+                        }
+                    ]
                 },
                 {
                     "name": "Catálogo público (solo visible_tienda)",
@@ -1913,46 +1926,6 @@
                     "response": []
                 },
                 {
-                    "name": "Muestra u oculta un producto (mantenedor)",
-                    "request": {
-                        "method": "PUT",
-                        "header": [
-                            {
-                                "key": "Accept",
-                                "value": "application/json"
-                            },
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{baseUrl}}/cart-flow/admin/productos/{{sku}}/visibilidad",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "cart-flow",
-                                "admin",
-                                "productos",
-                                "{{sku}}",
-                                "visibilidad"
-                            ]
-                        },
-                        "description": "Exige un `user_email` de perfil **Administrador** (mismo control que la Spec 03; no es\nautenticación). Cada cambio queda en `cf_visibilidad_log`. Activar un producto con\n`publicable = 0` responde **409** `requiere_confirmacion` hasta que llegue `confirmar: true`.\nOcultar no afecta a los pedidos ya creados; los carros abiertos lo pierden con un aviso.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Producto actualizado.\n- `403` - El email no es de perfil Administrador.\n- `404` - SKU inexistente.\n- `409` - Producto no publicable sin `confirmar`.\n- `422` - Validación.\n\n---\n\n_operationId_: `cartFlowVisibilidad`",
-                        "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"user_email\": \"admin@ergosanitas.com\",\n    \"visible_tienda\": false,\n    \"confirmar\": false\n}",
-                            "options": {
-                                "raw": {
-                                    "language": "json"
-                                }
-                            }
-                        }
-                    },
-                    "response": []
-                },
-                {
                     "name": "Crea un carro anónimo",
                     "request": {
                         "method": "POST",
@@ -1979,7 +1952,7 @@
                         "description": "Crea un carro `abierto` con `uuid` aleatorio, vigente `carrito_dias_vigencia` días (7) y\ncon un primer paciente vacío. El front guarda el `uuid` para retomarlo.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - Carro creado.\n- `422` - Comuna inexistente o plan inválido.\n\n---\n\n_operationId_: `cartFlowCarritoStore`",
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"comuna_id\": 2,\n    \"direccion\": \"Calle Ficticia 123\",\n    \"referencia\": \"\",\n    \"plan\": \"ninguno\"\n}",
+                            "raw": "{\n    \"comuna_id\": \"{{comuna_id}}\",\n    \"direccion\": \"Calle Ficticia 123\"\n}",
                             "options": {
                                 "raw": {
                                     "language": "json"
@@ -1987,7 +1960,21 @@
                             }
                         }
                     },
-                    "response": []
+                    "response": [],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "const r = pm.response.json();",
+                                    "const guardar = (k, v) => { if (v === undefined || v === null) return; if (pm.environment.name) pm.environment.set(k, String(v)); pm.collectionVariables.set(k, String(v)); };",
+                                    "try { guardar(\"uuid\", r.data.uuid); } catch (e) { console.log(\"No se pudo guardar uuid\", e); }",
+                                    "try { guardar(\"paciente_id\", r.data.pacientes[0].id); } catch (e) { console.log(\"No se pudo guardar paciente_id\", e); }"
+                                ]
+                            }
+                        }
+                    ]
                 },
                 {
                     "name": "Carro recalculado",
@@ -2042,7 +2029,7 @@
                         "description": "**Respuestas documentadas**\n\n- `200` - Carro actualizado.\n- `404` - Carro inexistente.\n- `409` - El carro ya se convirtió en pedido o expiró.\n- `422` - Validación.\n\n---\n\n_operationId_: `cartFlowCarritoUpdate`",
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"comuna_id\": 2,\n    \"direccion\": \"Calle Ficticia 123\",\n    \"referencia\": \"\",\n    \"plan\": \"ninguno\"\n}",
+                            "raw": "{\n    \"plan\": \"ninguno\",\n    \"referencia\": \"Casa ficticia, portón verde\"\n}",
                             "options": {
                                 "raw": {
                                     "language": "json"
@@ -2081,7 +2068,7 @@
                         "description": "El segundo paciente y siguientes no pagan domicilio. Máximo 10 por carro.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - Paciente agregado.\n- `409` - Carro no abierto.\n- `422` - Validación o máximo de pacientes.\n\n---\n\n_operationId_: `cartFlowPacienteStore`",
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"nombre\": \"Paciente Ficticio\",\n    \"rut\": \"11111111-1\",\n    \"fecha_nac\": \"1980-01-01\",\n    \"sexo\": \"F\",\n    \"prevision\": \"Fonasa\",\n    \"telefono\": \"+56900000000\",\n    \"email\": \"paciente@example.com\",\n    \"consentimiento\": true,\n    \"apoderado_nombre\": \"\",\n    \"apoderado_rut\": \"\",\n    \"consentimiento_apoderado\": true\n}",
+                            "raw": "[]",
                             "options": {
                                 "raw": {
                                     "language": "json"
@@ -2089,7 +2076,20 @@
                             }
                         }
                     },
-                    "response": []
+                    "response": [],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "const r = pm.response.json();",
+                                    "const guardar = (k, v) => { if (v === undefined || v === null) return; if (pm.environment.name) pm.environment.set(k, String(v)); pm.collectionVariables.set(k, String(v)); };",
+                                    "try { guardar(\"paciente2_id\", r.data.pacientes[r.data.pacientes.length - 1].id); } catch (e) { console.log(\"No se pudo guardar paciente2_id\", e); }"
+                                ]
+                            }
+                        }
+                    ]
                 },
                 {
                     "name": "Edita los datos de un paciente del carro",
@@ -2106,7 +2106,7 @@
                             }
                         ],
                         "url": {
-                            "raw": "{{baseUrl}}/cart-flow/carritos/{{uuid}}/pacientes/{{id}}",
+                            "raw": "{{baseUrl}}/cart-flow/carritos/{{uuid}}/pacientes/{{paciente_id}}",
                             "host": [
                                 "{{baseUrl}}"
                             ],
@@ -2115,13 +2115,13 @@
                                 "carritos",
                                 "{{uuid}}",
                                 "pacientes",
-                                "{{id}}"
+                                "{{paciente_id}}"
                             ]
                         },
                         "description": "Datos ficticios en pruebas. El RUT se guarda sin puntos y en mayúsculas. La edad (a la\nfecha de la cita) decide el beneficio adulto mayor y las restricciones de edad.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Paciente actualizado.\n- `404` - Paciente no pertenece al carro.\n- `422` - Validación.\n\n---\n\n_operationId_: `cartFlowPacienteUpdate`",
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"nombre\": \"Paciente Ficticio\",\n    \"rut\": \"11111111-1\",\n    \"fecha_nac\": \"1980-01-01\",\n    \"sexo\": \"F\",\n    \"prevision\": \"Fonasa\",\n    \"telefono\": \"+56900000000\",\n    \"email\": \"paciente@example.com\",\n    \"consentimiento\": true,\n    \"apoderado_nombre\": \"\",\n    \"apoderado_rut\": \"\",\n    \"consentimiento_apoderado\": true\n}",
+                            "raw": "{\n    \"nombre\": \"Paciente Ficticio\",\n    \"rut\": \"11111111-1\",\n    \"fecha_nac\": \"1980-01-01\",\n    \"sexo\": \"M\",\n    \"prevision\": \"Fonasa\",\n    \"telefono\": \"+56900000000\",\n    \"email\": \"paciente@example.com\",\n    \"consentimiento\": true\n}",
                             "options": {
                                 "raw": {
                                     "language": "json"
@@ -2142,7 +2142,7 @@
                             }
                         ],
                         "url": {
-                            "raw": "{{baseUrl}}/cart-flow/carritos/{{uuid}}/pacientes/{{id}}/quitar",
+                            "raw": "{{baseUrl}}/cart-flow/carritos/{{uuid}}/pacientes/{{paciente2_id}}/quitar",
                             "host": [
                                 "{{baseUrl}}"
                             ],
@@ -2151,7 +2151,7 @@
                                 "carritos",
                                 "{{uuid}}",
                                 "pacientes",
-                                "{{id}}",
+                                "{{paciente2_id}}",
                                 "quitar"
                             ]
                         },
@@ -2188,7 +2188,7 @@
                         "description": "Rechaza productos ocultos o la toma de muestra suelta (**404**) y los de cotización\n(**422** `solo_cotizacion`). Si el producto ya está: los servicios suman cantidad, el\nlaboratorio no se duplica.\n\n---\n\n**Respuestas documentadas**\n\n- `201` - Carro con la línea.\n- `404` - Producto no disponible o paciente ajeno al carro.\n- `409` - Carro no abierto.\n- `422` - Producto de cotización o validación.\n\n---\n\n_operationId_: `cartFlowLineaStore`",
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"paciente_id\": 1,\n    \"sku\": \"PERF-BASICO\",\n    \"cantidad\": 1\n}",
+                            "raw": "{\n    \"paciente_id\": \"{{paciente_id}}\",\n    \"sku\": \"{{sku}}\"\n}",
                             "options": {
                                 "raw": {
                                     "language": "json"
@@ -2196,7 +2196,20 @@
                             }
                         }
                     },
-                    "response": []
+                    "response": [],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "const r = pm.response.json();",
+                                    "const guardar = (k, v) => { if (v === undefined || v === null) return; if (pm.environment.name) pm.environment.set(k, String(v)); pm.collectionVariables.set(k, String(v)); };",
+                                    "try { guardar(\"linea_id\", r.data.pacientes.find(p => String(p.id) === pm.variables.get('paciente_id')).lineas.find(l => l.id).id); } catch (e) { console.log(\"No se pudo guardar linea_id\", e); }"
+                                ]
+                            }
+                        }
+                    ]
                 },
                 {
                     "name": "Cambia la cantidad de una línea",
@@ -2213,7 +2226,7 @@
                             }
                         ],
                         "url": {
-                            "raw": "{{baseUrl}}/cart-flow/carritos/{{uuid}}/lineas/{{id}}",
+                            "raw": "{{baseUrl}}/cart-flow/carritos/{{uuid}}/lineas/{{linea_id}}",
                             "host": [
                                 "{{baseUrl}}"
                             ],
@@ -2222,47 +2235,19 @@
                                 "carritos",
                                 "{{uuid}}",
                                 "lineas",
-                                "{{id}}"
+                                "{{linea_id}}"
                             ]
                         },
                         "description": "Solo los servicios admiten cantidad mayor a 1; el laboratorio queda en 1.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Carro actualizado.\n- `404` - Línea ajena al carro.\n\n---\n\n_operationId_: `cartFlowLineaUpdate`",
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"cantidad\": 2\n}",
+                            "raw": "{\n    \"cantidad\": 1\n}",
                             "options": {
                                 "raw": {
                                     "language": "json"
                                 }
                             }
                         }
-                    },
-                    "response": []
-                },
-                {
-                    "name": "Quita una línea (soft delete)",
-                    "request": {
-                        "method": "POST",
-                        "header": [
-                            {
-                                "key": "Accept",
-                                "value": "application/json"
-                            }
-                        ],
-                        "url": {
-                            "raw": "{{baseUrl}}/cart-flow/carritos/{{uuid}}/lineas/{{id}}/quitar",
-                            "host": [
-                                "{{baseUrl}}"
-                            ],
-                            "path": [
-                                "cart-flow",
-                                "carritos",
-                                "{{uuid}}",
-                                "lineas",
-                                "{{id}}",
-                                "quitar"
-                            ]
-                        },
-                        "description": "**Respuestas documentadas**\n\n- `200` - Carro sin la línea.\n- `404` - Línea ajena al carro.\n\n---\n\n_operationId_: `cartFlowLineaQuitar`"
                     },
                     "response": []
                 },
@@ -2277,7 +2262,7 @@
                             }
                         ],
                         "url": {
-                            "raw": "{{baseUrl}}/cart-flow/agenda/bloques?carrito=9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+                            "raw": "{{baseUrl}}/cart-flow/agenda/bloques?carrito={{uuid}}",
                             "host": [
                                 "{{baseUrl}}"
                             ],
@@ -2289,7 +2274,7 @@
                             "query": [
                                 {
                                     "key": "carrito",
-                                    "value": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+                                    "value": "{{uuid}}",
                                     "disabled": false,
                                     "description": ""
                                 },
@@ -2309,7 +2294,21 @@
                         },
                         "description": "Días entre `hoy + agenda_anticipacion_dias` (1) y `hoy + agenda_dias_max` (30) con sus\nbloques activos para la zona del carro (los de `zona_id` null aplican a todas). Si el\ncarro tiene laboratorio, ayuno o `solo_ruta_manana`, solo sale la franja `manana`.\n`libres` = `cupo` − pedidos no anulados del bloque y la fecha.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Agenda.\n- `409` - Carro no abierto.\n- `422` - Comuna a cotizar o parámetros inválidos.\n\n---\n\n_operationId_: `cartFlowAgendaBloques`"
                     },
-                    "response": []
+                    "response": [],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "const r = pm.response.json();",
+                                    "const guardar = (k, v) => { if (v === undefined || v === null) return; if (pm.environment.name) pm.environment.set(k, String(v)); pm.collectionVariables.set(k, String(v)); };",
+                                    "try { guardar(\"fecha\", r.data.dias[0].fecha); } catch (e) { console.log(\"No se pudo guardar fecha\", e); }",
+                                    "try { guardar(\"bloque_id\", r.data.dias[0].bloques.find(b => b.libres > 0).id); } catch (e) { console.log(\"No se pudo guardar bloque_id\", e); }"
+                                ]
+                            }
+                        }
+                    ]
                 },
                 {
                     "name": "Convierte el carro en pedido",
@@ -2340,19 +2339,19 @@
                                 {
                                     "key": "fecha",
                                     "type": "text",
-                                    "value": "2026-11-05",
+                                    "value": "{{fecha}}",
                                     "description": ""
                                 },
                                 {
                                     "key": "bloque_id",
                                     "type": "text",
-                                    "value": "10",
+                                    "value": "{{bloque_id}}",
                                     "description": ""
                                 },
                                 {
                                     "key": "medio_pago",
                                     "type": "text",
-                                    "value": "webpay",
+                                    "value": "transferencia",
                                     "description": ""
                                 },
                                 {
@@ -2406,7 +2405,21 @@
                             ]
                         }
                     },
-                    "response": []
+                    "response": [],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "const r = pm.response.json();",
+                                    "const guardar = (k, v) => { if (v === undefined || v === null) return; if (pm.environment.name) pm.environment.set(k, String(v)); pm.collectionVariables.set(k, String(v)); };",
+                                    "try { guardar(\"numero\", r.data.numero); } catch (e) { console.log(\"No se pudo guardar numero\", e); }",
+                                    "try { guardar(\"t\", r.data.token_consulta); } catch (e) { console.log(\"No se pudo guardar t\", e); }"
+                                ]
+                            }
+                        }
+                    ]
                 },
                 {
                     "name": "Consulta un pedido con su token",
@@ -2419,7 +2432,7 @@
                             }
                         ],
                         "url": {
-                            "raw": "{{baseUrl}}/cart-flow/pedidos/{{numero}}?t=3f1c2a7e-8d4b-4c1a-9e2f-5b6a7c8d9e0f",
+                            "raw": "{{baseUrl}}/cart-flow/pedidos/{{numero}}?t={{t}}",
                             "host": [
                                 "{{baseUrl}}"
                             ],
@@ -2431,7 +2444,7 @@
                             "query": [
                                 {
                                     "key": "t",
-                                    "value": "3f1c2a7e-8d4b-4c1a-9e2f-5b6a7c8d9e0f",
+                                    "value": "{{t}}",
                                     "disabled": false,
                                     "description": ""
                                 }
@@ -2470,7 +2483,7 @@
                         "description": "Crea la transacción por **`cf_pedidos.total`** (nunca por un monto del cliente) con\n`buy_order` único por intento (`CF{pedido}-{pago}`) y `session_id` = número de pedido.\nEl front hace un form POST a `url` con el campo `token_ws`.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Transacción creada.\n- `404` - Pedido inexistente o token incorrecto.\n- `409` - El pedido no es Webpay o ya no está pendiente de pago.\n- `502` - Transbank rechazó la creación.\n- `503` - Faltan `WEBPAY_URL`, `WEBPAY_ID` o `WEBPAY_SECRET` (el mensaje nombra cuál). `WEBPAY_CART_FLOW_RETURN` es opcional; sin ella se usa la ruta propia del mismo host.\n\n---\n\n_operationId_: `cartFlowPedidoWebPay`",
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"t\": \"3f1c2a7e-8d4b-4c1a-9e2f-5b6a7c8d9e0f\"\n}",
+                            "raw": "{\n    \"t\": \"{{t}}\"\n}",
                             "options": {
                                 "raw": {
                                     "language": "json"
@@ -2523,7 +2536,10 @@
                         },
                         "description": "Lo llama Transbank, no el front. Con `token_ws` hace el commit y marca el pedido\n`pagado` solo si `status = AUTHORIZED`, `response_code = 0`, el monto y el `buy_order`\ncoinciden. Con `TBK_TOKEN` / `TBK_ORDEN_COMPRA` (el cliente anuló) marca el intento\nrechazado. Siempre redirige a `{CART_FLOW_FRONT_URL}/servicios/resultado?pago=aprobado|rechazado|cancelado|error&pedido=…&t=…`.\n\n---\n\n**Respuestas documentadas**\n\n- `302` - Redirección al front con el resultado.\n\n---\n\n_operationId_: `cartFlowWebPayRetornoGet`"
                     },
-                    "response": []
+                    "response": [],
+                    "protocolProfileBehavior": {
+                        "followRedirects": false
+                    }
                 },
                 {
                     "name": "Retorno de Transbank por POST (redirige al front)",
@@ -2548,7 +2564,10 @@
                         },
                         "description": "Igual que el GET; Transbank puede volver por formulario.\n\n---\n\n**Respuestas documentadas**\n\n- `302` - Redirección al front con el resultado.\n\n---\n\n_operationId_: `cartFlowWebPayRetornoPost`"
                     },
-                    "response": []
+                    "response": [],
+                    "protocolProfileBehavior": {
+                        "followRedirects": false
+                    }
                 },
                 {
                     "name": "Solicitud de cotización",
@@ -2586,6 +2605,74 @@
                         }
                     },
                     "response": []
+                },
+                {
+                    "name": "Quita una línea (soft delete)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/carritos/{{uuid}}/lineas/{{linea_id}}/quitar",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "carritos",
+                                "{{uuid}}",
+                                "lineas",
+                                "{{linea_id}}",
+                                "quitar"
+                            ]
+                        },
+                        "description": "**Respuestas documentadas**\n\n- `200` - Carro sin la línea.\n- `404` - Línea ajena al carro.\n\n---\n\n_operationId_: `cartFlowLineaQuitar`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Muestra u oculta un producto (mantenedor)",
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/cart-flow/admin/productos/{{sku}}/visibilidad",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "cart-flow",
+                                "admin",
+                                "productos",
+                                "{{sku}}",
+                                "visibilidad"
+                            ]
+                        },
+                        "description": "Exige un `user_email` de perfil **Administrador** (mismo control que la Spec 03; no es\nautenticación). Cada cambio queda en `cf_visibilidad_log`. Activar un producto con\n`publicable = 0` responde **409** `requiere_confirmacion` hasta que llegue `confirmar: true`.\nOcultar no afecta a los pedidos ya creados; los carros abiertos lo pierden con un aviso.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Producto actualizado.\n- `403` - El email no es de perfil Administrador.\n- `404` - SKU inexistente.\n- `409` - Producto no publicable sin `confirmar`.\n- `422` - Validación.\n\n---\n\n_operationId_: `cartFlowVisibilidad`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"user_email\": \"{{admin_email}}\",\n    \"visible_tienda\": true\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
                 }
             ]
         },
@@ -2604,7 +2691,7 @@
                             }
                         ],
                         "url": {
-                            "raw": "{{baseUrl}}/cart-flow/admin/resumen?user_email=admin@ergosanitas.com",
+                            "raw": "{{baseUrl}}/cart-flow/admin/resumen?user_email={{admin_email}}",
                             "host": [
                                 "{{baseUrl}}"
                             ],
@@ -2616,7 +2703,7 @@
                             "query": [
                                 {
                                     "key": "user_email",
-                                    "value": "admin@ergosanitas.com",
+                                    "value": "{{admin_email}}",
                                     "disabled": false,
                                     "description": ""
                                 }
@@ -2637,7 +2724,7 @@
                             }
                         ],
                         "url": {
-                            "raw": "{{baseUrl}}/cart-flow/admin/pedidos?user_email=admin@ergosanitas.com",
+                            "raw": "{{baseUrl}}/cart-flow/admin/pedidos?user_email={{admin_email}}",
                             "host": [
                                 "{{baseUrl}}"
                             ],
@@ -2649,7 +2736,7 @@
                             "query": [
                                 {
                                     "key": "user_email",
-                                    "value": "admin@ergosanitas.com",
+                                    "value": "{{admin_email}}",
                                     "disabled": false,
                                     "description": ""
                                 },
@@ -2718,7 +2805,7 @@
                             }
                         ],
                         "url": {
-                            "raw": "{{baseUrl}}/cart-flow/admin/pedidos/{{numero}}?user_email=admin@ergosanitas.com",
+                            "raw": "{{baseUrl}}/cart-flow/admin/pedidos/{{numero}}?user_email={{admin_email}}",
                             "host": [
                                 "{{baseUrl}}"
                             ],
@@ -2731,7 +2818,7 @@
                             "query": [
                                 {
                                     "key": "user_email",
-                                    "value": "admin@ergosanitas.com",
+                                    "value": "{{admin_email}}",
                                     "disabled": false,
                                     "description": ""
                                 }
@@ -2739,7 +2826,20 @@
                         },
                         "description": "Contacto, visita, desglose, pacientes con RUT y fecha de nacimiento, líneas, preparación, órdenes médicas\n(sin path), pagos (`buy_order`, `status`, `response_code`, `authorization_code`; sin token ni payload),\nhistorial y `acciones` permitidas por el estado actual.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Pedido.\n- `403` - No es Administrador.\n- `404` - Pedido inexistente.\n\n---\n\n_operationId_: `cartFlowAdminPedido`"
                     },
-                    "response": []
+                    "response": [],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "const r = pm.response.json();",
+                                    "const guardar = (k, v) => { if (v === undefined || v === null) return; if (pm.environment.name) pm.environment.set(k, String(v)); pm.collectionVariables.set(k, String(v)); };",
+                                    "try { guardar(\"orden_id\", (r.data.pacientes.flatMap(p => p.ordenes_medicas)[0] || {}).id); } catch (e) { console.log(\"No se pudo guardar orden_id\", e); }"
+                                ]
+                            }
+                        }
+                    ]
                 },
                 {
                     "name": "Cambia el estado del pedido",
@@ -2771,7 +2871,7 @@
                         "description": "`confirmar_pago` (pendiente_pago → pagado, solo transferencia/efectivo), `confirmar` (pagado → confirmado),\n`atender` (confirmado, o efectivo pendiente/pagado → atendido) y `anular` (motivo obligatorio; no desde\natendido). Cada cambio queda en `cf_pedido_historial`. Nada se borra.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Pedido actualizado.\n- `403` - No es Administrador.\n- `404` - Pedido inexistente.\n- `409` - Transición inválida (`transicion_invalida`).\n- `422` - Validación o anulación sin motivo.\n\n---\n\n_operationId_: `cartFlowAdminPedidoEstado`",
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"user_email\": \"admin@ergosanitas.com\",\n    \"accion\": \"confirmar_pago\",\n    \"motivo\": \"Cliente pidió cancelar\"\n}",
+                            "raw": "{\n    \"user_email\": \"{{admin_email}}\",\n    \"accion\": \"confirmar_pago\"\n}",
                             "options": {
                                 "raw": {
                                     "language": "json"
@@ -2796,7 +2896,7 @@
                             }
                         ],
                         "url": {
-                            "raw": "{{baseUrl}}/cart-flow/admin/ordenes/{{id}}/enlace",
+                            "raw": "{{baseUrl}}/cart-flow/admin/ordenes/{{orden_id}}/enlace",
                             "host": [
                                 "{{baseUrl}}"
                             ],
@@ -2804,14 +2904,14 @@
                                 "cart-flow",
                                 "admin",
                                 "ordenes",
-                                "{{id}}",
+                                "{{orden_id}}",
                                 "enlace"
                             ]
                         },
                         "description": "URL firmada válida 5 minutos hacia `cart-flow/admin/ordenes/{id}/descarga`. El archivo sigue en el disco privado.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Enlace.\n- `403` - No es Administrador.\n- `404` - Orden inexistente.\n\n---\n\n_operationId_: `cartFlowAdminOrdenEnlace`",
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"user_email\": \"admin@ergosanitas.com\"\n}",
+                            "raw": "{\n    \"user_email\": \"{{admin_email}}\"\n}",
                             "options": {
                                 "raw": {
                                     "language": "json"
@@ -2819,7 +2919,21 @@
                             }
                         }
                     },
-                    "response": []
+                    "response": [],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "const r = pm.response.json();",
+                                    "const guardar = (k, v) => { if (v === undefined || v === null) return; if (pm.environment.name) pm.environment.set(k, String(v)); pm.collectionVariables.set(k, String(v)); };",
+                                    "try { guardar(\"orden_expires\", r.data.url.match(/expires=([0-9]+)/)[1]); } catch (e) { console.log(\"No se pudo guardar orden_expires\", e); }",
+                                    "try { guardar(\"orden_signature\", r.data.url.match(/signature=([a-f0-9]+)/)[1]); } catch (e) { console.log(\"No se pudo guardar orden_signature\", e); }"
+                                ]
+                            }
+                        }
+                    ]
                 },
                 {
                     "name": "Descarga de la orden médica (URL firmada)",
@@ -2832,7 +2946,7 @@
                             }
                         ],
                         "url": {
-                            "raw": "{{baseUrl}}/cart-flow/admin/ordenes/{{id}}/descarga?expires=0&signature=",
+                            "raw": "{{baseUrl}}/cart-flow/admin/ordenes/{{orden_id}}/descarga?expires={{orden_expires}}&signature={{orden_signature}}",
                             "host": [
                                 "{{baseUrl}}"
                             ],
@@ -2840,19 +2954,19 @@
                                 "cart-flow",
                                 "admin",
                                 "ordenes",
-                                "{{id}}",
+                                "{{orden_id}}",
                                 "descarga"
                             ],
                             "query": [
                                 {
                                     "key": "expires",
-                                    "value": "0",
+                                    "value": "{{orden_expires}}",
                                     "disabled": false,
                                     "description": ""
                                 },
                                 {
                                     "key": "signature",
-                                    "value": "",
+                                    "value": "{{orden_signature}}",
                                     "disabled": false,
                                     "description": ""
                                 }
@@ -2873,7 +2987,7 @@
                             }
                         ],
                         "url": {
-                            "raw": "{{baseUrl}}/cart-flow/admin/cotizaciones?user_email=admin@ergosanitas.com",
+                            "raw": "{{baseUrl}}/cart-flow/admin/cotizaciones?user_email={{admin_email}}",
                             "host": [
                                 "{{baseUrl}}"
                             ],
@@ -2885,7 +2999,7 @@
                             "query": [
                                 {
                                     "key": "user_email",
-                                    "value": "admin@ergosanitas.com",
+                                    "value": "{{admin_email}}",
                                     "disabled": false,
                                     "description": ""
                                 },
@@ -2905,7 +3019,20 @@
                         },
                         "description": "**Respuestas documentadas**\n\n- `200` - Hasta 500 cotizaciones, de la más nueva a la más antigua.\n- `403` - No es Administrador.\n\n---\n\n_operationId_: `cartFlowAdminCotizaciones`"
                     },
-                    "response": []
+                    "response": [],
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "const r = pm.response.json();",
+                                    "const guardar = (k, v) => { if (v === undefined || v === null) return; if (pm.environment.name) pm.environment.set(k, String(v)); pm.collectionVariables.set(k, String(v)); };",
+                                    "try { guardar(\"cotizacion_id\", r.data[0].id); } catch (e) { console.log(\"No se pudo guardar cotizacion_id\", e); }"
+                                ]
+                            }
+                        }
+                    ]
                 },
                 {
                     "name": "Cambia el estado de una cotización",
@@ -2922,7 +3049,7 @@
                             }
                         ],
                         "url": {
-                            "raw": "{{baseUrl}}/cart-flow/admin/cotizaciones/{{id}}/estado",
+                            "raw": "{{baseUrl}}/cart-flow/admin/cotizaciones/{{cotizacion_id}}/estado",
                             "host": [
                                 "{{baseUrl}}"
                             ],
@@ -2930,14 +3057,14 @@
                                 "cart-flow",
                                 "admin",
                                 "cotizaciones",
-                                "{{id}}",
+                                "{{cotizacion_id}}",
                                 "estado"
                             ]
                         },
                         "description": "**Respuestas documentadas**\n\n- `200` - Cotización actualizada.\n- `403` - No es Administrador.\n- `404` - Cotización inexistente.\n\n---\n\n_operationId_: `cartFlowAdminCotizacionEstado`",
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n    \"user_email\": \"admin@ergosanitas.com\",\n    \"estado\": \"nueva\"\n}",
+                            "raw": "{\n    \"user_email\": \"{{admin_email}}\",\n    \"estado\": \"contactada\"\n}",
                             "options": {
                                 "raw": {
                                     "language": "json"
@@ -2958,7 +3085,7 @@
                             }
                         ],
                         "url": {
-                            "raw": "{{baseUrl}}/cart-flow/admin/productos?user_email=admin@ergosanitas.com",
+                            "raw": "{{baseUrl}}/cart-flow/admin/productos?user_email={{admin_email}}",
                             "host": [
                                 "{{baseUrl}}"
                             ],
@@ -2970,7 +3097,7 @@
                             "query": [
                                 {
                                     "key": "user_email",
-                                    "value": "admin@ergosanitas.com",
+                                    "value": "{{admin_email}}",
                                     "disabled": false,
                                     "description": ""
                                 },
@@ -4160,8 +4287,38 @@
             "description": "Host + prefijo /api. Servidores documentados: http://127.0.0.1:8000/api | http://localhost:6162/api | https://api.ergosanitas.com/api"
         },
         {
-            "key": "id",
+            "key": "admin_email",
+            "value": "admin@ergosanitas.com",
+            "type": "string",
+            "description": "Email de un usuario de perfil Administrador (cart-flow/admin/*). Ponle uno real"
+        },
+        {
+            "key": "bloque_id",
+            "value": "",
+            "type": "string",
+            "description": "Lo guarda «Bloques disponibles para un carro»: primer bloque con cupo"
+        },
+        {
+            "key": "comuna_id",
+            "value": "",
+            "type": "string",
+            "description": "Lo guarda «Comunas con zona y cargos de domicilio» (Maipú o la primera con zona)"
+        },
+        {
+            "key": "cotizacion_id",
             "value": "1",
+            "type": "string",
+            "description": "Lo guarda «Solicitudes de cotización» (admin)"
+        },
+        {
+            "key": "fecha",
+            "value": "",
+            "type": "string",
+            "description": "Lo guarda «Bloques disponibles para un carro»: primer día con cupo"
+        },
+        {
+            "key": "id",
+            "value": "5",
             "type": "string",
             "description": "Id de `home_imagenes`. Solo dígitos (`whereNumber`); otro valor no encuentra ruta."
         },
@@ -4170,6 +4327,12 @@
             "value": "1842",
             "type": "string",
             "description": "Identificador autoincremental del chequeo (`chequeo_cardiovascular.id`). Ojo: el"
+        },
+        {
+            "key": "linea_id",
+            "value": "10",
+            "type": "string",
+            "description": "Lo guarda «Agrega un producto a un paciente»"
         },
         {
             "key": "name",
@@ -4182,6 +4345,36 @@
             "value": "ES-2026-000123",
             "type": "string",
             "description": ""
+        },
+        {
+            "key": "orden_expires",
+            "value": "",
+            "type": "string",
+            "description": "expires de la URL firmada (5 min); lo guarda «Enlace firmado y temporal a una orden médica»"
+        },
+        {
+            "key": "orden_id",
+            "value": "1",
+            "type": "string",
+            "description": "Lo guarda el detalle admin del pedido si tiene orden médica"
+        },
+        {
+            "key": "orden_signature",
+            "value": "",
+            "type": "string",
+            "description": "signature de la URL firmada; lo guarda «Enlace firmado y temporal a una orden médica»"
+        },
+        {
+            "key": "paciente2_id",
+            "value": "2",
+            "type": "string",
+            "description": "Lo guarda «Agrega otro paciente en la misma dirección»"
+        },
+        {
+            "key": "paciente_id",
+            "value": "1",
+            "type": "string",
+            "description": "Lo guarda «Crea un carro anónimo»: primer paciente del carro"
         },
         {
             "key": "perfil",
@@ -4200,6 +4393,12 @@
             "value": "PERF-BASICO",
             "type": "string",
             "description": ""
+        },
+        {
+            "key": "t",
+            "value": "",
+            "type": "string",
+            "description": "token_consulta del pedido; lo guarda «Convierte el carro en pedido»"
         },
         {
             "key": "user_email",

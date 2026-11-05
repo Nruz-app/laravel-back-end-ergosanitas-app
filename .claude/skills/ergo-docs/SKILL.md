@@ -11,10 +11,10 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion
 
 | Archivo | Qué es | Tamaño |
 |---|---|---|
-| `openapi.yaml` | Contrato OpenAPI 3.0.3, 90 operaciones (recuéntalas, ver Paso 0) | >6.000 líneas |
+| `openapi.yaml` | Contrato OpenAPI 3.0.3, 119 operaciones (recuéntalas, ver Paso 0) | >8.000 líneas |
 | `index.html` | Visor Swagger UI del contrato | pequeño, casi nunca se toca |
 | `arquitectura.md` | Componentes, capas, providers, despliegue | ~300 líneas |
-| `flujos.md` | 13 diagramas de secuencia end-to-end | ~600 líneas |
+| `flujos.md` | 15 diagramas de secuencia end-to-end | ~750 líneas |
 | `diagrama-clases.md` | Clases UML por dominio | ~650 líneas |
 | `modelo-datos.md` | ERD, estados, autorización, catálogo de SP | ~500 líneas |
 | `diagramas/` | Diagramas explorables en HTML generados con archify desde un `.json` (`architecture`, `lifecycle` o `sequence`) | ~700 KB por artefacto |
@@ -47,7 +47,7 @@ grep -cE "^    (get|post|put|patch|delete):" docs/openapi.yaml
 
 **Filtra siempre por el prefijo `api/`.** `route:list` devuelve además cuatro rutas de Laravel que el contrato no documenta a propósito: `/`, `/sanctum/csrf-cookie`, `/storage/{path}` y `/up`. Contarlas te hace ver una divergencia que no existe.
 
-La última vez que se verificó (2026-11-03) la comparación cuadraba: **90 rutas únicas bajo `api/` = 90 operaciones documentadas** (tras la Spec 03). No te fíes de esta cifra: recuenta. Si te sale otro número, hay algo que documentar o que sobra.
+La última vez que se verificó (2026-11-05) la comparación cuadraba: **119 rutas únicas bajo `api/` = 119 operaciones documentadas** (tras las Specs 04 y 05 del carro). Cuenta cada método por separado: `cart-flow/webpay/retorno` es una ruta con GET y POST, y son dos operaciones. No te fíes de esta cifra: recuenta. Si te sale otro número, hay algo que documentar o que sobra.
 
 ```bash
 # la colección Postman cubre las mismas rutas
@@ -76,9 +76,11 @@ Mete la ruta nueva en el bloque de su dominio, junto a sus hermanas. No la pegue
 
 ### 2. Elige el `tag`
 
-Los 17 tags ya declarados en la sección `tags:` del principio del archivo. **No inventes uno nuevo** salvo que el dominio sea realmente nuevo; si lo creas, decláralo también en la sección `tags:` con su `description`.
+Los 19 tags ya declarados en la sección `tags:` del principio del archivo. **No inventes uno nuevo** salvo que el dominio sea realmente nuevo; si lo creas, decláralo también en la sección `tags:` con su `description`.
 
-`Autenticación y usuarios` · `Servicios` · `Agenda de horas` · `Chequeo cardiovascular` · `Electrocardiograma` · `Certificados` · `Bioimpedancia` · `Ficha clínica` · `Juego de cartas` · `Home comercial` · `Incidencias deportivas` · `Estadísticas y pagos` · `Asistentes IA` · `Carga masiva` · `Pagos WebPay` · `Correo` · `Utilidades`
+`Autenticación y usuarios` · `Servicios` · `Agenda de horas` · `Chequeo cardiovascular` · `Electrocardiograma` · `Certificados` · `Bioimpedancia` · `Ficha clínica` · `Juego de cartas` · `Home comercial` · `Carro de servicios` · `Carro de servicios — administración` · `Incidencias deportivas` · `Estadísticas y pagos` · `Asistentes IA` · `Carga masiva` · `Pagos WebPay` · `Correo` · `Utilidades`
+
+**Extensión `x-postman`** (solo la usan las operaciones del carro): no cambia lo que muestra Swagger, solo la colección generada. Sirve para ordenar la carpeta, renombrar variables de ruta, fijar query/body/form con `{{variables}}` y guardar ids de la respuesta para el request siguiente. Las claves están documentadas al inicio de `docs/postman/generar-coleccion.php`. Si agregas una operación a esas carpetas, dale su `orden`.
 
 ### 3. Escribe la operación en el estilo del archivo
 
@@ -149,12 +151,12 @@ Y actualiza:
 
 ## Receta B — Flujo de negocio → `flujos.md`
 
-El archivo tiene 13 secciones numeradas, cada una con un `sequenceDiagram` de Mermaid:
+El archivo tiene 15 secciones numeradas, cada una con un `sequenceDiagram` de Mermaid:
 
-1. Login y perfiles · 2. Carga masiva desde Excel · 3. Ciclo de vida del chequeo · 4. Certificado y facturación · 5. ECG del cardiólogo · 6. Generación de documentos · 7. Bioimpedancia con IA · 8. Informe de bioimpedancia · 9. Asistente clínico SAM · 10. Asistente por club · 11. Pago WebPay · 12. Agenda, correo y estadísticas
+1. Login y perfiles · 2. Carga masiva desde Excel · 3. Ciclo de vida del chequeo · 4. Certificado y facturación · 5. ECG del cardiólogo · 6. Generación de documentos · 7. Bioimpedancia con IA · 8. Informe de bioimpedancia · 9. Asistente clínico SAM · 10. Asistente por club · 11. Pago WebPay · 12. Agenda, correo y estadísticas · 13. Juego de cartas por niveles · 14. Carro de servicios · 15. Mantenedor del carro (Administrador)
 
 - **Cambio en un flujo existente:** edita solo los mensajes del diagrama que cambiaron. No reescribas el diagrama entero.
-- **Flujo nuevo:** añádelo como la siguiente sección (hoy **§14**) al final. **No renumeres** los anteriores: `docs/README.md`, `arquitectura.md` y los enlaces del repo apuntan a los números actuales (`docs/README.md` enlaza `flujos.md §13`). Actualiza la cifra "13 diagramas" de `docs/README.md`, del `README.md` raíz y de `CLAUDE.md`.
+- **Flujo nuevo:** añádelo como la siguiente sección (hoy **§16**) al final. **No renumeres** los anteriores: `docs/README.md`, `arquitectura.md` y los enlaces del repo apuntan a los números actuales (`docs/README.md` enlaza `flujos.md §13`). Actualiza la cifra "15 diagramas" de `docs/README.md`, del `README.md` raíz y de `CLAUDE.md`.
 - Copia el estilo del vecino: mismos nombres de participantes (`Cliente`, el controlador, el servicio, `MySQL`, `OpenAI`…), `Note over` para las advertencias, y español.
 - **Si el flujo toca facturación** (`CertificadoService::subirCertificado()` → `EstadisticasService::PagoMensual(..., "ADD")`), eso va explícito en el diagrama. Es el efecto cruzado que más se pasa por alto.
 
@@ -162,9 +164,9 @@ El archivo tiene 13 secciones numeradas, cada una con un `sequenceDiagram` de Me
 
 ## Receta C — Clase, servicio o provider → `diagrama-clases.md` (+ `arquitectura.md`)
 
-`diagrama-clases.md` tiene ocho secciones por dominio:
+`diagrama-clases.md` tiene once secciones por dominio:
 
-Chequeo cardiovascular · Certificados y electrocardiogramas · Asistentes de IA · Bioimpedancia · Incidencias y ficha clínica · Usuarios y perfiles · Agenda, servicios y pagos · Convenciones y anomalías
+Chequeo cardiovascular · Certificados y electrocardiogramas · Asistentes de IA · Bioimpedancia · Incidencias y ficha clínica · Usuarios y perfiles · Agenda, servicios y pagos · Juego de cartas · Home comercial · Carro de servicios (cart-flow) · Convenciones y anomalías
 
 | Qué cambió en el código | Qué tocas |
 |---|---|
@@ -252,7 +254,7 @@ Auditoría a demanda: ¿sigue el contrato describiendo la API real?
    - **Rutas sin documentar** → falta la operación en el contrato.
    - **Operaciones huérfanas** → documentan una ruta que ya no existe, o que quedó pisada por una duplicada.
    - **Método o path distinto** entre una y otra.
-3. Revisa la coherencia de los conteos: `x-generated-from`, `docs/README.md`, catálogo del `README.md` raíz, "13 diagramas" en `docs/README.md`, `README.md` y `CLAUDE.md`, y la cobertura de `php docs/postman/verificar-cobertura.php`.
+3. Revisa la coherencia de los conteos: `x-generated-from`, `docs/README.md`, catálogo del `README.md` raíz, "15 diagramas" en `docs/README.md`, `README.md` y `CLAUDE.md`, y la cobertura de `php docs/postman/verificar-cobertura.php`.
 4. **Reporta las divergencias; no arregles el código.** Si el contrato está bien y el código está mal, eso es trabajo de `ergosanitas-developer`.
 
 ---
@@ -263,7 +265,7 @@ Auditoría a demanda: ¿sigue el contrato describiendo la API real?
 # 1. el YAML parsea
 php -r 'require "vendor/autoload.php"; Symfony\Component\Yaml\Yaml::parseFile("docs/openapi.yaml"); echo "OK\n";'
 
-# 2. validación estructural OpenAPI (usa redocly.yaml de la raíz; requiere Node)
+# 2. validación estructural OpenAPI (usa redocly.yaml y .redocly.lint-ignore.yaml de la raíz; requiere Node)
 npx @redocly/cli lint
 
 # 3. las rutas documentadas coinciden con las registradas

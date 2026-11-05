@@ -3,7 +3,7 @@ openapi: 3.0.3
 info:
   title: Ergosanitas — API REST
   version: "1.0.0"
-  x-generated-from: "routes/api.php — 90 endpoints"
+  x-generated-from: "routes/api.php — 119 endpoints"
   description: |
     API REST en **Laravel 11 / PHP 8.2** de **Ergo SaniTas SpA**: gestión de chequeos
     cardiovasculares deportivos, electrocardiogramas, bioimpedancia, certificados médicos,
@@ -227,6 +227,21 @@ info:
 # la API. Ninguna ruta de negocio lleva middleware de autenticación (ver "1.3" arriba).
 # La única operación que declara seguridad es GET /user, que la sobrescribe.
 security: []
+
+# Variables extra para la coleccion Postman (las lee docs/postman/generar-coleccion.php).
+x-postman-variables:
+  - { key: admin_email, value: "admin@ergosanitas.com", description: "Email de un usuario de perfil Administrador (cart-flow/admin/*). Ponle uno real" }
+  - { key: comuna_id, value: "", description: "Lo guarda «Comunas con zona y cargos de domicilio» (Maipú o la primera con zona)" }
+  - { key: paciente_id, value: "", description: "Lo guarda «Crea un carro anónimo»: primer paciente del carro" }
+  - { key: paciente2_id, value: "", description: "Lo guarda «Agrega otro paciente en la misma dirección»" }
+  - { key: linea_id, value: "", description: "Lo guarda «Agrega un producto a un paciente»" }
+  - { key: fecha, value: "", description: "Lo guarda «Bloques disponibles para un carro»: primer día con cupo" }
+  - { key: bloque_id, value: "", description: "Lo guarda «Bloques disponibles para un carro»: primer bloque con cupo" }
+  - { key: t, value: "", description: "token_consulta del pedido; lo guarda «Convierte el carro en pedido»" }
+  - { key: orden_id, value: "", description: "Lo guarda el detalle admin del pedido si tiene orden médica" }
+  - { key: orden_expires, value: "", description: "expires de la URL firmada (5 min); lo guarda «Enlace firmado y temporal a una orden médica»" }
+  - { key: orden_signature, value: "", description: "signature de la URL firmada; lo guarda «Enlace firmado y temporal a una orden médica»" }
+  - { key: cotizacion_id, value: "", description: "Lo guarda «Solicitudes de cotización» (admin)" }
 
 servers:
   - url: http://127.0.0.1:8000/api
@@ -4690,6 +4705,7 @@ paths:
                   success: { type: boolean, example: true }
                   message: { type: string, example: "Carta obtenida correctamente" }
                   data:
+                    type: object
                     allOf: [{ $ref: '#/components/schemas/JuegoCarta' }]
                     nullable: true
               examples:
@@ -7036,6 +7052,10 @@ paths:
       tags: [Carro de servicios]
       summary: Comunas con zona y cargos de domicilio
       operationId: cartFlowComunas
+      x-postman:
+        orden: 1
+        guardar:
+          comuna_id: "(r.data.find(c => c.comuna === 'Maipú') || r.data.find(c => !c.a_cotizar)).id"
       description: |
         Comunas activas de `cf_comunas`, ordenadas por nombre. Las que están fuera de RM (sin
         zona) o marcadas `a_cotizar` salen con `a_cotizar: true` y cargos `null`: el front solo
@@ -7064,6 +7084,8 @@ paths:
       tags: [Carro de servicios]
       summary: Catálogo público (solo visible_tienda)
       operationId: cartFlowCatalogo
+      x-postman:
+        orden: 2
       description: |
         Productos con `visible_tienda = 1`, sin la toma de muestra suelta (el carro la suma
         sola), ordenados por nombre. `categorias` trae las categorías visibles en el orden de
@@ -7102,6 +7124,8 @@ paths:
       tags: [Carro de servicios]
       summary: Detalle de un producto visible
       operationId: cartFlowProducto
+      x-postman:
+        orden: 3
       parameters:
         - { name: sku, in: path, required: true, schema: { type: string, example: "PERF-BASICO" } }
       responses:
@@ -7126,6 +7150,11 @@ paths:
       tags: [Carro de servicios]
       summary: Muestra u oculta un producto (mantenedor)
       operationId: cartFlowVisibilidad
+      x-postman:
+        orden: 20
+        body:
+          user_email: "{{admin_email}}"
+          visible_tienda: true
       description: |
         Exige un `user_email` de perfil **Administrador** (mismo control que la Spec 03; no es
         autenticación). Cada cambio queda en `cf_visibilidad_log`. Activar un producto con
@@ -7181,6 +7210,14 @@ paths:
       tags: [Carro de servicios]
       summary: Crea un carro anónimo
       operationId: cartFlowCarritoStore
+      x-postman:
+        orden: 4
+        body:
+          comuna_id: "{{comuna_id}}"
+          direccion: "Calle Ficticia 123"
+        guardar:
+          uuid: "r.data.uuid"
+          paciente_id: "r.data.pacientes[0].id"
       description: |
         Crea un carro `abierto` con `uuid` aleatorio, vigente `carrito_dias_vigencia` días (7) y
         con un primer paciente vacío. El front guarda el `uuid` para retomarlo.
@@ -7214,6 +7251,8 @@ paths:
       tags: [Carro de servicios]
       summary: Carro recalculado
       operationId: cartFlowCarritoShow
+      x-postman:
+        orden: 5
       description: |
         Devuelve el carro con desglose, preparación consolidada, bloqueos y avisos. Si el dueño
         ocultó un producto, la línea se quita (soft delete) y sale un aviso `producto_no_disponible`.
@@ -7232,6 +7271,11 @@ paths:
       tags: [Carro de servicios]
       summary: Cambia comuna, dirección o plan
       operationId: cartFlowCarritoUpdate
+      x-postman:
+        orden: 6
+        body:
+          plan: "ninguno"
+          referencia: "Casa ficticia, portón verde"
       requestBody:
         required: true
         content:
@@ -7270,6 +7314,11 @@ paths:
       tags: [Carro de servicios]
       summary: Agrega otro paciente en la misma dirección
       operationId: cartFlowPacienteStore
+      x-postman:
+        orden: 7
+        body: {}
+        guardar:
+          paciente2_id: "r.data.pacientes[r.data.pacientes.length - 1].id"
       description: El segundo paciente y siguientes no pagan domicilio. Máximo 10 por carro.
       parameters:
         - { name: uuid, in: path, required: true, schema: { type: string, format: uuid, example: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d" } }
@@ -7300,6 +7349,19 @@ paths:
       tags: [Carro de servicios]
       summary: Edita los datos de un paciente del carro
       operationId: cartFlowPacienteUpdate
+      x-postman:
+        orden: 8
+        vars:
+          id: "paciente_id"
+        body:
+          nombre: "Paciente Ficticio"
+          rut: "11111111-1"
+          fecha_nac: "1980-01-01"
+          sexo: "M"
+          prevision: "Fonasa"
+          telefono: "+56900000000"
+          email: "paciente@example.com"
+          consentimiento: true
       description: |
         Datos ficticios en pruebas. El RUT se guarda sin puntos y en mayúsculas. La edad (a la
         fecha de la cita) decide el beneficio adulto mayor y las restricciones de edad.
@@ -7333,6 +7395,10 @@ paths:
       tags: [Carro de servicios]
       summary: Quita un paciente (soft delete)
       operationId: cartFlowPacienteQuitar
+      x-postman:
+        orden: 9
+        vars:
+          id: "paciente2_id"
       description: No borra filas (especificación legal §1). El carro conserva al menos un paciente.
       parameters:
         - { name: uuid, in: path, required: true, schema: { type: string, format: uuid, example: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d" } }
@@ -7359,6 +7425,13 @@ paths:
       tags: [Carro de servicios]
       summary: Agrega un producto a un paciente
       operationId: cartFlowLineaStore
+      x-postman:
+        orden: 10
+        body:
+          paciente_id: "{{paciente_id}}"
+          sku: "{{sku}}"
+        guardar:
+          linea_id: "r.data.pacientes.find(p => String(p.id) === pm.variables.get('paciente_id')).lineas.find(l => l.id).id"
       description: |
         Rechaza productos ocultos o la toma de muestra suelta (**404**) y los de cotización
         (**422** `solo_cotizacion`). Si el producto ya está: los servicios suman cantidad, el
@@ -7403,6 +7476,12 @@ paths:
       tags: [Carro de servicios]
       summary: Cambia la cantidad de una línea
       operationId: cartFlowLineaUpdate
+      x-postman:
+        orden: 11
+        vars:
+          id: "linea_id"
+        body:
+          cantidad: 1
       description: Solo los servicios admiten cantidad mayor a 1; el laboratorio queda en 1.
       parameters:
         - { name: uuid, in: path, required: true, schema: { type: string, format: uuid, example: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d" } }
@@ -7433,6 +7512,10 @@ paths:
       tags: [Carro de servicios]
       summary: Quita una línea (soft delete)
       operationId: cartFlowLineaQuitar
+      x-postman:
+        orden: 19
+        vars:
+          id: "linea_id"
       parameters:
         - { name: uuid, in: path, required: true, schema: { type: string, format: uuid, example: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d" } }
         - { name: id, in: path, required: true, schema: { type: integer, example: 10 } }
@@ -7453,6 +7536,13 @@ paths:
       tags: [Carro de servicios]
       summary: Bloques disponibles para un carro
       operationId: cartFlowAgendaBloques
+      x-postman:
+        orden: 12
+        query:
+          carrito: "{{uuid}}"
+        guardar:
+          fecha: "r.data.dias[0].fecha"
+          bloque_id: "r.data.dias[0].bloques.find(b => b.libres > 0).id"
       description: |
         Días entre `hoy + agenda_anticipacion_dias` (1) y `hoy + agenda_dias_max` (30) con sus
         bloques activos para la zona del carro (los de `zona_id` null aplican a todas). Si el
@@ -7509,6 +7599,19 @@ paths:
       tags: [Carro de servicios]
       summary: Convierte el carro en pedido
       operationId: cartFlowCheckout
+      x-postman:
+        orden: 13
+        form:
+          fecha: "{{fecha}}"
+          bloque_id: "{{bloque_id}}"
+          medio_pago: "transferencia"
+          contacto_nombre: "Contacto Ficticio"
+          contacto_email: "contacto@example.com"
+          contacto_telefono: "+56900000000"
+          acepta_terminos: "1"
+        guardar:
+          numero: "r.data.numero"
+          t: "r.data.token_consulta"
       description: |
         Recalcula en el servidor a la fecha de la cita, valida bloqueos, datos y consentimiento
         de cada paciente (apoderado si es menor de 18), la orden médica cuando alguna línea la
@@ -7571,6 +7674,10 @@ paths:
       tags: [Carro de servicios]
       summary: Consulta un pedido con su token
       operationId: cartFlowPedido
+      x-postman:
+        orden: 14
+        query:
+          t: "{{t}}"
       description: Sin el `token_consulta` correcto responde 404 (evita enumerar pedidos). No devuelve RUT ni fecha de nacimiento.
       parameters:
         - { name: numero, in: path, required: true, schema: { type: string, example: "ES-2026-000123" } }
@@ -7597,6 +7704,10 @@ paths:
       tags: [Carro de servicios]
       summary: Inicia el pago Webpay de un pedido
       operationId: cartFlowPedidoWebPay
+      x-postman:
+        orden: 15
+        body:
+          t: "{{t}}"
       description: |
         Crea la transacción por **`cf_pedidos.total`** (nunca por un monto del cliente) con
         `buy_order` único por intento (`CF{pedido}-{pago}`) y `session_id` = número de pedido.
@@ -7653,6 +7764,9 @@ paths:
       tags: [Carro de servicios]
       summary: Retorno de Transbank (redirige al front)
       operationId: cartFlowWebPayRetornoGet
+      x-postman:
+        orden: 16
+        redirecciones: false
       description: |
         Lo llama Transbank, no el front. Con `token_ws` hace el commit y marca el pedido
         `pagado` solo si `status = AUTHORIZED`, `response_code = 0`, el monto y el `buy_order`
@@ -7669,6 +7783,9 @@ paths:
       tags: [Carro de servicios]
       summary: Retorno de Transbank por POST (redirige al front)
       operationId: cartFlowWebPayRetornoPost
+      x-postman:
+        orden: 17
+        redirecciones: false
       description: Igual que el GET; Transbank puede volver por formulario.
       requestBody:
         required: false
@@ -7689,6 +7806,8 @@ paths:
       tags: [Carro de servicios]
       summary: Solicitud de cotización
       operationId: cartFlowCotizacion
+      x-postman:
+        orden: 18
       description: Para operativos, empresas, productos `a_cotizar` y comunas fuera de RM. Queda en `cf_cotizaciones` con estado `nueva`.
       requestBody:
         required: true
@@ -7737,6 +7856,10 @@ paths:
       tags: [Carro de servicios — administración]
       summary: KPIs del carro
       operationId: cartFlowAdminResumen
+      x-postman:
+        orden: 1
+        query:
+          user_email: "{{admin_email}}"
       description: Pedidos de hoy, pendientes de pago (por medio), pagados y monto del mes, pedidos por estado, próximas visitas (7 días) y cotizaciones nuevas.
       parameters:
         - { name: user_email, in: query, required: true, schema: { type: string, format: email, example: "admin@ergosanitas.com" } }
@@ -7779,6 +7902,10 @@ paths:
       tags: [Carro de servicios — administración]
       summary: Pedidos paginados con filtros
       operationId: cartFlowAdminPedidos
+      x-postman:
+        orden: 2
+        query:
+          user_email: "{{admin_email}}"
       description: |
         20 por página, del más nuevo al más antiguo. `por=visita` filtra `desde`/`hasta` sobre la fecha de la visita;
         `por=creacion` (defecto) sobre la fecha de creación. `q` busca en número, contacto y RUT o nombre de pacientes.
@@ -7842,6 +7969,12 @@ paths:
       tags: [Carro de servicios — administración]
       summary: Detalle completo de un pedido
       operationId: cartFlowAdminPedido
+      x-postman:
+        orden: 3
+        query:
+          user_email: "{{admin_email}}"
+        guardar:
+          orden_id: "(r.data.pacientes.flatMap(p => p.ordenes_medicas)[0] || {}).id"
       description: |
         Contacto, visita, desglose, pacientes con RUT y fecha de nacimiento, líneas, preparación, órdenes médicas
         (sin path), pagos (`buy_order`, `status`, `response_code`, `authorization_code`; sin token ni payload),
@@ -7871,6 +8004,11 @@ paths:
       tags: [Carro de servicios — administración]
       summary: Cambia el estado del pedido
       operationId: cartFlowAdminPedidoEstado
+      x-postman:
+        orden: 4
+        body:
+          user_email: "{{admin_email}}"
+          accion: "confirmar_pago"
       description: |
         `confirmar_pago` (pendiente_pago → pagado, solo transferencia/efectivo), `confirmar` (pagado → confirmado),
         `atender` (confirmado, o efectivo pendiente/pagado → atendido) y `anular` (motivo obligatorio; no desde
@@ -7920,6 +8058,15 @@ paths:
       tags: [Carro de servicios — administración]
       summary: Enlace firmado y temporal a una orden médica
       operationId: cartFlowAdminOrdenEnlace
+      x-postman:
+        orden: 5
+        vars:
+          id: "orden_id"
+        body:
+          user_email: "{{admin_email}}"
+        guardar:
+          orden_expires: "r.data.url.match(/expires=([0-9]+)/)[1]"
+          orden_signature: "r.data.url.match(/signature=([a-f0-9]+)/)[1]"
       description: URL firmada válida 5 minutos hacia `cart-flow/admin/ordenes/{id}/descarga`. El archivo sigue en el disco privado.
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer, example: 1 } }
@@ -7963,6 +8110,13 @@ paths:
       tags: [Carro de servicios — administración]
       summary: Descarga de la orden médica (URL firmada)
       operationId: cartFlowAdminOrdenDescarga
+      x-postman:
+        orden: 6
+        vars:
+          id: "orden_id"
+        query:
+          expires: "{{orden_expires}}"
+          signature: "{{orden_signature}}"
       description: Solo responde con la firma (`expires`, `signature`) que entrega el endpoint de enlace. Sin firma válida o vencida, 403.
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer, example: 1 } }
@@ -7984,6 +8138,12 @@ paths:
       tags: [Carro de servicios — administración]
       summary: Solicitudes de cotización
       operationId: cartFlowAdminCotizaciones
+      x-postman:
+        orden: 7
+        query:
+          user_email: "{{admin_email}}"
+        guardar:
+          cotizacion_id: "r.data[0].id"
       parameters:
         - { name: user_email, in: query, required: true, schema: { type: string, format: email, example: "admin@ergosanitas.com" } }
         - { name: estado, in: query, required: false, schema: { type: string, enum: [nueva, contactada, cerrada] } }
@@ -8010,6 +8170,13 @@ paths:
       tags: [Carro de servicios — administración]
       summary: Cambia el estado de una cotización
       operationId: cartFlowAdminCotizacionEstado
+      x-postman:
+        orden: 8
+        vars:
+          id: "cotizacion_id"
+        body:
+          user_email: "{{admin_email}}"
+          estado: "contactada"
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer, example: 1 } }
       requestBody:
@@ -8049,6 +8216,10 @@ paths:
       tags: [Carro de servicios — administración]
       summary: Catálogo completo para el mantenedor
       operationId: cartFlowAdminProductos
+      x-postman:
+        orden: 9
+        query:
+          user_email: "{{admin_email}}"
       description: Incluye los productos ocultos, con `publicable` y `motivo_no_publicable`. Nunca los costos.
       parameters:
         - { name: user_email, in: query, required: true, schema: { type: string, format: email, example: "admin@ergosanitas.com" } }
