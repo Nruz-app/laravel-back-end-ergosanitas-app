@@ -22,6 +22,7 @@ El proyecto es exclusivamente backend: no hay frontend propio. Todos los recurso
 - [Autenticación y perfiles](#autenticación-y-perfiles)
 - [Integración con OpenAI](#integración-con-openai)
 - [Generación de documentos](#generación-de-documentos)
+- [Carro de servicios (cart-flow)](#carro-de-servicios-cart-flow)
 - [Trampas conocidas](#trampas-conocidas)
 - [Diagramas](#diagramas)
 - [Contrato OpenAPI (Swagger)](#contrato-openapi-swagger)
@@ -105,6 +106,8 @@ Además de las variables estándar de Laravel, el proyecto usa:
 | `API_PATH_CER` | URL pública base de la carpeta de certificados (ej. `https://ergosanitas.com/BackEnd/public/Certificado`) |
 | `API_PATH_LOGO` | URL pública base de la carpeta de logos de clubes |
 | `API_PATH_HOME` | URL pública base de `public/HomeImagenes`, sin barra final (ej. `http://127.0.0.1:8000/HomeImagenes`). Arma el `src` de las imágenes del Home |
+| `WEBPAY_CART_FLOW_RETURN` | **Opcional.** Retorno de Webpay del carro. Vacía → `route('CartFlowWebPayRetorno')` del mismo host (`…/api/cart-flow/webpay/retorno`) |
+| `CART_FLOW_FRONT_URL` | **Opcional.** A dónde vuelve el cliente tras pagar (`{url}/servicios/resultado`). Vacía → `http://localhost:5173` con `APP_ENV=local`, si no `https://ergosanitas.com` |
 
 > `API_PATH_CER` y `API_PATH_LOGO` se leen con `env()` directamente desde los servicios. Si se cachea la configuración con `php artisan config:cache`, estas llamadas devolverán `null`. Evita `config:cache` en este proyecto o migra esos valores a un archivo de configuración.
 >
@@ -271,6 +274,13 @@ Tablas principales del dominio:
 | `chat_club_history` | `ChatClubHistory` | Historial de mensajes por sesión de club |
 | `logs_api` | `LogsApi` | Errores de WebPay (es el único dominio que persiste errores) |
 | `home_imagenes` | `HomeImagen` | Imágenes de promociones, alianzas y galería del Home comercial (solo el nombre del archivo; la URL se arma al responder). La migración siembra 24 filas |
+| `cf_zonas`, `cf_comunas` | `CartFlow\Zona`, `CartFlow\Comuna` | Carro: 3 zonas de domicilio con sus cargos y 50 comunas (sin zona = fuera de RM, a cotizar) |
+| `cf_productos`, `cf_producto_componentes` | `CartFlow\Producto`, `CartFlow\ProductoComponente` | Catálogo del carro: 245 productos por SKU y componentes de perfiles/packs. `costo_domilab` y `nota_interna` nunca salen por la API |
+| `cf_reglas`, `cf_bloques_agenda`, `cf_operativo_tramos` | `CartFlow\Regla`, `CartFlow\BloqueAgenda`, `CartFlow\OperativoTramo` | Reglas de negocio en JSON, bloques horarios con cupo y precios de operativos por tramo |
+| `cf_carritos`, `cf_carrito_pacientes`, `cf_carrito_lineas` | `CartFlow\Carrito`, `CarritoPaciente`, `CarritoLinea` | Carro anónimo por `uuid`; pacientes y líneas con **soft delete** |
+| `cf_pedidos`, `cf_pedido_pacientes`, `cf_pedido_lineas`, `cf_pedido_ordenes_medicas` | `CartFlow\Pedido`, … | Pedido: copia inmutable del carro. Se anula, nunca se borra. Las órdenes médicas van al disco privado |
+| `cf_pagos`, `cf_pedido_historial` | `CartFlow\Pago`, `CartFlow\PedidoHistorial` | Intentos de pago (Webpay, transferencia, efectivo) y cada cambio de estado del pedido con quién y por qué |
+| `cf_cotizaciones`, `cf_visibilidad_log` | `CartFlow\Cotizacion`, `CartFlow\VisibilidadLog` | Solicitudes de cotización y registro de quién mostró u ocultó un producto |
 
 Tres advertencias sobre este esquema:
 
@@ -566,6 +576,60 @@ Además, la validación de estas subidas es desigual: `POST /api/carga-masiva/ex
 
 ---
 
+## Carro de servicios (cart-flow)
+
+La tienda pública `/servicios` del front vende un catálogo completo: laboratorio, enfermería, cardiovascular, vacunas
+y eventos. El carro admite varios pacientes en la misma dirección, agenda por bloques con cupo y pago por Webpay,
+transferencia o efectivo. Las specs son:
+- [`specs/04-servicio-cart-flow.md`](specs/04-servicio-cart-flow.md): carro público.
+- [`specs/05-mantenedor-carrito-compra.md`](specs/05-mantenedor-carrito-compra.md): mantenedor del Administrador.
+
+Es un flujo **paralelo** al de `servicios` / `agenda-horas` / `transbank/*`, que siguen sin cambios.
+
+| Pieza | Dónde |
+| --- | --- |
+| Rutas | `cart-flow/*` (público) y `cart-flow/admin/*` (Administrador) en `routes/api.php` |
+| Controladores | `app/Http/Controllers/CartFlow/` (`CatalogoController`, `CarritoController`, `AgendaPedidoController`, `AdminCartFlowController`; sobre común en el trait `RespuestasCartFlow`) |
+| Servicios | `app/Services/CartFlow/`, registrados en `CartFlowServiceProvider` |
+| Modelos | `app/Models/CartFlow/` (tablas `cf_*`) |
+| Catálogo versionado | `database/data/cart-flow/*.csv` (sin costos) |
+| Tests | `tests/Unit/CartFlow/` (los 10 ejemplos de la especificación) y `tests/Feature/CartFlow/` |
+
+**Reglas que no se ven leyendo un solo archivo:**
+
+- El total lo calcula **solo** `CalculadoraCarroService`, una función pura. El cliente nunca envía montos y Webpay
+  cobra `cf_pedidos.total`.
+- Nada se borra:
+  - quitar un paciente o una línea del carro es soft delete;
+  - un pedido se anula con motivo;
+  - cada cambio de estado va a `cf_pedido_historial`.
+- El estado del pedido cambia **solo** por acciones nombradas (`confirmar_pago`, `confirmar`, `atender`, `anular`).
+  `AdminPedidoService::accionesPermitidas()` decide cuáles valen.
+- El Administrador se valida con `user_email` de perfil `Administrador`, igual que en la Spec 03. **No es
+  autenticación.**
+- La orden médica se guarda en `storage/app/private/cart-flow/ordenes` y se descarga por una URL firmada que dura
+  5 minutos.
+
+**Puesta en marcha** (una vez por entorno, con respaldo previo; nunca `migrate` sin `--path`):
+
+```bash
+php artisan migrate --path=database/migrations/2026_11_04_120000_create_cf_catalogo_tables.php \
+  --path=database/migrations/2026_11_04_120100_create_cf_agenda_carrito_tables.php \
+  --path=database/migrations/2026_11_04_120200_create_cf_pedido_pago_tables.php \
+  --path=database/migrations/2026_11_05_120000_create_cf_pedido_historial_table.php
+php artisan db:seed --class=CartFlowSeeder          # reglas, bloques de agenda y catálogo (idempotente)
+php artisan cart-flow:importar-catalogo [--dir=...]  # reimportar: no pisa visible_tienda; --dir para cargar costos
+```
+
+**Probar Webpay en integración:** con las credenciales públicas de Transbank en `WEBPAY_URL|ID|SECRET`
+(`webpay3gint`), usa la tarjeta VISA `4051 8856 0044 6623`, CVV 123, vencimiento 12/34, y en el banco simulado
+RUT 11.111.111-1 y clave 123.
+
+**Tests sin tocar el MySQL remoto:** `php artisan test --filter=CartFlow`. `CartFlowTestCase` fuerza SQLite en
+memoria antes de arrancar la app.
+
+---
+
 ## Trampas conocidas
 
 Comportamientos del proyecto que no se deducen leyendo un solo archivo y que rompen cosas si se ignoran:
@@ -594,7 +658,7 @@ La carpeta [`docs/`](docs/) contiene la vista gráfica del sistema, en diagramas
 | Documento | Qué muestra |
 |---|---|
 | [`docs/arquitectura.md`](docs/arquitectura.md) | Componentes, las tres capas y sus excepciones, inyección de dependencias y despliegue |
-| [`docs/flujos.md`](docs/flujos.md) | 13 diagramas de secuencia, uno por flujo end-to-end (carga masiva, facturación, asistentes, WebPay…) |
+| [`docs/flujos.md`](docs/flujos.md) | 15 diagramas de secuencia, uno por flujo end-to-end (carga masiva, facturación, asistentes, WebPay…) |
 | [`docs/diagrama-clases.md`](docs/diagrama-clases.md) | Clases UML por dominio: controladores, servicios, modelos y prompts, con sus firmas reales |
 | [`docs/modelo-datos.md`](docs/modelo-datos.md) | ERD de las 18 tablas, máquina de estados del chequeo, autorización por perfil y catálogo de procedimientos almacenados |
 
@@ -604,7 +668,7 @@ La carpeta [`docs/`](docs/) contiene la vista gráfica del sistema, en diagramas
 
 ## Contrato OpenAPI (Swagger)
 
-El contrato completo de la API vive en **[`docs/openapi.yaml`](docs/openapi.yaml)** (OpenAPI 3.0.3): las 90 operaciones de `routes/api.php`, con esquemas, parámetros, ejemplos de request y de respuesta para cada código de estado, y las particularidades reales del proyecto (los dos formatos de sobre incompatibles, los endpoints que facturan, los que devuelven 200 en caso de error, el filtrado por perfil).
+El contrato completo de la API vive en **[`docs/openapi.yaml`](docs/openapi.yaml)** (OpenAPI 3.0.3): las 119 operaciones de `routes/api.php`, con esquemas, parámetros, ejemplos de request y de respuesta para cada código de estado, y las particularidades reales del proyecto (los dos formatos de sobre incompatibles, los endpoints que facturan, los que devuelven 200 en caso de error, el filtrado por perfil).
 
 Las tablas de la sección [Endpoints](#endpoints) son el índice rápido; el YAML es la referencia detallada.
 
@@ -627,7 +691,7 @@ php -r 'require "vendor/autoload.php"; Symfony\Component\Yaml\Yaml::parseFile("d
 npx @redocly/cli lint
 ```
 
-`redocly.yaml`, en la raíz, apunta al contrato y deja documentado qué reglas de estilo están desactivadas y por qué (por ejemplo `operation-4xx-response`: esta API devuelve 500 donde otra devolvería un 4xx, así que exigir respuestas 4xx obligaría a documentar códigos que nunca se emiten). Hoy el contrato pasa el lint **sin errores ni advertencias**.
+`redocly.yaml`, en la raíz, apunta al contrato y deja documentado qué reglas de estilo están desactivadas y por qué (por ejemplo `operation-4xx-response`: esta API devuelve 500 donde otra devolvería un 4xx, así que exigir respuestas 4xx obligaría a documentar códigos que nunca se emiten). Hoy el contrato pasa el lint **sin errores ni advertencias**. Hay 3 excepciones puntuales en `.redocly.lint-ignore.yaml`, cada una con su motivo: el ejemplo `data: null` de `juego-cartas/detalle` y los dos retornos de Webpay del carro, que solo responden 302.
 
 ### Mantenerlo al día
 
@@ -641,7 +705,7 @@ php artisan route:list --json
 
 ## Colección Postman
 
-**[`docs/postman/`](docs/postman/)** trae la colección Postman v2.1 con las **90 operaciones** repartidas en 17 carpetas, más tres entornos (local, Docker y producción). A diferencia del contrato y los diagramas, esto **sí es generado**: la fuente es `docs/openapi.yaml`.
+**[`docs/postman/`](docs/postman/)** trae la colección Postman v2.1 con las **119 operaciones** repartidas en 19 carpetas, más tres entornos (local, Docker y producción). A diferencia del contrato y los diagramas, esto **sí es generado**: la fuente es `docs/openapi.yaml`.
 
 ```bash
 # Regenerar la colección y los entornos tras tocar el contrato
@@ -657,7 +721,7 @@ npx newman run docs/postman/Ergosanitas-API.postman_collection.json \
 
 En Postman: **Import → Files**, selecciona el `.json` de la colección y el entorno que uses. Las variables `baseUrl`, `user_email`, `rut_paciente`, `id_paciente`, `perfil` y `name` traen ejemplos ficticios del contrato; apúntalas a datos reales antes de probar.
 
-Dos avisos antes de dispararle a un entorno con datos: los endpoints de certificados y ECG **facturan en cada ejecución** (`SP_pago_mensual(..., 'ADD')`, sin idempotencia) y la carpeta *Asistentes IA* **gasta tokens de OpenAI**. El detalle está en [`docs/postman/README.md`](docs/postman/README.md).
+Dos avisos antes de dispararle a un entorno con datos: los endpoints de certificados y ECG **facturan en cada ejecución** (`SP_pago_mensual(..., 'ADD')`, sin idempotencia) y la carpeta *Asistentes IA* **gasta tokens de OpenAI**. Las carpetas del carro **crean carros, pedidos y cotizaciones reales** en la base del entorno; además, `pedidos/{numero}/webpay` abre una transacción en Transbank y las acciones de `admin/pedidos/{numero}/estado` dejan historial. El detalle está en [`docs/postman/README.md`](docs/postman/README.md).
 
 ---
 
@@ -830,6 +894,47 @@ Administrador y responden **403** si no lo es; no es autenticación real (ver
 | `POST` | `file-upload` | Subida genérica de archivos |
 | `POST` | `carga-masiva/excel` | Carga masiva desde Excel |
 | `GET` | `execute-link-simbolik` | Ejecuta `php artisan storage:link` vía HTTP |
+
+### Carro de servicios (`cart-flow`, público)
+
+Sobre `{success, message, data}`. Ver [Carro de servicios](#carro-de-servicios-cart-flow).
+
+| Método | Ruta | Acción |
+|---|---|---|
+| `GET` | `cart-flow/comunas` | Comunas con zona y cargos de domicilio |
+| `GET` | `cart-flow/catalogo` | Catálogo visible (`?categoria=&tipo=&q=`) |
+| `GET` | `cart-flow/catalogo/{sku}` | Detalle de un producto con sus componentes |
+| `POST` | `cart-flow/carritos` | Crea un carro anónimo (`uuid`) |
+| `GET` / `PUT` | `cart-flow/carritos/{uuid}` | Carro recalculado / cambia comuna, dirección o plan |
+| `POST` | `cart-flow/carritos/{uuid}/pacientes` | Agrega un paciente en la misma dirección |
+| `PUT` | `cart-flow/carritos/{uuid}/pacientes/{id}` | Datos del paciente |
+| `POST` | `cart-flow/carritos/{uuid}/pacientes/{id}/quitar` | Quita un paciente (soft delete) |
+| `POST` | `cart-flow/carritos/{uuid}/lineas` | Agrega un producto a un paciente |
+| `PUT` | `cart-flow/carritos/{uuid}/lineas/{id}` | Cambia la cantidad |
+| `POST` | `cart-flow/carritos/{uuid}/lineas/{id}/quitar` | Quita una línea (soft delete) |
+| `GET` | `cart-flow/agenda/bloques` | Bloques con cupo para el carro (`?carrito=`) |
+| `POST` | `cart-flow/carritos/{uuid}/checkout` | Convierte el carro en pedido (multipart, con órdenes médicas) |
+| `GET` | `cart-flow/pedidos/{numero}` | Consulta un pedido (`?t=token_consulta`) |
+| `POST` | `cart-flow/pedidos/{numero}/webpay` | Inicia el pago Webpay por el total del pedido |
+| `GET` / `POST` | `cart-flow/webpay/retorno` | Retorno de Transbank; redirige al front |
+| `POST` | `cart-flow/cotizaciones` | Solicitud de cotización |
+
+### Carro de servicios — administración (`cart-flow/admin`)
+
+Todas exigen `user_email` de perfil Administrador (403 si no), salvo la descarga, que exige una URL firmada.
+
+| Método | Ruta | Acción |
+|---|---|---|
+| `GET` | `cart-flow/admin/resumen` | KPIs: pedidos de hoy, pendientes de pago, pagados del mes, próximas visitas |
+| `GET` | `cart-flow/admin/pedidos` | Pedidos paginados con filtros y búsqueda por RUT |
+| `GET` | `cart-flow/admin/pedidos/{numero}` | Detalle completo con pagos, órdenes, historial y acciones permitidas |
+| `PUT` | `cart-flow/admin/pedidos/{numero}/estado` | `confirmar_pago` · `confirmar` · `atender` · `anular` (con motivo) |
+| `POST` | `cart-flow/admin/ordenes/{id}/enlace` | URL firmada (5 min) para la orden médica |
+| `GET` | `cart-flow/admin/ordenes/{id}/descarga` | Descarga de la orden médica (`signed`) |
+| `GET` | `cart-flow/admin/cotizaciones` | Solicitudes de cotización |
+| `PUT` | `cart-flow/admin/cotizaciones/{id}/estado` | `nueva` · `contactada` · `cerrada` |
+| `GET` | `cart-flow/admin/productos` | Catálogo completo, también lo oculto |
+| `PUT` | `cart-flow/admin/productos/{sku}/visibilidad` | Muestra u oculta un producto (con registro) |
 
 ---
 

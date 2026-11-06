@@ -1,0 +1,15 @@
+# Excepciones puntuales del lint de Redocly (npx @redocly/cli lint). Cada una es comportamiento
+# real de la API, no deuda del contrato. Si se agrega otra, deja aquí el motivo.
+#
+# - juego-cartas/detalle, ejemplo "inexistente": la API devuelve `data: null` para un RUT sin
+#   chequeos. En OpenAPI 3.0 `nullable` no se combina bien con `$ref`/`allOf`, y el validador de
+#   ejemplos lo marca aunque el esquema declare `nullable: true`.
+# - cart-flow/webpay/retorno (GET y POST): lo llama Transbank y siempre responde 302 hacia el
+#   front (/servicios/resultado). No existe un 2XX que documentar.
+docs/openapi.yaml:
+  no-invalid-media-type-examples:
+    - >-
+      #/paths/~1juego-cartas~1detalle~1{rut_paciente}/get/responses/200/content/application~1json/examples/inexistente/value/data
+  operation-2xx-response:
+    - '#/paths/~1cart-flow~1webpay~1retorno/get/responses'
+    - '#/paths/~1cart-flow~1webpay~1retorno/post/responses'

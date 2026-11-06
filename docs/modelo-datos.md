@@ -336,6 +336,88 @@ erDiagram
 
 ---
 
+## Diagrama entidad-relación: carro de servicios (`cf_*`, Spec 04)
+
+Flujo paralelo a `servicios` / `agenda_horas` / `web_pay_info`, que no cambian. A diferencia del resto del esquema, **sí usa foreign keys** e ids: el pedido se enlaza al pago por `pedido_id`, no por RUT.
+
+```mermaid
+erDiagram
+    cf_zonas ||--o{ cf_comunas : "zona_id (null = fuera de RM)"
+    cf_zonas ||--o{ cf_bloques_agenda : "zona_id (null = todas)"
+    cf_productos ||--o{ cf_producto_componentes : "pack_id"
+    cf_productos ||--o{ cf_producto_componentes : "componente_id"
+    cf_productos ||--o{ cf_visibilidad_log : "producto_id"
+    cf_comunas ||--o{ cf_carritos : "comuna_id"
+    cf_carritos ||--o{ cf_carrito_pacientes : "carrito_id (soft delete)"
+    cf_carrito_pacientes ||--o{ cf_carrito_lineas : "carrito_paciente_id (soft delete)"
+    cf_productos ||--o{ cf_carrito_lineas : "producto_id"
+    cf_carritos ||--o| cf_pedidos : "carrito_id"
+    cf_bloques_agenda ||--o{ cf_pedidos : "bloque_id + fecha = cupo"
+    cf_pedidos ||--o{ cf_pedido_pacientes : "pedido_id"
+    cf_pedido_pacientes ||--o{ cf_pedido_lineas : "snapshot de precio"
+    cf_pedido_pacientes ||--o{ cf_pedido_ordenes_medicas : "disco privado"
+    cf_pedidos ||--o{ cf_pagos : "pedido_id"
+
+    cf_productos {
+        string sku UK
+        string tipo
+        int precio
+        int precio_te_cuida
+        int precio_familiar
+        int precio_adulto_mayor
+        bool visible_tienda "lo unico que mira la tienda"
+        bool publicable
+        int costo_domilab "hidden"
+        text nota_interna "hidden"
+    }
+    cf_carritos {
+        uuid uuid UK
+        string plan "ninguno|te_cuida|familiar"
+        string estado "abierto|convertido|expirado"
+        timestamp expira_en
+    }
+    cf_pedidos {
+        string numero UK "ES-AAAA-NNNNNN"
+        uuid token_consulta UK
+        int total
+        date fecha
+        string estado "pendiente_pago|pagado|confirmado|atendido|anulado"
+        string medio_pago "webpay|transferencia|efectivo"
+    }
+    cf_pagos {
+        string buy_order UK
+        string token UK
+        int monto
+        int response_code
+        string estado "iniciado|aprobado|rechazado|error"
+    }
+```
+
+Tablas sin relación: `cf_reglas` (reglas de negocio en JSON por clave), `cf_operativo_tramos` (precios por tramo, referencia para cotizar) y `cf_cotizaciones` (solicitudes con estado `nueva|contactada|cerrada`).
+
+**SPEC 05:** `cf_pedido_historial` (`pedido_id` FK → `cf_pedidos`) guarda cada cambio de `estado` o `estado_pago` con el `user_email` del Administrador y el motivo. `cf_pedidos` suma `anulado_motivo` y `atendido_en`.
+
+### Máquina de estados del pedido del carro
+
+Webpay pasa a `pagado` solo por el commit de Transbank; transferencia y efectivo, por `confirmar_pago` del Administrador.
+
+```mermaid
+stateDiagram-v2
+    [*] --> pendiente_pago: checkout
+    pendiente_pago --> pagado: Webpay AUTHORIZED · confirmar_pago (transferencia/efectivo)
+    pagado --> confirmado: confirmar
+    confirmado --> atendido: atender
+    pendiente_pago --> atendido: atender (solo efectivo)
+    pagado --> atendido: atender (solo efectivo)
+    pendiente_pago --> anulado: anular (motivo)
+    pagado --> anulado: anular (motivo)
+    confirmado --> anulado: anular (motivo)
+    atendido --> [*]
+    anulado --> [*]
+```
+
+---
+
 ## Las tres claves de cruce
 
 ```mermaid

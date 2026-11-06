@@ -16,6 +16,10 @@ use App\Http\Controllers\FileUploadController;
 
 use App\Http\Controllers\ServiciosController;
 use App\Http\Controllers\WebPayController;
+use App\Http\Controllers\CartFlow\AdminCartFlowController;
+use App\Http\Controllers\CartFlow\AgendaPedidoController;
+use App\Http\Controllers\CartFlow\CarritoController;
+use App\Http\Controllers\CartFlow\CatalogoController;
 
 use App\Http\Controllers\EmailController;
 
@@ -362,3 +366,105 @@ Route::put('home-imagenes/{id}',[HomeImagenController::class,'Update'])
 Route::delete('home-imagenes/{id}',[HomeImagenController::class,'Destroy'])
     ->whereNumber('id')
     ->name('HomeImagenesDestroy');
+
+
+// SPEC 04 — Carro de servicios (servicio-cart-flow). Flujo paralelo al de servicios / agenda-horas /
+// transbank, que siguen vivos. Literales antes de las rutas con parametro; {id} solo numeros.
+Route::get('cart-flow/comunas', [CatalogoController::class, 'Comunas'])
+    ->name('CartFlowComunas');
+
+Route::get('cart-flow/catalogo', [CatalogoController::class, 'Index'])
+    ->name('CartFlowCatalogo');
+
+Route::get('cart-flow/catalogo/{sku}', [CatalogoController::class, 'Show'])
+    ->name('CartFlowProducto');
+
+Route::put('cart-flow/admin/productos/{sku}/visibilidad', [CatalogoController::class, 'UpdateVisibilidad'])
+    ->name('CartFlowVisibilidad');
+
+// SPEC 05 — Mantenedor «Carrito Compra» del Administrador. Literales antes de {numero}/{id};
+// la descarga de la orden médica solo acepta una URL firmada y temporal (middleware signed).
+Route::get('cart-flow/admin/resumen', [AdminCartFlowController::class, 'Resumen'])
+    ->name('CartFlowAdminResumen');
+
+Route::get('cart-flow/admin/productos', [AdminCartFlowController::class, 'Productos'])
+    ->name('CartFlowAdminProductos');
+
+Route::get('cart-flow/admin/cotizaciones', [AdminCartFlowController::class, 'Cotizaciones'])
+    ->name('CartFlowAdminCotizaciones');
+
+Route::put('cart-flow/admin/cotizaciones/{id}/estado', [AdminCartFlowController::class, 'CotizacionEstado'])
+    ->whereNumber('id')
+    ->name('CartFlowAdminCotizacionEstado');
+
+Route::post('cart-flow/admin/ordenes/{id}/enlace', [AdminCartFlowController::class, 'OrdenEnlace'])
+    ->whereNumber('id')
+    ->name('CartFlowAdminOrdenEnlace');
+
+Route::get('cart-flow/admin/ordenes/{id}/descarga', [AdminCartFlowController::class, 'OrdenDescarga'])
+    ->whereNumber('id')
+    ->middleware('signed')
+    ->name('CartFlowOrdenDescarga');
+
+Route::get('cart-flow/admin/pedidos', [AdminCartFlowController::class, 'Pedidos'])
+    ->name('CartFlowAdminPedidos');
+
+Route::get('cart-flow/admin/pedidos/{numero}', [AdminCartFlowController::class, 'Pedido'])
+    ->name('CartFlowAdminPedido');
+
+Route::put('cart-flow/admin/pedidos/{numero}/estado', [AdminCartFlowController::class, 'PedidoEstado'])
+    ->name('CartFlowAdminPedidoEstado');
+
+Route::get('cart-flow/agenda/bloques', [AgendaPedidoController::class, 'Bloques'])
+    ->name('CartFlowAgendaBloques');
+
+Route::match(['get', 'post'], 'cart-flow/webpay/retorno', [AgendaPedidoController::class, 'WebPayRetorno'])
+    ->name('CartFlowWebPayRetorno');
+
+Route::post('cart-flow/cotizaciones', [AgendaPedidoController::class, 'CotizacionStore'])
+    ->name('CartFlowCotizacion');
+
+Route::get('cart-flow/pedidos/{numero}', [AgendaPedidoController::class, 'PedidoShow'])
+    ->name('CartFlowPedido');
+
+Route::post('cart-flow/pedidos/{numero}/webpay', [AgendaPedidoController::class, 'WebPay'])
+    ->name('CartFlowPedidoWebPay');
+
+Route::post('cart-flow/carritos', [CarritoController::class, 'Store'])
+    ->name('CartFlowCarritoStore');
+
+Route::get('cart-flow/carritos/{uuid}', [CarritoController::class, 'Show'])
+    ->whereUuid('uuid')
+    ->name('CartFlowCarritoShow');
+
+Route::put('cart-flow/carritos/{uuid}', [CarritoController::class, 'Update'])
+    ->whereUuid('uuid')
+    ->name('CartFlowCarritoUpdate');
+
+Route::post('cart-flow/carritos/{uuid}/pacientes', [CarritoController::class, 'PacienteStore'])
+    ->whereUuid('uuid')
+    ->name('CartFlowPacienteStore');
+
+Route::put('cart-flow/carritos/{uuid}/pacientes/{id}', [CarritoController::class, 'PacienteUpdate'])
+    ->whereUuid('uuid')->whereNumber('id')
+    ->name('CartFlowPacienteUpdate');
+
+Route::post('cart-flow/carritos/{uuid}/pacientes/{id}/quitar', [CarritoController::class, 'PacienteQuitar'])
+    ->whereUuid('uuid')->whereNumber('id')
+    ->name('CartFlowPacienteQuitar');
+
+Route::post('cart-flow/carritos/{uuid}/lineas', [CarritoController::class, 'LineaStore'])
+    ->whereUuid('uuid')
+    ->name('CartFlowLineaStore');
+
+Route::put('cart-flow/carritos/{uuid}/lineas/{id}', [CarritoController::class, 'LineaUpdate'])
+    ->whereUuid('uuid')->whereNumber('id')
+    ->name('CartFlowLineaUpdate');
+
+Route::post('cart-flow/carritos/{uuid}/lineas/{id}/quitar', [CarritoController::class, 'LineaQuitar'])
+    ->whereUuid('uuid')->whereNumber('id')
+    ->name('CartFlowLineaQuitar');
+
+Route::post('cart-flow/carritos/{uuid}/checkout', [CarritoController::class, 'Checkout'])
+    ->whereUuid('uuid')
+    ->name('CartFlowCheckout');

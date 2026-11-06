@@ -3,6 +3,7 @@
 return [
     App\Providers\AppServiceProvider::class,
     App\Providers\BioimpedanciaServiceProvider::class,
+    App\Providers\CartFlowServiceProvider::class,
     App\Providers\CertificadoProvider::class,
     App\Providers\ChequeoCardiovascularPDFProvider::class,
     App\Providers\ChequeoCardiovascularProvider::class,

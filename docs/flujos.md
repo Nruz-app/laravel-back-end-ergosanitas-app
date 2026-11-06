@@ -17,6 +17,8 @@ Un diagrama de secuencia por flujo de negocio, con el endpoint que lo dispara y 
 | 11 | [Pago WebPay](#11-pago-webpay) | `POST transbank/web-pay-request` |
 | 12 | [Agenda, correo y estadísticas](#12-agenda-correo-y-estadísticas) | `POST agenda-horas` · `POST email/reserva-hora` |
 | 13 | [Juego de cartas por niveles](#13-juego-de-cartas-por-niveles) | `GET juego-cartas/{user_email}` |
+| 14 | [Carro de servicios](#14-carro-de-servicios) | `POST cart-flow/carritos/{uuid}/checkout` |
+| 15 | [Mantenedor del carro (Administrador)](#15-mantenedor-del-carro-administrador) | `PUT cart-flow/admin/pedidos/{numero}/estado` |
 
 ---
 
@@ -622,6 +624,109 @@ Los otros dos endpoints reutilizan el mismo procedimiento y el mismo service:
 - `GET juego-cartas/niveles` → no toca el SP: lee `juego_niveles` y `juego_atributos` con Eloquent.
 
 > **El orden de declaración de las rutas es obligatorio.** `juego-cartas/niveles` y `juego-cartas/detalle/{rut}` van **antes** de `juego-cartas/{user_email}` en `routes/api.php`, o `niveles` se resolvería como un club llamado `"niveles"`.
+
+---
+
+## 14. Carro de servicios
+
+Spec 04 (`servicio-cart-flow`). Flujo paralelo al 11 y al 12, que no cambian. El cliente **nunca** manda montos: cada respuesta del carro trae el desglose que calcula `CalculadoraCarroService`.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Cliente (front /servicios)
+    participant CC as CarritoController
+    participant CS as CarritoService
+    participant CALC as CalculadoraCarroService
+    participant AG as AgendaPedidoController
+    participant CK as CheckoutService
+    participant WP as WebPayCartFlowService
+    participant TBK as Transbank
+    participant DB as MySQL (cf_*)
+
+    U->>CC: POST cart-flow/carritos {comuna_id}
+    CC->>DB: cf_carritos (uuid, expira_en +7d) + primer paciente
+    CC-->>U: 201 carro
+    U->>CC: POST cart-flow/carritos/{uuid}/lineas {paciente_id, sku}
+    CC->>CS: agregarLinea (rechaza ocultos y de cotizacion)
+    CS->>CALC: calcular(comuna, plan, pacientes, automaticos)
+    Note over CALC: toma de muestra 1 por paciente,<br/>TRUTROL, planes solo en servicios,<br/>domicilio 1 vez (mixta = el mayor),<br/>redondeo al $1.000, ticket minimo
+    CC-->>U: 201 carro + desglose + preparacion + bloqueos
+    U->>AG: GET cart-flow/agenda/bloques?carrito={uuid}
+    AG-->>U: dias y bloques (solo manana si hay ayuno o laboratorio)
+    U->>CC: POST cart-flow/carritos/{uuid}/checkout (multipart)
+    CC->>CK: checkout
+    CK->>CALC: recalcula a la fecha de la cita
+    CK->>DB: BEGIN · lockForUpdate(bloque) · cupo libre?
+    CK->>DB: cf_pedidos + pacientes + lineas (snapshot) · carrito convertido · COMMIT
+    CC-->>U: 201 pedido + token_consulta
+    alt medio_pago = webpay
+        U->>AG: POST cart-flow/pedidos/{numero}/webpay {t}
+        AG->>WP: iniciar (monto = cf_pedidos.total, buy_order unico)
+        WP->>TBK: POST transactions
+        AG-->>U: {token, url} → form POST token_ws
+        TBK->>AG: GET|POST cart-flow/webpay/retorno?token_ws
+        AG->>WP: retorno → PUT transactions/{token}
+        Note over WP: pagado solo si AUTHORIZED,<br/>response_code 0, monto y buy_order iguales
+        AG-->>U: 302 /servicios/resultado?pago=aprobado|rechazado&pedido&t
+    else transferencia o efectivo
+        Note over CK: pedido pendiente_pago + cf_pagos iniciado:<br/>Gerencia lo confirma
+    end
+```
+
+- **Cupo**: `cupo` del bloque menos los pedidos no anulados de esa fecha y bloque. El `lockForUpdate` sobre la fila del bloque serializa el último cupo; el segundo recibe 409 `bloque_lleno`.
+- **Producto oculto con carro abierto**: al leer el carro la línea se quita (soft delete) y sale el aviso `producto_no_disponible`; el checkout responde 409 para que el cliente revise el total.
+- **Webpay rechazado o cancelado**: el pedido sigue `pendiente_pago` y admite otro intento, con un `buy_order` nuevo.
+
+---
+
+## 15. Mantenedor del carro (Administrador)
+
+Spec 05. El ítem «Carrito Compra» del front (`src/carrito-compra/`) lista, controla y cierra lo que entró por el flujo 14.
+Todas las llamadas llevan el `user_email` de la sesión, y el back exige que sea de perfil `Administrador`.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor A as Administrador (front /carrito-compra)
+    participant AC as AdminCartFlowController
+    participant CS as CatalogoService
+    participant AS as AdminPedidoService
+    participant DB as MySQL (cf_*)
+    participant FS as Disco privado local
+
+    A->>AC: GET cart-flow/admin/resumen · pedidos?filtros&page
+    AC->>CS: esAdministrador(user_email)
+    CS->>DB: users_metadata JOIN perfiles (nombre = Administrador)
+    alt no es Administrador
+        AC-->>A: 403 forbidden
+    end
+    AC->>AS: resumen() · listar(filtros)
+    AS->>DB: COUNT/SUM por estado · paginate(20)
+    AC-->>A: KPIs + pagina de pedidos
+    A->>AC: GET cart-flow/admin/pedidos/{numero}
+    AC-->>A: detalle + pagos + ordenes + historial + acciones permitidas
+    A->>AC: PUT .../estado {accion: confirmar_pago}
+    AC->>AS: cambiarEstado()
+    AS->>AS: accionesPermitidas() — si no esta, 409
+    AS->>DB: BEGIN · lockForUpdate(pedido) · pago aprobado · estado_pago y estado = pagado
+    AS->>DB: cf_pedido_historial (x2) · COMMIT
+    AC-->>A: detalle actualizado
+    A->>AC: POST cart-flow/admin/ordenes/{id}/enlace
+    AC->>AS: enlaceOrden() → URL::temporarySignedRoute (5 min)
+    AC-->>A: {url, expira}
+    A->>AC: GET .../ordenes/{id}/descarga?expires&signature
+    Note over AC: middleware signed: firma invalida o vencida → 403
+    AC->>FS: Storage::disk(local)->download()
+    AC-->>A: archivo
+```
+
+- **Máquina de estados**: ver `modelo-datos.md` § «Máquina de estados del pedido del carro». `anular` exige motivo y
+  libera el cupo, porque `AgendaService::usados()` no cuenta los anulados.
+- **Webpay no se confirma a mano**: `confirmar_pago` solo existe para transferencia y efectivo. `atender` sobre un pedido
+  en efectivo pendiente registra también el pago.
+- **Catálogo**: `PUT cart-flow/admin/productos/{sku}/visibilidad` deja registro en `cf_visibilidad_log`. Si el producto
+  no es publicable, responde 409 `requiere_confirmacion` y el front reenvía con `confirmar: true`.
 
 ---
 

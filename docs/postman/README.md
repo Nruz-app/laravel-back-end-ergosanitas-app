@@ -1,12 +1,12 @@
 # Colección Postman de la API de Ergosanitas
 
-Colección **Postman v2.1** con las **90 operaciones** de la API, generada desde
+Colección **Postman v2.1** con las **119 operaciones** de la API, generada desde
 [`docs/openapi.yaml`](../openapi.yaml). Cubre el 100 % de las rutas que devuelve
 `php artisan route:list` bajo el prefijo `/api`.
 
 | Archivo | Qué es |
 |---|---|
-| `Ergosanitas-API.postman_collection.json` | La colección: 90 requests en 17 carpetas, una por dominio |
+| `Ergosanitas-API.postman_collection.json` | La colección: 119 requests en 19 carpetas, una por dominio |
 | `Ergosanitas-Local.postman_environment.json` | Entorno `http://127.0.0.1:8000/api` (`php artisan serve`) |
 | `Ergosanitas-Docker.postman_environment.json` | Entorno `http://localhost:6162/api` (`docker compose up`) |
 | `Ergosanitas-Prod.postman_environment.json` | Entorno `https://api.ergosanitas.com/api` — **ajusta el host real** |
@@ -41,6 +41,59 @@ endpoints que consultan por identificador.
 | `perfil` | `3` | Id de perfil: 1 admin, 2 tester, 3 club, 5 paciente, 6 médico |
 | `name` | `Chequeo Cardiovascular Deportivo` | Nombre del servicio en `GET /servicios/{name}` |
 | `id` | `5` | Id de `home_imagenes` en las rutas `home-imagenes/{id}` |
+| `admin_email` | `admin@ergosanitas.com` | Email de perfil Administrador para `cart-flow/admin/*` y la visibilidad del catálogo. **Ponle uno real** |
+| `sku` | `PERF-BASICO` | Producto que se agrega al carro |
+| `comuna_id`, `uuid`, `paciente_id`, `paciente2_id`, `linea_id`, `fecha`, `bloque_id`, `numero`, `t` | (los guarda la colección) | Ids del carro: cada request los guarda en sus *Tests* para el siguiente |
+| `orden_id`, `orden_expires`, `orden_signature`, `cotizacion_id` | (los guarda la colección) | Orden médica y cotización de la carpeta de administración |
+
+## Carro de servicios: correr el flujo completo
+
+Las carpetas **Carro de servicios** y **Carro de servicios — administración** están ordenadas para ejecutarse de
+corrido en el *Runner* de Postman o con Newman. Cada request guarda en variables lo que necesita el siguiente
+(`uuid`, `paciente_id`, `fecha`, `bloque_id`, `numero`, `t`…). Se guardan en el entorno activo, que tiene prioridad,
+y también en la colección.
+
+```bash
+npx newman run docs/postman/Ergosanitas-API.postman_collection.json \
+  --folder "Carro de servicios" --folder "Carro de servicios — administración" \
+  --env-var "baseUrl=http://127.0.0.1:8000/api" --env-var "admin_email=<un Administrador real>"
+```
+
+Orden de la carpeta pública:
+1. comunas
+2. catálogo
+3. producto
+4. crear carro
+5. ver carro
+6. plan
+7. agregar paciente
+8. datos del paciente
+9. quitar el segundo paciente
+10. agregar línea
+11. cantidad
+12. bloques
+13. checkout (transferencia)
+14. consultar pedido
+15. Webpay
+16. retorno GET
+17. retorno POST
+18. cotización
+19. quitar línea
+20. visibilidad
+
+Respuestas que **son las esperadas** en una corrida limpia:
+
+| Request | Respuesta | Por qué |
+| --- | --- | --- |
+| Inicia el pago Webpay | 409 | El checkout de la colección es por transferencia: Webpay solo aplica a pedidos `webpay` |
+| Retorno de Transbank (GET/POST) | 302 | Sin `token_ws` redirige al front con `pago=error`. La colección no sigue la redirección |
+| Quita una línea | 409 | Corre después del checkout, cuando el carro ya está convertido |
+| Enlace a la orden médica / descarga | 404 / 403 | Solo hay orden si el producto la pide (p. ej. `sku = LAB-302048` con archivo en el checkout) |
+
+Probado el 2026-11-05 contra el back local sobre SQLite de demo: **29 requests, 0 fallos**.
+
+> Esta carpeta **escribe**: crea carros, pedidos, cotizaciones e historial en la base del entorno. No la corras contra
+> producción. Para Webpay real usa las credenciales de integración y la tarjeta de prueba del README de la raíz.
 
 ## Antes de ejecutar, ten en cuenta
 
@@ -81,6 +134,17 @@ php docs/postman/verificar-cobertura.php  # contrasta con php artisan route:list
 Node. De cada operación toma el `summary` como nombre, el `description` y la tabla de
 respuestas como documentación, el primer `examples[].value` como cuerpo JSON, y convierte
 `{param}` en `{{param}}` registrando cada uno como variable de colección.
+
+**Extensión `x-postman`.** Una operación del contrato puede llevar `x-postman` para que la colección sea ejecutable
+sin cambiar lo que muestra Swagger. Las claves están documentadas al inicio de `generar-coleccion.php`:
+- `orden`: orden dentro de la carpeta.
+- `vars`: renombra un `{param}` de ruta, p. ej. `id` → `linea_id`.
+- `query`, `body` y `form`: valores con `{{variables}}`.
+- `guardar`: script de *Tests* que guarda valores de la respuesta en variables.
+- `redirecciones: false`: no seguir el 302.
+
+En la raíz del contrato, `x-postman-variables` declara las variables extra. Hoy la usan solo las dos carpetas del
+carro.
 
 Como el contrato se mantiene a mano, el flujo al tocar una ruta es: `routes/api.php` →
 `docs/openapi.yaml` → regenerar aquí, todo en el mismo commit.

@@ -698,6 +698,224 @@ Detalles que no se ven en el diagrama:
 
 ---
 
+## Carro de servicios (cart-flow)
+
+Specs 04 y 05. Es el dominio más grande que entró después de los chequeos:
+- 4 controladores en `app/Http/Controllers/CartFlow/`, que comparten el trait `RespuestasCartFlow`.
+- 10 servicios en `app/Services/CartFlow/`, todos registrados en `CartFlowServiceProvider`.
+- 19 modelos en `app/Models/CartFlow/`.
+
+### Controladores y servicios
+
+```mermaid
+classDiagram
+    class RespuestasCartFlow {
+        <<trait>>
+        #responder(string error, callable accion) JsonResponse
+        #ok(mixed data, string mensaje, int status) JsonResponse
+        #validar(array datos, array reglas) array
+    }
+    class CatalogoController {
+        +Comunas()
+        +Index(Request)
+        +Show(string sku)
+        +UpdateVisibilidad(Request, string sku)
+    }
+    class CarritoController {
+        +Store(Request) · Show(uuid) · Update(Request, uuid)
+        +PacienteStore · PacienteUpdate · PacienteQuitar
+        +LineaStore · LineaUpdate · LineaQuitar
+        +Checkout(Request, string uuid)
+    }
+    class AgendaPedidoController {
+        +Bloques(Request)
+        +PedidoShow(Request, string numero)
+        +WebPay(Request, string numero)
+        +WebPayRetorno(Request) RedirectResponse
+        +CotizacionStore(Request)
+    }
+    class AdminCartFlowController {
+        +Resumen · Pedidos · Pedido · PedidoEstado
+        +OrdenEnlace · OrdenDescarga
+        +Cotizaciones · CotizacionEstado · Productos
+        -exigirAdministrador(Request) string
+    }
+    class CalculadoraCarroService {
+        +REGLAS_POR_DEFECTO$
+        +calcular(array datos, array reglas) array
+        +precioUnitario(Producto, plan, ?edad) array
+        +validarLinea(Producto, ?edad, ?sexo) array
+        +edad(?fechaNac, fecha) ?int
+    }
+    class CatalogoService {
+        +comunas() · listar() · detalle(sku)
+        +reglas() array
+        +automaticos(reglas) array
+        +cambiarVisibilidad(Producto, bool, email) Producto
+        +esAdministrador(?email) bool
+    }
+    class CarritoService {
+        +crear · abierto(uuid) · actualizar
+        +agregarPaciente · quitarPaciente (soft delete)
+        +agregarLinea · actualizarLinea · quitarLinea
+        +calcular(Carrito, ?fecha) array
+        +serializar(Carrito) array
+    }
+    class AgendaService {
+        +disponibles(zonaId, soloManana, desde, hasta) array
+        +usados(bloqueId, fecha) int
+        +rango(reglas) array
+    }
+    class CheckoutService {
+        +checkout(Carrito, array datos, array ordenes) array
+        -validarPaciente(...) array
+    }
+    class WebPayCartFlowService {
+        +iniciar(Pedido) array
+        +retorno(?tokenWs, ?tbkOrden) string
+        +confirmar(Pago) bool
+    }
+    class PedidoService {
+        +buscar(numero, token) Pedido
+        +serializar(Pedido) array
+        +cotizar(array) Cotizacion
+    }
+    class AdminPedidoService {
+        +resumen() · listar(filtros) · detalle(Pedido)
+        +accionesPermitidas(Pedido) array
+        +cambiarEstado(Pedido, accion, email, motivo) Pedido
+        +enlaceOrden(id) array
+        +listarCotizaciones · cambiarEstadoCotizacion · listarProductos
+    }
+    class ImportadorCatalogoService {
+        +importar(string dir) array
+    }
+    class CatalogoCsv {
+        +productos(dir) · comunas(dir) · componentes(dir) · tramos(dir)
+    }
+    class CartFlowException {
+        +int status
+        +mixed error
+    }
+
+    CatalogoController ..|> RespuestasCartFlow
+    CarritoController ..|> RespuestasCartFlow
+    AgendaPedidoController ..|> RespuestasCartFlow
+    AdminCartFlowController ..|> RespuestasCartFlow
+    CatalogoController --> CatalogoService
+    CarritoController --> CarritoService
+    CarritoController --> CheckoutService
+    CarritoController --> PedidoService
+    AgendaPedidoController --> AgendaService
+    AgendaPedidoController --> WebPayCartFlowService
+    AgendaPedidoController --> PedidoService
+    AdminCartFlowController --> AdminPedidoService
+    AdminCartFlowController --> CatalogoService
+    CarritoService --> CalculadoraCarroService
+    CarritoService --> CatalogoService
+    CheckoutService --> CarritoService
+    CheckoutService --> AgendaService
+    ImportadorCatalogoService --> CatalogoCsv
+    CarritoService ..> CartFlowException : lanza
+```
+
+### Modelos
+
+```mermaid
+classDiagram
+    class Producto {
+        +sku
+        +tipo
+        +precio
+        +visible_tienda
+        +hidden costo_domilab nota_interna
+        +solo_cotizacion()
+    }
+    class Comuna {
+        +comuna
+        +zona_id
+        +esACotizar()
+    }
+    class Zona {
+        +zona
+        +cargo_servicio
+        +cargo_laboratorio
+    }
+    class Carrito {
+        +uuid
+        +plan
+        +estado
+        +estaAbierto()
+    }
+    class CarritoPaciente {
+        +SoftDeletes
+    }
+    class CarritoLinea {
+        +SoftDeletes
+    }
+    class Pedido {
+        +numero
+        +token_consulta_hidden
+        +total
+        +estado
+        +historial()
+    }
+    class PedidoPaciente {
+        +preparacion json
+    }
+    class PedidoLinea {
+        +precio_unitario copiado
+    }
+    class PedidoOrdenMedica {
+        +path_hidden
+    }
+    class Pago {
+        +buy_order
+        +token_hidden
+        +response_code
+        +estado
+    }
+    class PedidoHistorial {
+        +campo
+        +anterior
+        +nuevo
+        +motivo
+        +user_email
+    }
+    class BloqueAgenda {
+        +dia_semana
+        +franja
+        +cupo
+        +etiqueta()
+    }
+
+    Comuna --> Zona
+    Carrito --> Comuna
+    Carrito "1" --> "*" CarritoPaciente
+    CarritoPaciente "1" --> "*" CarritoLinea
+    CarritoLinea --> Producto
+    Producto "1" --> "*" Producto : componentes
+    Pedido "1" --> "*" PedidoPaciente
+    PedidoPaciente "1" --> "*" PedidoLinea
+    PedidoPaciente "1" --> "*" PedidoOrdenMedica
+    Pedido "1" --> "*" Pago
+    Pedido "1" --> "*" PedidoHistorial
+    Pedido --> BloqueAgenda
+```
+
+Detalles que no se ven en el diagrama:
+
+- `CalculadoraCarroService` no toca la base de datos: recibe los `Producto` ya cargados. Por eso su test unitario no
+  arranca Laravel y crea los productos con `Model::unguarded()`.
+- Los controladores no tienen `try/catch` propio: `RespuestasCartFlow::responder()` traduce `CartFlowException` a su
+  código HTTP y cualquier otro error a 500 con log.
+- `CartFlowServiceProvider::boot()` registra el comando `cart-flow:importar-catalogo`. `bootstrap/app.php` le pasa
+  `routes/console.php` a `withRouting()`, y con eso Laravel deja de auto-descubrir `app/Console/Commands`.
+- Hay dos `esAdministrador()` idénticos, en `HomeImagenService` y en `CatalogoService`. Es duplicación deliberada,
+  para no acoplar dominios.
+
+---
+
 ## Convenciones y anomalías
 
 **Convenciones propias del repo** (respétalas al añadir código):
