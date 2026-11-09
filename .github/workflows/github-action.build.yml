@@ -121,8 +121,9 @@ jobs:
   #
   # Reglas de seguridad:
   #  - mirror -R SIN --delete: nunca borra nada del servidor.
-  #  - Las carpetas con datos de pacientes y archivos subidos se EXCLUYEN: ni se leen
-  #    ni se escriben (Certificado, Electrocardiograma, Bioimpedancia, HomeImagenes, Logo).
+  #  - public/ completo se EXCLUYE: ni se lee ni se escribe (certificados, ECG,
+  #    bioimpedancias, HomeImagenes, Logo, firmas, index.php...). Si cambian index.php
+  #    o los logos del repo, se suben a mano.
   #  - No se sube .env ni se genera APP_KEY: se conserva el .env del servidor.
   #  - No se ejecutan migraciones.
   #
@@ -190,13 +191,7 @@ jobs:
           set net:timeout 60
 
           mirror -R --verbose --parallel=8 $MODO \
-            --exclude '^public/Certificado/' \
-            --exclude '^public/Electrocardiograma/' \
-            --exclude '^public/Bioimpedancia/' \
-            --exclude '^public/HomeImagenes/' \
-            --exclude '^public/Logo/' \
-            --exclude '^public/storage' \
-            --exclude '^public/firma' \
+            --exclude '^public/' \
             --exclude '^storage/' \
             --exclude '(^|/)\.htaccess$' \
             --exclude '^\.env' \
