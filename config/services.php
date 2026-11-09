@@ -55,4 +55,14 @@ return [
             ?: (env('APP_ENV') === 'local' ? 'http://localhost:5173' : 'https://ergosanitas.com')), '/'),
     ],
 
+    // SPEC 06 — Chat comercial «Ergosanito». Persona a la que el asistente deriva cuando no sabe
+    // la respuesta. Va aqui a proposito y sin .env: es un dato de negocio que ya es publico en el
+    // Home (home-contacto.json del front). Si cambia la persona, se edita y se despliega.
+    'chat_comercial' => [
+        'contacto' => [
+            'nombre' => 'Tiare Vidal',
+            'telefono' => '+56 9 6114 9975',
+        ],
+    ],
+
 ];

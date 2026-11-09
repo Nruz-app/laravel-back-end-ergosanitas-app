@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\IA\AnalisisBioimpedanciaPrompt;
+use App\PromptSystem\AnalisisBioimpedanciaPrompt;
 use OpenAI\Laravel\Facades\OpenAI;
 use App\Services\BioimpedanciaService;
 use App\Models\Bioimpedancia;

@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\IA\Helpers\PatientHelper;
+use App\PromptSystem\Helpers\PatientHelper;
 use App\Models\ChatHistory;
 use App\Models\ChatSessions;
 

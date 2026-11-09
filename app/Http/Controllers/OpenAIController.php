@@ -4,14 +4,14 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use OpenAI\Laravel\Facades\OpenAI;
-use App\IA\AsistenteVozPrompt;
-use App\IA\AnalisisECGPrompt;
+use App\PromptSystem\AsistenteVozPrompt;
+use App\PromptSystem\AnalisisECGPrompt;
 use App\Services\EstadisticasService;
 use App\Models\ChatHistory;
 use App\Models\ChatSessions;
 use App\Services\OpenAIService;
 use App\Services\BioimpedanciaService;
-use App\IA\AsistenteChatPacientePrompt;
+use App\PromptSystem\AsistenteChatPacientePrompt;
 
 class OpenAIController extends Controller {
 

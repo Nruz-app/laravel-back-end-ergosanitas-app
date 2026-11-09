@@ -5,6 +5,7 @@ return [
     App\Providers\BioimpedanciaServiceProvider::class,
     App\Providers\CartFlowServiceProvider::class,
     App\Providers\CertificadoProvider::class,
+    App\Providers\ChatComercialServiceProvider::class,
     App\Providers\ChequeoCardiovascularPDFProvider::class,
     App\Providers\ChequeoCardiovascularProvider::class,
     App\Providers\ClubAssistantServiceProvider::class,
