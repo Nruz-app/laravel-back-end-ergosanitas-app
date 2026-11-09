@@ -238,8 +238,15 @@ Todo en `routes/api.php`, plano y sin agrupar, con prefijo automático `/api`. O
 
 ## Despliegue
 
-Push a `main` dispara `.github/workflows/github-action.build.yml`: versionado semántico automático con `PaulHatch/semantic-version` y build+push de la imagen `nruz176/laravel-back-end-ergosanitas-app` (tags `:<version>` y `:latest`) a Docker Hub. No hay lint, tests ni migraciones en el pipeline: el push a `main` publica directo.
+`.github/workflows/github-action.build.yml` tiene dos jobs:
 
-El bump lo decide el **texto del mensaje de commit**: `major` sube major, `feat` sube minor, cualquier otra cosa sube patch. Son coincidencias de subcadena, así que un mensaje como "refactor: quita el feature flag" bumpea minor sin querer.
+1. `test`: `composer validate`, `composer install`, `.env` ficticio desde `.env.example` y `php artisan test --filter="CartFlow|ChatComercial"`. Solo esos tests, porque fuerzan SQLite en memoria; el resto tocaría la BD de `.env`. No usa secrets.
+2. `build` (`needs: test`): versionado con `PaulHatch/semantic-version@v5` y un único `docker/build-push-action` con los tags `:<version>` y `:latest` de `nruz176/laravel-back-end-ergosanitas-app`. En **push a `main`** hace login y publica en Docker Hub. En un **pull request** a `main` solo construye la imagen, sin publicarla. No hay migraciones en el pipeline.
+
+3. `deploy` (`needs: test`): sube el back por FTP al hosting compartido, en `/public_html/BackEnd/`, con `lftp mirror -R` **sin `--delete`**, así que nunca borra nada del servidor. Excluye **todo `public/`** (datos de pacientes, imágenes, firmas e `index.php`: cambios ahí se suben a mano), `storage/`, los `.htaccess` y `.env*`. No genera `APP_KEY` ni corre migraciones. Corre en dos casos: a mano desde Actions (por defecto `dry_run`, que solo lista lo que subiría) o en push a `main` si la variable del repo `DEPLOY_FTP_ENABLED` vale `true`. Usa los secrets `FTP_USERNAME` / `FTP_PASSWORD` y las variables opcionales `FTP_HOST` y `FTP_REMOTE_DIR`.
+
+El bump sale del **mensaje de commit** (Conventional Commits, con regex que se aplica solo al asunto del commit): `feat:` / `feat(x):` sube minor; `tipo!:` o `BREAKING CHANGE` en el asunto sube major; cualquier otro, patch.
+
+`.dockerignore` deja fuera de la imagen `.env*`, `.git`, `.github`, `.claude`, `docs/`, `specs/`, `tests/`, `vendor/`, lo subido en `public/` y las firmas `*_OLD.*`. Las firmas vigentes y `public/Logo` sí entran porque los PDF los leen con `public_path()`.
 
 `dockerHub/docker-compose.yml` con `dockerHub/entrypoint.sh` (limpia cachés, hace `storage:link` y arranca php-fpm) es el despliegue en contenedor, pero **la producción real corre en el hosting compartido** (`ergosanitas.com/BackEnd`), no en ese Docker: ver «Generación de documentos» para lo que eso implica en `public/`.
