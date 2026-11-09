@@ -22,15 +22,15 @@ flowchart TB
     end
 
     subgraph laravel["API Laravel 11 · PHP 8.2"]
-        RUTAS["routes/api.php<br/>119 operaciones · prefijo /api<br/>plano, sin agrupar; solo la descarga<br/>de ordenes medicas usa middleware signed"]
-        CTRL["23 controladores<br/>app/Http/Controllers<br/>(4 en CartFlow/)"]
-        SRV["24 servicios<br/>app/Services<br/>(10 en CartFlow/)"]
-        MOD["42 modelos Eloquent<br/>app/Models<br/>(19 en CartFlow/)"]
-        IA["6 prompts estaticos<br/>app/IA"]
+        RUTAS["routes/api.php<br/>120 operaciones · prefijo /api<br/>plano, sin agrupar; middleware solo en la descarga<br/>de ordenes medicas (signed) y en el chat comercial<br/>(throttle:chat-comercial, por IP)"]
+        CTRL["24 controladores<br/>app/Http/Controllers<br/>(4 en CartFlow/)"]
+        SRV["25 servicios<br/>app/Services<br/>(10 en CartFlow/)"]
+        MOD["44 modelos Eloquent<br/>app/Models<br/>(19 en CartFlow/)"]
+        IA["7 prompts estaticos<br/>app/PromptSystem"]
     end
 
     subgraph datos["Persistencia"]
-        MYSQL[("MySQL 5.7<br/>18 tablas de negocio<br/>+ 18 tablas cf_* del carro")]
+        MYSQL[("MySQL 5.7<br/>20 tablas de negocio<br/>+ 18 tablas cf_* del carro<br/>+ cache / cache_locks")]
         SP[["19 procedimientos almacenados<br/>solo uno versionado en el repo"]]
         FS["public/<br/>Certificado · Logo<br/>Electrocardiograma · Bioimpedancia"]
         PRIV["storage/app/private/<br/>cart-flow/ordenes<br/>ordenes medicas del carro"]
@@ -131,6 +131,7 @@ flowchart LR
     subgraph D3["Asistentes de IA"]
         OAC["OpenAIController"]
         CAC["ClubAssistantController"]
+        CCO["ChatComercialController<br/>publico, con limitador"]
     end
     subgraph D4["Clinico complementario"]
         BIC["BioimpedanciaController"]
@@ -167,6 +168,7 @@ flowchart LR
     S_ES["EstadisticasService"]
     S_OAS["OpenAIService"]
     S_CAS["ClubAssistantService"]
+    S_CCO["ChatComercialService"]
     S_BIS["BioimpedanciaService"]
     S_FCS["FichaClinicaService"]
     S_IS["IncidentesService"]
@@ -196,6 +198,8 @@ flowchart LR
     OAC --> S_OAS
     OAC --> S_ES
     CAC --> S_CAS
+    CCO --> S_CCO
+    S_CCO -->|"catalogo publico, solo lectura"| S_CFCAT
 
     BIC --> S_BIS
     FCC --> S_FCS
@@ -229,13 +233,19 @@ provider: `CheckoutService` usa `CarritoService` y `AgendaService`, y `CarritoSe
 (función pura, sin base de datos) y `CatalogoService`. El comando `cart-flow:importar-catalogo` usa
 `ImportadorCatalogoService` + `CatalogoCsv`.
 
+El chat comercial «Ergosanito» (Spec 06) es el único servicio que depende de un servicio **de otro provider**:
+`ChatComercialServiceProvider` construye `ChatComercialService` con `CartFlow\CatalogoService` (comunas y reglas) y el
+servicio lee además `Producto` y `OperativoTramo` del carro, **solo en lectura y solo columnas públicas**. Su contexto
+se guarda 600 s en la caché de Laravel (`CACHE_STORE=database` por defecto → tablas `cache` / `cache_locks`), la misma
+que sostiene el limitador `throttle:chat-comercial`.
+
 > `CargaMasivaController` **sí inyecta** `ChequeoCardiovascularService` en su constructor, pero nunca lo usa: la carga masiva pasa por `App\Imports\ChequeoImport`. El diagrama muestra la llamada real, no la dependencia declarada.
 
 ---
 
 ## Inyección de dependencias
 
-Todos los servicios se registran **a mano** en `bootstrap/providers.php` — no hay auto-discovery. Cada provider es un `singleton()` con una closure trivial; los que resuelven dependencias son `CertificadoProvider` y `CartFlowServiceProvider`.
+Todos los servicios se registran **a mano** en `bootstrap/providers.php` — no hay auto-discovery. Cada provider es un `singleton()` con una closure trivial; los que resuelven dependencias son `CertificadoProvider`, `CartFlowServiceProvider` y `ChatComercialServiceProvider`.
 
 ```mermaid
 flowchart LR
@@ -273,7 +283,7 @@ flowchart LR
     classDef warn fill:#fff4e5,stroke:#d97706,stroke-width:2px,color:#5d4037
 ```
 
-Los 14 providers registrados en `bootstrap/providers.php`:
+Los 15 providers registrados en `bootstrap/providers.php`:
 
 | Provider | Registra |
 |---|---|
@@ -281,6 +291,7 @@ Los 14 providers registrados en `bootstrap/providers.php`:
 | `BioimpedanciaServiceProvider` | `BioimpedanciaService` |
 | `CartFlowServiceProvider` | Los 10 servicios de `app/Services/CartFlow/` (`CalculadoraCarroService`, `CatalogoCsv`, `CatalogoService`, `AgendaService`, `PedidoService`, `WebPayCartFlowService`, `AdminPedidoService`, más `ImportadorCatalogoService`, `CarritoService` y `CheckoutService` **con sus dependencias inyectadas**). Registra además el comando `cart-flow:importar-catalogo` en `boot()` |
 | `CertificadoProvider` | `CertificadoService`, **inyectándole `EstadisticasService`** |
+| `ChatComercialServiceProvider` | `ChatComercialService`, **inyectándole `CartFlow\CatalogoService`**. En `boot()` registra el limitador `chat-comercial` (`RateLimiter::for`): 20 peticiones por minuto y 200 por día por IP, con un 429 propio en español y `Retry-After`. Es el **primer y único limitador del repo** |
 | `ChequeoCardiovascularPDFProvider` | `ChequeoCardiovascularPDFService` |
 | `ChequeoCardiovascularProvider` | `ChequeoCardiovascularService` |
 | `ClubAssistantServiceProvider` | `ClubAssistantService` |

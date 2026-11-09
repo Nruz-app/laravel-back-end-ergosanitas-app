@@ -19,6 +19,7 @@ Un diagrama de secuencia por flujo de negocio, con el endpoint que lo dispara y 
 | 13 | [Juego de cartas por niveles](#13-juego-de-cartas-por-niveles) | `GET juego-cartas/{user_email}` |
 | 14 | [Carro de servicios](#14-carro-de-servicios) | `POST cart-flow/carritos/{uuid}/checkout` |
 | 15 | [Mantenedor del carro (Administrador)](#15-mantenedor-del-carro-administrador) | `PUT cart-flow/admin/pedidos/{numero}/estado` |
+| 16 | [Chat comercial «Ergosanito»](#16-chat-comercial-ergosanito) | `POST chat-comercial/as-question` |
 
 ---
 
@@ -460,7 +461,7 @@ La semántica del campo `search` es el detalle importante para el cliente, porqu
 
 `POST sam-assistant-club/reset-search` equivale a enviar `"search": ""`.
 
-Notas adicionales: el prompt recibe el total real y una marca de truncado para que el asistente avise cuando ve solo una parte; `SP_chequeos_club_prompt` filtra `status = 'REVISION MEDICA'`, así que **el chat de club no ve chequeos en otros estados**; y es el **único controlador que captura `ValidationException` por separado** y responde un 422 correcto.
+Notas adicionales: el prompt recibe el total real y una marca de truncado para que el asistente avise cuando ve solo una parte; `SP_chequeos_club_prompt` filtra `status = 'REVISION MEDICA'`, así que **el chat de club no ve chequeos en otros estados**; y, como `ChatComercialController` (§16), **captura `ValidationException` por separado** y responde un 422 correcto.
 
 ---
 
@@ -727,6 +728,58 @@ sequenceDiagram
   en efectivo pendiente registra también el pago.
 - **Catálogo**: `PUT cart-flow/admin/productos/{sku}/visibilidad` deja registro en `cf_visibilidad_log`. Si el producto
   no es publicable, responde 409 `requiere_confirmacion` y el front reenvía con `confirmar: true`.
+
+---
+
+## 16. Chat comercial «Ergosanito»
+
+Tercer chat del sistema (Spec 06), **público y para visitantes anónimos** del Home. Responde solo sobre el catálogo público del carro: exámenes, precios de lista, comunas, operativos y preparación. Es la **única ruta con limitador** del repo.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor V as Visitante del Home
+    participant TH as throttle:chat-comercial
+    participant CCC as ChatComercialController
+    participant CCS as ChatComercialService
+    participant CACHE as Cache (tabla cache)
+    participant P as AsistenteChatComercialPrompt
+    participant AI as OpenAI gpt-4o-mini
+    participant DB as MySQL
+
+    V->>TH: POST chat-comercial/as-question {prompt, sessionId?}
+    alt mas de 20 por minuto o 200 por dia desde la misma IP
+        TH-->>V: 429 {message} + Retry-After
+    end
+    TH->>CCC: AsQuestionUseCase
+    CCC->>CCC: validate prompt max 500 y sessionId max 64 (si falla, 422)
+    CCC->>CCS: enmascarar(trim(prompt))
+    Note over CCS: correo, telefono y RUT pasan a<br/>[EMAIL] [TELEFONO] [RUT] antes de guardar y de enviar
+    CCC->>CCS: resolverSesion(sessionId)
+    CCS->>DB: ChatComercialSessions::firstOrCreate (UUID nuevo si no es valido)
+    CCC->>CCS: contexto()
+    CCS->>CACHE: remember(chat-comercial:contexto, 600 s)
+    alt la cache expiro
+        CCS->>DB: cf_productos visibles, comunas, cf_operativo_tramos, reglas (lista blanca)
+        CCS->>CACHE: {texto, hash sha256, truncado}
+    end
+    CCC->>P: system(contexto, config services.chat_comercial.contacto)
+    CCC->>CCS: historial(session)
+    CCS->>DB: SELECT los 10 mas recientes de chat_comercial_history (desc + reverse)
+    CCC->>AI: [system estatico] + historial + pregunta enmascarada, temperature 0.3, max_tokens 400
+    AI-->>CCC: respuesta (puede cerrar con [DERIVAR])
+    CCC->>CCS: separarDerivacion(texto, contacto)
+    CCC->>CCS: guardarTurno(...)
+    CCS->>DB: BEGIN · INSERT user + INSERT assistant (derivar, contexto_hash, tokens) · UPDATE sesion · COMMIT
+    CCC-->>V: 200 {sessionId, response, derivar}
+    Note over CCC: cualquier excepcion: Log::error y 500 {message} generico,<br/>sin error, file ni line
+```
+
+- **No consulta datos clínicos.** El contexto sale solo de `cf_productos` (visibles, sin `toma_muestra`), comunas, `cf_operativo_tramos` y las reglas `ticket_minimo` / `horas_ayuno_defecto`, con lista blanca de columnas: nunca costos, notas internas ni precios por plan. Ninguna consulta a tablas clínicas, `chat_*` de los otros chats ni `SP_*`.
+- **El mensaje de sistema es idéntico entre peticiones** mientras no expire la caché (nada variable dentro: ni fecha ni `sessionId`), para aprovechar el *prompt caching* automático de OpenAI.
+- **Memoria por `sessionId`, no por IP.** Sin `sessionId` (o con uno que no es UUID) la conversación parte de cero y el back devuelve el UUID nuevo. La IP solo vive en la clave efímera del limitador.
+- **Derivación**: si el modelo cierra con `[DERIVAR]` (o escribe el teléfono del contacto aunque olvide el marcador), `derivar` sale `true` y el front muestra el botón de WhatsApp. El contacto vive en `config('services.chat_comercial.contacto')`, no en `.env`.
+- `tokens_cacheados` queda siempre `null`: `openai-php/client` v0.10.1 no lo expone.
 
 ---
 

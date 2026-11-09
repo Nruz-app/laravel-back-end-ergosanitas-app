@@ -179,6 +179,9 @@ public static function SP_chequeos_club_prompt($search, $club) {
 Devuelve el array de mensajes `system` con: las reglas del asistente clínico (usar únicamente la información entregada, no inventar, decir cuándo un dato no existe, responder en español, explicar términos médicos), la indicación de que los datos corresponden **solo a los chequeos en `REVISION MEDICA` del club indicado**, el `search` activo (o "todos los pacientes del club"), el conteo real (`$total`), y —cuando `$truncado` es `true`— la instrucción explícita de avisar que la lista fue recortada a `MAX_PACIENTES` y sugerir filtrar por rut o nombre. Los datos van en un tercer mensaje con `json_encode($pacientes, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)`.
 Un solo archivo por prompt: dos archivos declarando la misma clase colisionan en el classmap optimizado.
 
+> **Nota (SPEC 06, 2026-11-09):** desde la SPEC 06 el prompt vive en `app/PromptSystem/AsistenteChatClubPrompt.php`
+> (namespace `App\PromptSystem`). Esta spec conserva la ruta original como registro histórico.
+
 **Paso 7 — Controlador.**
 `app/Http/Controllers/ClubAssistantController.php`, con `ClubAssistantService` inyectado por constructor y todo el cuerpo en `try/catch` (no hay handler global):
 

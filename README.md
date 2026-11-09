@@ -233,12 +233,14 @@ Los nombres de provider son históricamente inconsistentes (`CertificadoProvider
 
 `bootstrap/app.php` deja vacíos los closures de middleware y de excepciones, y **no existe `app/Http/Middleware/`**. No hay un handler global que convierta las excepciones en respuestas JSON: por eso cada acción envuelve su cuerpo en `try/catch` y arma el sobre a mano. Al escribir un endpoint nuevo hay que hacer lo mismo, o la excepción saldrá como el error HTML de Laravel.
 
+Los únicos middleware de ruta son de Laravel y se declaran en la propia ruta: `auth:sanctum` en `GET /user`, `signed` en la descarga de órdenes médicas del carro y `throttle:chat-comercial` en `POST chat-comercial/as-question`, el **único limitador** del repo (20 por minuto y 200 por día por IP, definido en `ChatComercialServiceProvider::boot()`). El limitador corta el costo; no autentica.
+
 ### Directorios propios
 
 | Ruta | Contenido |
 |---|---|
-| `app/IA/` | Clases estáticas con los prompts de sistema de OpenAI |
-| `app/IA/Helpers/` | Utilidades de IA (`PatientHelper::extractPatient()`) |
+| `app/PromptSystem/` | Clases estáticas con los prompts de sistema de OpenAI |
+| `app/PromptSystem/Helpers/` | Utilidades de IA (`PatientHelper::extractPatient()`) |
 | `app/Services/` | Capa de lógica de negocio |
 | `app/Imports/` | Importadores de Excel (`ChequeoImport`) |
 | `app/Mail/` | Mailables (`EmailMailable`) |
@@ -272,6 +274,8 @@ Tablas principales del dominio:
 | `chat_history` | `ChatHistory` | Historial de mensajes por paciente |
 | `chat_club_sessions` | `ChatClubSessions` | Sesiones del asistente por club (filtro activo por `session_id`) |
 | `chat_club_history` | `ChatClubHistory` | Historial de mensajes por sesión de club |
+| `chat_comercial_sessions` | `ChatComercialSessions` | Sesiones del chat comercial «Ergosanito» del Home: visitante anónimo por `session_id` (UUID del front), sin IP ni datos personales |
+| `chat_comercial_history` | `ChatComercialHistory` | Historial del chat comercial por sesión: mensaje del visitante ya enmascarado, `derivar`, `contexto_hash` y tokens |
 | `logs_api` | `LogsApi` | Errores de WebPay (es el único dominio que persiste errores) |
 | `home_imagenes` | `HomeImagen` | Imágenes de promociones, alianzas y galería del Home comercial (solo el nombre del archivo; la URL se arma al responder). La migración siembra 24 filas |
 | `cf_zonas`, `cf_comunas` | `CartFlow\Zona`, `CartFlow\Comuna` | Carro: 3 zonas de domicilio con sus cargos y 50 comunas (sin zona = fuera de RM, a cotizar) |
@@ -322,7 +326,7 @@ Son **siete formas distintas**, no dos. La mayoría de los controladores mezcla 
 | **C** — `status` plano | `{"status": ..., "mensaje": "..."}` — `status` a veces es texto (`'OK'`, `'Bad Request'`) y a veces un entero (`200`, `404`, `500`) | `ChequeoCardiovascularController` (`deleteById`, `FilterCalendar`, `LikeChequeo*`, `SearchChequeo`, `Update` en el camino feliz), `CertificadoUrlController` (`ValidarRut`, `PathUrlCertificado`, `ValidaCertificado`, `showCertificado`), `EstadisticasController::deletePagoMensual`, `CargaMasivaController` |
 | **D** — `status: 'success'` | `{"status": "success", "message": "...", "data": [...]}` | `IncidenciasController`, los 12 métodos. **Devuelve 201 también en los GET** |
 | **E** — payload crudo | el array, la colección o el modelo serializado, sin sobre | `ChequeoCardiovascularController` (`Index`, `FindByEmail`, `ChequeoRut`, `ChequeoUserEmail`, `EstadoGeneral`), `ServiciosController`, `AgendaHorasController::getAgenda`, `Auth/UserController::ListUserEmail`, `ElectroCardiogramaController::FindByRut`, todos los éxitos de `EstadisticasController`, `WebPayController::WebPayRequest` |
-| **F** — sobre de chat | `{"sessionId", "patient"\|"club", "search"?, "response", "status"?}` | `OpenAIController::AsQuestionUseCase` y `::resetPatient`, `ClubAssistantController` |
+| **F** — sobre de chat | `{"sessionId", "patient"\|"club", "search"?, "response", "status"?}`; el chat comercial usa `{"sessionId", "response", "derivar"}` (sin `patient`, `club` ni `search`) | `OpenAIController::AsQuestionUseCase` y `::resetPatient`, `ClubAssistantController`, `ChatComercialController` (sus errores: 422 `{message, errors}`, 429 `{message}` y 500 `{message}` genérico, sin `file` ni `line`) |
 | **G** — no JSON | binario o redirección | los PDF (`application/pdf`), el Word (`streamDownload`), `WebPayResponse` (`redirect()->away`), los `health` (texto plano) |
 
 `OpenAIController` y `GoogleAuthControlle` mezclan varios formatos dentro del mismo archivo. **Al tocar un endpoint, mira qué devuelve hoy** — no asumas el sobre por el controlador.
@@ -475,7 +479,7 @@ Se usa `openai-php/laravel` a través de la facade `OpenAI::chat()`.
 
 ### Prompts
 
-Los prompts de sistema viven como clases estáticas en `app/IA/` y **no deben incrustarse en los controladores**:
+Los prompts de sistema viven como clases estáticas en `app/PromptSystem/` y **no deben incrustarse en los controladores**:
 
 | Clase | Uso |
 |---|---|
@@ -484,9 +488,10 @@ Los prompts de sistema viven como clases estáticas en `app/IA/` y **no deben in
 | `AnalisisRutBioimpedanciaPrompt` | Análisis histórico de bioimpedancia por RUT |
 | `AsistenteChatPacientePrompt::system($patient, $data)` | Asistente conversacional con contexto clínico del paciente |
 | `AsistenteChatClubPrompt::system($email, $search, $pacientes, $total, $truncado)` | Asistente conversacional sobre los pacientes de un club |
+| `AsistenteChatComercialPrompt::system($contexto, $contacto)` | Chat comercial «Ergosanito» del Home: un solo mensaje de sistema estático (rol y reglas, diccionario de datos y catálogo público) |
 | `AsistenteVozPrompt` | Asistente de digitación por voz |
 
-Los modelos en uso son `gpt-4o-mini` (chat clínico, chat por club, extracción del paciente) y `gpt-4.1-mini` (ECG, voz, bioimpedancia).
+Los modelos en uso son `gpt-4o-mini` (chat clínico, chat por club, chat comercial, extracción del paciente) y `gpt-4.1-mini` (ECG, voz, bioimpedancia).
 
 Dónde se hace la llamada es **inconsistente**; sigue el patrón del dominio que toques:
 
@@ -494,6 +499,7 @@ Dónde se hace la llamada es **inconsistente**; sigue el patrón del dominio que
 |---|---|
 | Chat clínico | `OpenAIService`, invocado desde `OpenAIController::AsQuestionUseCase` |
 | Chat por club | `ClubAssistantController::AsQuestionClubUseCase` (el service solo prepara los datos) |
+| Chat comercial | `ChatComercialController::AsQuestionUseCase` (el service arma el contexto, la sesión y el historial) |
 | ECG y asistente de voz | `OpenAI::chat()` directo en `OpenAIController` |
 | Bioimpedancia | `OpenAI::chat()` en `BioimpedanciaController::FormUpload` y en `BioimpedanciaService` |
 
@@ -542,7 +548,19 @@ La semántica del campo `search` es el detalle importante para el cliente, porqu
 
 `POST /api/sam-assistant-club/reset-search` equivale a enviar `"search": ""`. Como el asistente de paciente, no borra el historial.
 
-Es además el **único controlador que captura `ValidationException` por separado** y responde un 422 correcto; en el resto, la excepción de validación cae en el `catch (\Exception)` genérico y sale como 500.
+Es además, junto con `ChatComercialController`, uno de los controladores que **captura `ValidationException` por separado** y responde un 422 correcto; en el resto, la excepción de validación cae en el `catch (\Exception)` genérico y sale como 500.
+
+### Flujo del chat comercial «Ergosanito»
+
+`POST /api/chat-comercial/as-question` (Spec 06, `specs/06-chat-comercial-ergosanito.md`) es el tercer chat y un dominio aparte: atiende a **visitantes anónimos** del Home, es **pública** y es la única ruta con limitador (`throttle:chat-comercial`).
+
+1. Valida `prompt` (`required|string|max:500`) y `sessionId` (`nullable|string|max:64`); `ChatComercialService::enmascarar()` cambia correo, teléfono y RUT del visitante por `[EMAIL]`, `[TELEFONO]` y `[RUT]` antes de guardar y de enviar a OpenAI.
+2. `resolverSesion()` recupera la sesión de `chat_comercial_sessions` o crea una con un UUID nuevo si el `sessionId` falta o no es UUID.
+3. `contexto()` arma **solo desde el catálogo público** (`cf_productos` visibles, comunas, tramos de operativo y dos reglas, con lista blanca de columnas) y lo guarda 600 s en caché (`chat-comercial:contexto`). No consulta tablas clínicas ni SP.
+4. `AsistenteChatComercialPrompt::system()` arma un mensaje de sistema idéntico entre peticiones (para el *prompt caching* de OpenAI), seguido de los **10 mensajes más recientes** de la sesión y la pregunta. `gpt-4o-mini`, `temperature: 0.3`, `max_tokens: 400`.
+5. `separarDerivacion()` quita el marcador `[DERIVAR]` y responde `{sessionId, response, derivar}`. La persona de contacto sale de `config('services.chat_comercial.contacto')`.
+
+La memoria es por `sessionId`, no por IP; ninguna tabla guarda IP ni datos del visitante. El 500 es genérico y no expone `file` ni `line`.
 
 ---
 
@@ -658,7 +676,7 @@ La carpeta [`docs/`](docs/) contiene la vista gráfica del sistema, en diagramas
 | Documento | Qué muestra |
 |---|---|
 | [`docs/arquitectura.md`](docs/arquitectura.md) | Componentes, las tres capas y sus excepciones, inyección de dependencias y despliegue |
-| [`docs/flujos.md`](docs/flujos.md) | 15 diagramas de secuencia, uno por flujo end-to-end (carga masiva, facturación, asistentes, WebPay…) |
+| [`docs/flujos.md`](docs/flujos.md) | 16 diagramas de secuencia, uno por flujo end-to-end (carga masiva, facturación, asistentes, WebPay…) |
 | [`docs/diagrama-clases.md`](docs/diagrama-clases.md) | Clases UML por dominio: controladores, servicios, modelos y prompts, con sus firmas reales |
 | [`docs/modelo-datos.md`](docs/modelo-datos.md) | ERD de las 18 tablas, máquina de estados del chequeo, autorización por perfil y catálogo de procedimientos almacenados |
 
@@ -668,7 +686,7 @@ La carpeta [`docs/`](docs/) contiene la vista gráfica del sistema, en diagramas
 
 ## Contrato OpenAPI (Swagger)
 
-El contrato completo de la API vive en **[`docs/openapi.yaml`](docs/openapi.yaml)** (OpenAPI 3.0.3): las 119 operaciones de `routes/api.php`, con esquemas, parámetros, ejemplos de request y de respuesta para cada código de estado, y las particularidades reales del proyecto (los dos formatos de sobre incompatibles, los endpoints que facturan, los que devuelven 200 en caso de error, el filtrado por perfil).
+El contrato completo de la API vive en **[`docs/openapi.yaml`](docs/openapi.yaml)** (OpenAPI 3.0.3): las 120 operaciones de `routes/api.php`, con esquemas, parámetros, ejemplos de request y de respuesta para cada código de estado, y las particularidades reales del proyecto (los dos formatos de sobre incompatibles, los endpoints que facturan, los que devuelven 200 en caso de error, el filtrado por perfil).
 
 Las tablas de la sección [Endpoints](#endpoints) son el índice rápido; el YAML es la referencia detallada.
 
@@ -705,7 +723,7 @@ php artisan route:list --json
 
 ## Colección Postman
 
-**[`docs/postman/`](docs/postman/)** trae la colección Postman v2.1 con las **119 operaciones** repartidas en 19 carpetas, más tres entornos (local, Docker y producción). A diferencia del contrato y los diagramas, esto **sí es generado**: la fuente es `docs/openapi.yaml`.
+**[`docs/postman/`](docs/postman/)** trae la colección Postman v2.1 con las **120 operaciones** repartidas en 19 carpetas, más tres entornos (local, Docker y producción). A diferencia del contrato y los diagramas, esto **sí es generado**: la fuente es `docs/openapi.yaml`.
 
 ```bash
 # Regenerar la colección y los entornos tras tocar el contrato
@@ -875,6 +893,7 @@ Administrador y responden **403** si no lo es; no es autenticación real (ver
 | `POST` | `sam-assistant/reset-patient` | Reiniciar el paciente de la sesión |
 | `POST` | `sam-assistant-club/as-question` | Chat sobre los pacientes de un club |
 | `POST` | `sam-assistant-club/reset-search` | Reiniciar el filtro de paciente de la sesión |
+| `POST` | `chat-comercial/as-question` | Chat comercial «Ergosanito» del Home (público, con limitador por IP: 429 al superar 20/min o 200/día) |
 | `POST` | `GPT/asistente-voz` | Asistente por voz |
 | `POST` | `GPT/analisis-ecg` | Análisis de ECG a partir de imagen |
 
