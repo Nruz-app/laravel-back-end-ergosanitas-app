@@ -172,7 +172,7 @@ Chequeo cardiovascular · Certificados y electrocardiogramas · Asistentes de IA
 |---|---|
 | Método nuevo en un controlador o servicio | El `classDiagram` de su dominio |
 | Clase nueva (controller/service/model) | El `classDiagram` de su dominio + relaciones |
-| Prompt nuevo en `app/IA/` | § Asistentes de IA **y** la subsección "Qué modelo de OpenAI usa cada prompt" |
+| Prompt nuevo en `app/PromptSystem/` | § Asistentes de IA **y** la subsección "Qué modelo de OpenAI usa cada prompt" |
 | Provider nuevo o dependencia entre servicios | `arquitectura.md` § Mapa de dominios **y** § Inyección de dependencias |
 | Una anomalía nueva (servicio sin provider, typo consolidado) | § Convenciones y anomalías |
 

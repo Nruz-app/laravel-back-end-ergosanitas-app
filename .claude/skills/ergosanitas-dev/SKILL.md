@@ -143,7 +143,7 @@ Antes de modificar este flujo, avisa al usuario del efecto en facturación.
 
 ## Receta E — OpenAI
 
-- Los prompts de sistema viven en `app/IA/` como clases con métodos estáticos. **Nunca incrustes un prompt en un controlador.**
+- Los prompts de sistema viven en `app/PromptSystem/` como clases con métodos estáticos. **Nunca incrustes un prompt en un controlador.**
 - **Un prompt = un archivo.** Dos archivos que declaren la misma clase colisionan en el classmap que genera `composer install --optimize-autoloader` (lo que hace el dockerfile de producción) y cuál gana queda indeterminado. Para versionar un prompt usa git, no copias del archivo.
 - Dónde va la llamada — es inconsistente; sigue el patrón del dominio que toques:
   - chat clínico → `OpenAIService`, invocado desde `OpenAIController::AsQuestionUseCase`

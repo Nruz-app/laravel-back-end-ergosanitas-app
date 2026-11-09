@@ -1,12 +1,12 @@
 ---
-name: spec-impl-ergo
+name: spec-impl-ergo-back
 description: Implementa una spec aprobada del backend Ergosanitas (Laravel 11 / MySQL 5.7). Valida que el estado signifique "Aprobado" (en cualquier idioma), crea la rama git con el nombre de la spec, cambia a ella y ejecuta el plan paso a paso delegando en los agentes ergosanitas-developer / ergosanitas-laravel / ergosanitas-mysql, con pausas para revisar el diff. Cierra con una fase obligatoria de documentación delegada en ergo-docs (contrato OpenAPI y diagramas de docs/) y el checklist de cierre del repo.
 disable-model-invocation: true
 argument-hint: <NN-nombre-spec>
 allowed-tools: Read, Glob, Grep, Edit, Write, AskUserQuestion, Agent, Skill, Bash(git status:*), Bash(git branch:*), Bash(git checkout:*), Bash(git log:*), Bash(git diff:*), Bash(git stash:*), Bash(cat:*), Bash(ls:*), Bash(php:*), Bash(vendor/bin/pint:*), Bash(vendor/bin/phpunit:*), Bash(composer:*), Bash(npx:*)
 ---
 
-# /spec-impl-ergo — Implementador de specs aprobadas para Ergosanitas
+# /spec-impl-ergo-back — Implementador de specs aprobadas para Ergosanitas
 
 Homólogo de `/spec-impl`, especializado en **este** repositorio: mismas reglas de bloqueo, pero la implementación se ejecuta con los agentes y skills de Ergosanitas, añade una **quinta fase obligatoria de documentación** y termina con el checklist de cierre del proyecto.
 
@@ -26,6 +26,24 @@ Configuración de creación de rama:
 
 Providers registrados a mano (un servicio nuevo debe aparecer aquí):
 !`cat bootstrap/providers.php 2>/dev/null || echo "bootstrap/providers.php no encontrado — ¿estás en la raíz del proyecto?"`
+
+---
+
+## Si te ejecuta `ergo-father` desde `D:\ErgoSanitas\Projectos`
+
+El super agente `ergo-father` sigue esta skill leyendo este archivo (no puede invocarla con
+`Skill`: tiene `disable-model-invocation`). En ese caso el directorio actual **no es este repo**,
+así que el bloque «Contexto de sesión» de arriba no se evaluó. Antes de la Fase 1:
+
+- Ejecuta a mano esos comandos con el repo explícito: `git -C "D:/ErgoSanitas/Projectos/Back-end/ergosanitas-app" status --short`,
+  `git -C … branch --show-current`, y lista `Back-end/ergosanitas-app/specs/`,
+  `specs/.spec-config.yml` y `bootstrap/providers.php`.
+- Usa `git -C <repo>` para toda operación git y rutas absolutas para leer y editar.
+- Los comandos `php`, `composer`, `vendor/bin/*` y `npx` se corren con `cd "D:/ErgoSanitas/Projectos/Back-end/ergosanitas-app" && …`.
+- Los agentes de la tabla de la Fase 4 no son `subagent_type` desde la raíz: se lanzan con la
+  plantilla de la skill `ergo-father` §5 (general-purpose que adopta `.claude/agents/<nombre>.md`).
+- Todo lo demás (bloqueo por estado, pausas por paso, Fase 5 de documentación, nada de commits) se
+  aplica **igual**.
 
 ---
 
@@ -202,7 +220,7 @@ Antes de ejecutar un paso, clasifícalo y delega con la herramienta `Agent`. Pas
 
 | Tipo de paso                                                                                                                                                  | Agente                  |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| Crear o modificar controlador, service, model, provider, prompt de `app/IA/`, ruta o flujo de negocio                                                          | `ergosanitas-developer` |
+| Crear o modificar controlador, service, model, provider, prompt de `app/PromptSystem/`, ruta o flujo de negocio                                                          | `ergosanitas-developer` |
 | Duda de framework o lenguaje: contenedor, providers, ciclo de vida, auth (sesión / Sanctum / JWT), validación, colas, correo, PHPUnit, refactor idiomático seguro | `ergosanitas-laravel`   |
 | SQL: queries, joins, `EXPLAIN`, índices, migraciones, procedimientos almacenados, esquema real, tipos y charset                                                | `ergosanitas-mysql`     |
 | Documentación: contrato OpenAPI (`docs/openapi.yaml`) o los diagramas Mermaid de `docs/` (`arquitectura.md`, `flujos.md`, `diagrama-clases.md`, `modelo-datos.md`) | `ergo-docs`             |
@@ -267,7 +285,7 @@ Qué debe cubrir, según lo que tocó la spec:
 | ------------------ | --------------------- |
 | `routes/api.php` | `docs/openapi.yaml` (operación + conteo en `x-generated-from`) y el catálogo de endpoints del `README.md` raíz |
 | Un flujo end-to-end | El diagrama de secuencia de `docs/flujos.md` |
-| Controlador, service, model o prompt de `app/IA/` | `docs/diagrama-clases.md` |
+| Controlador, service, model o prompt de `app/PromptSystem/` | `docs/diagrama-clases.md` |
 | Un provider o el cableado de dependencias | `docs/arquitectura.md` |
 | Tabla, columna, `status` o procedimiento almacenado | `docs/modelo-datos.md` |
 
@@ -342,7 +360,7 @@ Reporta con honestidad **qué verificaste de verdad y qué no**: los procedimien
 ## Resumen del comportamiento esperado
 
 ```
-/spec-impl-ergo 03-alertas-ecg
+/spec-impl-ergo-back 03-alertas-ecg
 
   Fase 1  →  Encuentra specs/03-alertas-ecg.md
   Fase 2  →  Lee el estado → "Aprobado" (o "Approved", etc.) → ✅ continúa
@@ -356,7 +374,7 @@ Reporta con honestidad **qué verificaste de verdad y qué no**: los procedimien
   Cierre  →  php -l, pint --dirty, *:clear, route:list, tinker, test,
              validación del contrato y el checklist de cierre del repo
 
-/spec-impl-ergo 04-bioimpedancia-pdf  (estado: Borrador / Draft)
+/spec-impl-ergo-back 04-bioimpedancia-pdf  (estado: Borrador / Draft)
 
   Fase 1  →  Encuentra specs/04-bioimpedancia-pdf.md
   Fase 2  →  Lee el estado → "Borrador" → ❌ se detiene
