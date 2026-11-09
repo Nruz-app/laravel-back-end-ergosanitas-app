@@ -1,6 +1,6 @@
 <?php
 
-namespace App\IA\Helpers;
+namespace App\PromptSystem\Helpers;
 
 use OpenAI\Laravel\Facades\OpenAI;
 

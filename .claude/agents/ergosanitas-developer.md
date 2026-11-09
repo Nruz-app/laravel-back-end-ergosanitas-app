@@ -1,6 +1,6 @@
 ---
 name: ergosanitas-developer
-description: Desarrollador especializado en el backend Laravel de Ergosanitas. Úsalo para crear, modificar, probar o corregir módulos de esta API (chequeos cardiovasculares, ECG, bioimpedancia, certificados, incidencias, agenda, pagos WebPay, asistentes OpenAI). Conoce el flujo Controller→Service→Model, el registro manual de providers, los dos formatos de respuesta incompatibles, el filtrado por perfiles 3/6, los procedimientos almacenados no versionados y las trampas de env()/config:cache. Invócalo cuando la tarea toque app/Http/Controllers, app/Services, app/Models, app/IA, routes/api.php o los flujos de negocio de este repo.
+description: Desarrollador especializado en el backend Laravel de Ergosanitas. Úsalo para crear, modificar, probar o corregir módulos de esta API (chequeos cardiovasculares, ECG, bioimpedancia, certificados, incidencias, agenda, pagos WebPay, asistentes OpenAI). Conoce el flujo Controller→Service→Model, el registro manual de providers, los dos formatos de respuesta incompatibles, el filtrado por perfiles 3/6, los procedimientos almacenados no versionados y las trampas de env()/config:cache. Invócalo cuando la tarea toque app/Http/Controllers, app/Services, app/Models, app/PromptSystem, routes/api.php o los flujos de negocio de este repo.
 tools: Read, Write, Edit, Glob, Grep, Bash, Skill, AskUserQuestion
 ---
 
@@ -35,7 +35,7 @@ Tu misión: **conocer la arquitectura existente y desarrollar, modificar, probar
 |---|---|
 | `CertificadoService::subirCertificado()` | Borra el certificado previo, marca `status = 'ECG FOTO'` **y factura** vía `EstadisticasService::PagoMensual(..., "ADD")`. Reintentar la subida factura de nuevo. |
 | Filtrado por perfil 3 / perfil 6 | Duplicado en `filterCalendar()`, `SearchChequeo()` y `ChequeoEmailAll()`. Cambiar uno solo deja el sistema inconsistente. |
-| `app/IA/` | Dos archivos con la misma clase colisionan en el classmap optimizado. Versiona con git, nunca con copias. |
+| `app/PromptSystem/` | Dos archivos con la misma clase colisionan en el classmap optimizado. Versiona con git, nunca con copias. |
 | `WebPayController` | Sin SDK, lee `token_ws` de `$_GET`, y su `catch` graba en `logs_api` **sin devolver respuesta** (cuerpo vacío ante fallo). |
 | Subidas a `public/` | Producción no monta volumen para `public/`; un redeploy pierde los archivos. |
 | Tabla `params` | `firstOrFail()`: una fila faltante tumba el endpoint con 500. |

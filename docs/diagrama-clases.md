@@ -183,7 +183,7 @@ classDiagram
 
 ## Asistentes de IA
 
-Los prompts son clases estáticas sin estado en `app/IA/`: no se inyectan y no tienen constructor, solo producen strings o arrays de mensajes.
+Los prompts son clases estáticas sin estado en `app/PromptSystem/`: no se inyectan y no tienen constructor, solo producen strings o arrays de mensajes.
 
 ```mermaid
 classDiagram
@@ -197,6 +197,10 @@ classDiagram
     class ClubAssistantController {
         +AsQuestionClubUseCase(Request)
         +ResetSearch(Request)
+    }
+
+    class ChatComercialController {
+        +AsQuestionUseCase(Request)
     }
 
     class OpenAIService {
@@ -213,6 +217,23 @@ classDiagram
         -normalizarPresion(array paciente) array
     }
 
+    class ChatComercialService {
+        +HISTORIAL_MAX = 10
+        +MAX_CARACTERES_CONTEXTO = 40000
+        +CACHE_SEGUNDOS = 600
+        +CLAVE_CACHE
+        +MARCADOR_DERIVAR
+        +contexto() array
+        +enmascarar(string texto) string
+        +resolverSesion(sessionId) ChatComercialSessions
+        +historial(ChatComercialSessions session) array
+        +separarDerivacion(string texto, array contacto) array
+        +guardarTurno(session, pregunta, respuesta, derivar, contextoHash, tokens...) void
+        -productos() Collection
+        -serializar(productos, int largoPreparacion) string
+        -limpiar(string texto) string
+    }
+
     class PatientHelper {
         <<static>>
         +extractPatient(string prompt) string
@@ -227,6 +248,13 @@ classDiagram
     class AsistenteChatClubPrompt {
         <<static>>
         +system(club, search, pacientes, total, truncado) array
+    }
+
+    class AsistenteChatComercialPrompt {
+        <<static>>
+        +system(array contexto, array contacto) string
+        -rolYReglas(array contacto) string
+        -diccionarioDeDatos() string
     }
 
     class AnalisisECGPrompt {
@@ -263,6 +291,17 @@ classDiagram
         <<Model sin tabla>>
         +SP_chequeos_club_prompt(search, club)$
     }
+    class ChatComercialSessions {
+        <<Model>>
+        table chat_comercial_sessions
+        session_id, mensajes, ultimo_mensaje_at
+    }
+    class ChatComercialHistory {
+        <<Model>>
+        table chat_comercial_history
+        session_id, role, message, derivar, contexto_hash
+        tokens_prompt, tokens_cacheados, tokens_respuesta
+    }
 
     OpenAIController *-- OpenAIService
     OpenAIController *-- EstadisticasService
@@ -277,6 +316,11 @@ classDiagram
     ClubAssistantService --> ChatClubSessions
     ClubAssistantService --> ChatClubHistory
     ClubAssistantService --> ChequeoClubPrompt
+    ChatComercialController *-- ChatComercialService
+    ChatComercialController ..> AsistenteChatComercialPrompt
+    ChatComercialService --> ChatComercialSessions
+    ChatComercialService --> ChatComercialHistory
+    ChatComercialService ..> CatalogoService : comunas y reglas
 ```
 
 ### Qué modelo de OpenAI usa cada prompt
@@ -286,16 +330,26 @@ classDiagram
 | `PatientHelper` (extracción de paciente) | `gpt-4o-mini`, `temperature: 0` | `OpenAIService::resolveSession()` |
 | `AsistenteChatPacientePrompt` | `gpt-4o-mini`, `temperature: 0.2` | `OpenAIController::AsQuestionUseCase()` |
 | `AsistenteChatClubPrompt` | `gpt-4o-mini`, `temperature: 0.2` | `ClubAssistantController::AsQuestionClubUseCase()` |
+| `AsistenteChatComercialPrompt` | `gpt-4o-mini`, `temperature: 0.3`, `max_tokens: 400` | `ChatComercialController::AsQuestionUseCase()` |
 | `AnalisisECGPrompt` | `gpt-4.1-mini` (visión, 2000 tokens) | `OpenAIController::AnalisisEcg()` |
 | `AsistenteVozPrompt` | `gpt-4.1-mini`, `temperature: 0.1` | `OpenAIController::AsistenteVoz()` |
 | `AnalisisBioimpedanciaPrompt` | `gpt-4.1-mini` (visión) | `BioimpedanciaController::FormUpload()` |
 | `AnalisisRutBioimpedanciaPrompt` | `gpt-4.1-mini` | `BioimpedanciaService::analizarConIA()` |
 
-**Dónde ocurre cada llamada es inconsistente** —el chat clínico pasa por el servicio, el ECG y la voz llaman a `OpenAI::chat()` directo en el controlador, y bioimpedancia lo hace en ambos sitios—. Sigue el patrón del dominio que toques.
+**Dónde ocurre cada llamada es inconsistente** —el chat clínico pasa por el servicio, el del club y el comercial llaman a `OpenAI::chat()` en el controlador con el servicio solo para sesión, datos e historial, el ECG y la voz llaman a `OpenAI::chat()` directo en el controlador, y bioimpedancia lo hace en ambos sitios—. Sigue el patrón del dominio que toques.
 
-> ⚠️ Cada prompt debe vivir en **un solo archivo**. Dos archivos que declaren la misma clase en `app/IA/` colisionan en el classmap que genera `composer install --optimize-autoloader` (lo que hace el `dockerfile` de producción) y cuál gana queda indeterminado. Para versionar un prompt, usa git, no copias del archivo.
+> ⚠️ Cada prompt debe vivir en **un solo archivo**. Dos archivos que declaren la misma clase en `app/PromptSystem/` colisionan en el classmap que genera `composer install --optimize-autoloader` (lo que hace el `dockerfile` de producción) y cuál gana queda indeterminado. Para versionar un prompt, usa git, no copias del archivo.
 >
 > ⚠️ `OpenAIController::AsQuestionUseCase()` recibe `OpenAIService` **dos veces**: por constructor y como parámetro del método. Usa el del método, así que la propiedad del constructor queda muerta.
+
+El chat comercial «Ergosanito» (Spec 06) es el tercer chat y un dominio aparte, sin relación con los otros dos:
+
+- **Solo lee catálogo público**: `ChatComercialService::contexto()` arma el texto desde `Producto` (visibles, lista blanca de columnas), `CatalogoService::comunas()` / `reglas()` y `OperativoTramo`, y lo guarda en caché 600 s con la clave `chat-comercial:contexto`. No toca tablas clínicas ni SP.
+- **Memoria por `session_id`**, no por IP ni por paciente: `historial()` devuelve los 10 mensajes más recientes de `chat_comercial_history`.
+- `enmascarar()` cambia correo, teléfono y RUT del visitante por `[EMAIL]`, `[TELEFONO]` y `[RUT]` antes de guardar y de enviar a OpenAI.
+- `separarDerivacion()` quita el marcador `[DERIVAR]` y devuelve `derivar: true`; también si el texto trae el teléfono de `config('services.chat_comercial.contacto')`.
+- `tokens_cacheados` se guarda siempre `null`: `openai-php/client` v0.10.1 no expone `prompt_tokens_details.cached_tokens`.
+- Su `catch` genérico **no expone `file` ni `line`** (los otros dos chats sí): el detalle va a `Log::error`.
 
 ---
 
@@ -922,7 +976,7 @@ Detalles que no se ven en el diagrama:
 
 - Los métodos de controlador van en `PascalCase` (`FindByEmail`, `ChequeoPDFRut`), a diferencia de la convención Laravel por defecto. Hay excepciones ya existentes en minúscula: `resetPatient`, `deleteById`, `deletePagoMensual`, `chequeoUserEmail`.
 - Los modelos exponen **wrappers estáticos** sobre `DB::select('CALL SP_xxx(?)')` en vez de repartir los `CALL` por los servicios.
-- Los prompts viven en `app/IA/` como clases estáticas, nunca incrustados en controladores.
+- Los prompts viven en `app/PromptSystem/` como clases estáticas, nunca incrustados en controladores.
 
 **Anomalías estructurales visibles en los diagramas:**
 

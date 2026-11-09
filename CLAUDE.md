@@ -8,11 +8,11 @@ API REST en Laravel 11 (PHP 8.2) para **Ergosanitas**: gestión de chequeos card
 
 El código y los comentarios están en español. Los métodos de controlador van en `PascalCase` (`FindByEmail`, `ChequeoPDFRut`), a diferencia de la convención Laravel por defecto.
 
-`README.md` documenta el stack, la instalación y el catálogo de endpoints. `docs/openapi.yaml` es el contrato OpenAPI 3.0.3 con las 119 operaciones detalladas (request, respuestas por código y ejemplos); `docs/index.html` lo muestra con Swagger UI. Este archivo cubre lo que no se deduce leyendo un solo archivo.
+`README.md` documenta el stack, la instalación y el catálogo de endpoints. `docs/openapi.yaml` es el contrato OpenAPI 3.0.3 con las 120 operaciones detalladas (request, respuestas por código y ejemplos); `docs/index.html` lo muestra con Swagger UI. Este archivo cubre lo que no se deduce leyendo un solo archivo.
 
-La vista gráfica vive en cuatro documentos Mermaid: `docs/arquitectura.md` (componentes, capas, providers, despliegue), `docs/flujos.md` (15 diagramas de secuencia end-to-end), `docs/diagrama-clases.md` (clases UML por dominio) y `docs/modelo-datos.md` (ERD, máquina de estados, autorización por perfil, catálogo de SP). `docs/README.md` los indexa. Ademas, `docs/diagramas/` tiene tres artefactos **explorables** en HTML generados con archify (arquitectura, juego de cartas y ciclo de vida del chequeo): el `.html` es generado, la fuente es su `.json` hermano.
+La vista gráfica vive en cuatro documentos Mermaid: `docs/arquitectura.md` (componentes, capas, providers, despliegue), `docs/flujos.md` (16 diagramas de secuencia end-to-end), `docs/diagrama-clases.md` (clases UML por dominio) y `docs/modelo-datos.md` (ERD, máquina de estados, autorización por perfil, catálogo de SP). `docs/README.md` los indexa. Ademas, `docs/diagramas/` tiene tres artefactos **explorables** en HTML generados con archify (arquitectura, juego de cartas y ciclo de vida del chequeo): el `.html` es generado, la fuente es su `.json` hermano.
 
-`docs/postman/` es la excepción generada: `Ergosanitas-API.postman_collection.json` (119 requests, 19 carpetas) y sus tres entornos salen de `openapi.yaml` con `php docs/postman/generar-coleccion.php`. No los edites a mano; `php docs/postman/verificar-cobertura.php` contrasta la colección con `route:list`.
+`docs/postman/` es la excepción generada: `Ergosanitas-API.postman_collection.json` (120 requests, 19 carpetas) y sus tres entornos salen de `openapi.yaml` con `php docs/postman/generar-coleccion.php`. No los edites a mano; `php docs/postman/verificar-cobertura.php` contrasta la colección con `route:list`.
 
 El contrato y los diagramas **se mantienen a mano**: no hay generación automática ni anotaciones L5-Swagger. Al agregar o modificar una ruta en `routes/api.php`, actualiza `docs/openapi.yaml` en el mismo commit y contrasta con `php artisan route:list --json`. Si cambia un flujo, una clase o el esquema, actualiza también el `.md` de diagramas correspondiente.
 
@@ -69,7 +69,7 @@ Cada dominio sigue el mismo patrón de tres capas, cableado a mano:
 - `{status, mensaje}` plano, con `status` unas veces texto (`'OK'`) y otras entero (`200`) — buena parte de `ChequeoCardiovascularController` y `CertificadoUrlController`, `EstadisticasController::deletePagoMensual`, `CargaMasivaController`.
 - `{status: 'success', message, data}` — `IncidenciasController`, que además responde **201 también en los GET**.
 - Payload crudo sin sobre — `ChequeoCardiovascularController::Index`/`FindByEmail`/`ChequeoRut`/`EstadoGeneral`, `ServiciosController`, `AgendaHorasController::getAgenda`, `ElectroCardiogramaController::FindByRut`, todos los éxitos de `EstadisticasController`.
-- Sobre de chat `{sessionId, patient|club, search?, response, status?}` — `OpenAIController` y `ClubAssistantController`.
+- Sobre de chat `{sessionId, patient|club, search?, response, status?}` — `OpenAIController` y `ClubAssistantController`; `ChatComercialController` usa la variante `{sessionId, response, derivar}` (sin `patient`, `club` ni `search`) y errores propios: 422 `{message, errors}`, 429 `{message}` del limitador y 500 `{message}` genérico sin `file` ni `line`.
 - No JSON: PDF binario, `streamDownload` de Word, `redirect()->away` en `WebPayResponse`, texto plano en los `health`.
 
 Si el cliente ya consume un endpoint, cambiarle el sobre lo rompe. La tabla completa está en `README.md` § Formatos de respuesta.
@@ -125,7 +125,7 @@ Estos SP **no están versionados en el repo** ni en las migraciones. Al cambiar 
 
 ### Autenticación y perfiles
 
-Coexisten tres mecanismos: `Auth::attempt()` con sesión (login principal en `UserController::AuthRegister`), Sanctum (solo la ruta `/user` de ejemplo) y JWT (`php-open-source-saver/jwt-auth`, configurado como guard `api` en `config/auth.php`). **Las rutas de negocio en `routes/api.php` no llevan middleware de autenticación.** El `user_email` y el `perfiles_id` llegan como parámetros del request, así que el filtrado por perfil descrito arriba es una regla de presentación, no un control de acceso.
+Coexisten tres mecanismos: `Auth::attempt()` con sesión (login principal en `UserController::AuthRegister`), Sanctum (solo la ruta `/user` de ejemplo) y JWT (`php-open-source-saver/jwt-auth`, configurado como guard `api` en `config/auth.php`). **Las rutas de negocio en `routes/api.php` no llevan middleware de autenticación.** Los únicos middleware de ruta son `auth:sanctum` (`/user`), `signed` (descarga de la orden médica del carro) y `throttle:chat-comercial` (el chat comercial, ver «Integración OpenAI»), que limita por IP pero no autentica. El `user_email` y el `perfiles_id` llegan como parámetros del request, así que el filtrado por perfil descrito arriba es una regla de presentación, no un control de acceso.
 
 Las escrituras de `home-imagenes` (`POST`, los dos `PUT` y `DELETE`) son el único sitio que **rechaza** por perfil: exigen un `user_email` (body o query) cuyo perfil se llame `Administrador` (`HomeImagenService::esAdministrador()`, join `users_metadata` → `perfiles` por `perfiles.nombre`, no por id) y responden 403 si no (decisión D3 de la Spec 03). **Tampoco es autenticación**: el email viaja en el request y quien conozca uno de administrador puede falsificarlo. Queda como deuda hasta que exista autenticación real (Sanctum), que es una spec aparte.
 
@@ -141,24 +141,35 @@ Ese flujo tiene un efecto cruzado fácil de pasar por alto: al subir un certific
 
 ### Integración OpenAI
 
-Usa `openai-php/laravel` (facade `OpenAI::chat()`). Los prompts de sistema viven como clases estáticas en `app/IA/` (`AnalisisECGPrompt::system()`, `AsistenteChatPacientePrompt::system($patient, $data)`, `AnalisisBioimpedanciaPrompt`, `AnalisisRutBioimpedanciaPrompt`, `AsistenteVozPrompt`, `AsistenteChatClubPrompt`) — mantén los prompts ahí, no incrustados en controladores.
+Usa `openai-php/laravel` (facade `OpenAI::chat()`). Los prompts de sistema viven como clases estáticas en `app/PromptSystem/` (namespace `App\PromptSystem`): `AnalisisECGPrompt::system()`, `AsistenteChatPacientePrompt::system($patient, $data)`, `AnalisisBioimpedanciaPrompt`, `AnalisisRutBioimpedanciaPrompt`, `AsistenteVozPrompt`, `AsistenteChatClubPrompt` y `AsistenteChatComercialPrompt`, más `Helpers\PatientHelper` — mantén los prompts ahí, no incrustados en controladores.
 
-Cada prompt debe vivir en **un solo archivo**: dos archivos que declaren la misma clase en `app/IA/` colisionan en el classmap que genera `composer install --optimize-autoloader` (lo que hace el `dockerfile` de producción), y cuál gana queda indeterminado. Para versionar un prompt, usa git, no copias del archivo.
+Cada prompt debe vivir en **un solo archivo**: dos archivos que declaren la misma clase en `app/PromptSystem/` colisionan en el classmap que genera `composer install --optimize-autoloader` (lo que hace el `dockerfile` de producción), y cuál gana queda indeterminado. Para versionar un prompt, usa git, no copias del archivo.
 
 Dónde ocurre cada llamada (es inconsistente; sigue el patrón del dominio que toques):
 
 - Chat clínico: `OpenAIService` invocado desde `OpenAIController::AsQuestionUseCase`.
 - Asistente por club: `ClubAssistantService` (sesión, datos del SP, historial) + `OpenAI::chat()` en `ClubAssistantController`.
+- Chat comercial: `ChatComercialService` (contexto, sesión, historial, enmascarado) + `OpenAI::chat()` en `ChatComercialController`.
 - ECG y asistente de voz: `OpenAI::chat()` directo en `OpenAIController`.
 - Bioimpedancia: `OpenAI::chat()` en `BioimpedanciaController::FormUpload` y en `BioimpedanciaService`.
 
-Modelos en uso: `gpt-4o-mini` (extracción de paciente, chat clínico y chat por club) y `gpt-4.1-mini` (ECG, voz, bioimpedancia).
+Modelos en uso: `gpt-4o-mini` (extracción de paciente, chat clínico, chat por club y chat comercial) y `gpt-4.1-mini` (ECG, voz, bioimpedancia).
 
 El chat clínico (`POST api/sam-assistant/as-question`) funciona así: `OpenAIService::resolveSession()` crea/recupera una `ChatSessions` por `sessionId` y extrae el identificador del paciente del prompt (regex de RUT y, si falla, una llamada a `gpt-4o-mini` en `PatientHelper::extractPatient()`). Sin paciente resuelto responde `status: needs_identifier`. Con paciente, `handle()` recupera los 20 mensajes más recientes de `chat_history` (`desc` + `reverse`, igual que el asistente por club), `EstadisticasService::ChequeoPrompt()` (→ `SP_chequeos_prompt`) aporta el chequeo y `BioimpedanciaService::SP_bioempdacia_rut()` la **última bioimpedancia**, buscada por el RUT exacto del chequeo encontrado (no por el texto de búsqueda). `AsistenteChatPacientePrompt::system($patient, $data, $bio)` los manda en mensajes de sistema separados, y `recordatorio($bio)` se inserta justo antes de la pregunta actual. `POST api/sam-assistant/reset-patient` suelta el paciente de la sesión.
 
 Un detalle del historial que no se ve en el nombre del método: `chat_history` se agrupa por `patient_identifier` y **no guarda `session_id`**, así que dos sesiones sobre el mismo paciente comparten la conversación. Por eso existe `recordatorio()`: las respuestas viejas del historial (por ejemplo, de cuando el chat no recibía la bioimpedancia) pesaban más que los datos del inicio y el modelo las repetía.
 
 El asistente por club (`POST api/sam-assistant-club/as-question`, body `{email, prompt, sessionId, search?}`) es un dominio aparte a propósito: tablas propias `chat_club_sessions` / `chat_club_history` (esta sí por `session_id`), datos de `SP_chequeos_club_prompt` filtrados por el email del club, y `POST api/sam-assistant-club/reset-search` para soltar el filtro de búsqueda. No lo fusiones con el chat clínico: uno resuelve un paciente por RUT y el otro una institución por email. La spec está en `specs/01-asistente-chat-club.md`.
+
+El **chat comercial «Ergosanito»** (`POST api/chat-comercial/as-question`, body `{prompt, sessionId?}`, respuesta `{sessionId, response, derivar}`) es el **tercer chat** y otro dominio aparte, para visitantes **anónimos** del Home. La spec es `specs/06-chat-comercial-ergosanito.md`. Lo que no se ve en un solo archivo:
+
+- Es **pública** y lleva el **primer `throttle` del repo**: `throttle:chat-comercial`, definido en `ChatComercialServiceProvider::boot()` con `RateLimiter::for` (20/min y 200/día por IP, 429 en español con `Retry-After`). El provider también registra `ChatComercialService` como singleton inyectándole `CartFlow\CatalogoService`.
+- El contexto sale **solo del catálogo público del carro** (`cf_productos` visibles con lista blanca de columnas, comunas, `cf_operativo_tramos`, `ticket_minimo` y `horas_ayuno_defecto`) y se guarda en caché 600 s con la clave `chat-comercial:contexto`. **Nunca** consulta tablas clínicas, los otros chats, `cf_carritos*` / `cf_pedidos*` ni ningún SP. Caché y limitador viven en el store por defecto (`CACHE_STORE=database` → tablas `cache` / `cache_locks`, migración `0001_01_01_000001_create_cache_table`): sin esas tablas el endpoint falla.
+- Tablas propias `chat_comercial_sessions` / `chat_comercial_history`, por `session_id` (UUID que guarda el front; si falta o no es UUID, el back crea uno). Historial de 10 mensajes. **Sin IP, user agent, email ni nombre**: `ChatComercialService::enmascarar()` cambia RUT, correo y teléfono por `[RUT]`, `[EMAIL]`, `[TELEFONO]` antes de guardar y de enviar a OpenAI.
+- El mensaje de sistema es **idéntico entre peticiones** (nada variable dentro) para aprovechar el *prompt caching* de OpenAI. No metas fecha ni `sessionId` ahí.
+- La persona a la que deriva vive en `config('services.chat_comercial.contacto')` (`nombre`, `telefono`), sin `.env`. El modelo cierra con `[DERIVAR]` y `separarDerivacion()` lo quita y devuelve `derivar: true`.
+- `tokens_cacheados` queda siempre `null`: `openai-php/client` v0.10.1 no expone `cached_tokens`.
+- Tests: `php artisan test --filter=ChatComercial` (SQLite en memoria, `OpenAI::fake()`).
 
 ### Pagos WebPay (Transbank)
 
@@ -209,7 +220,8 @@ Todo en `routes/api.php`, plano y sin agrupar, con prefijo automático `/api`. O
 
 - Agentes en `.claude/agents/`: `ergosanitas-developer` (implementa y corrige), `ergosanitas-laravel` (dudas de framework/PHP), `ergosanitas-mysql` (queries, SP, MySQL 5.7) y `ergo-docs` (mantiene `docs/`; documenta, nunca toca código). Cada uno carga su skill homónima de `.claude/skills/`.
 - Al cerrar un cambio que toque `routes/`, controladores, servicios, modelos o el esquema, pasa por `ergo-docs` para poner al día el contrato, los diagramas y la colección Postman.
-- Las features nuevas se hacen por spec: `/spec` redacta `specs/NN-nombre.md` y `/spec-impl` o `/spec-impl-ergo` la implementan por pasos. Hoy existen `01-asistente-chat-club`, `02-juego-cartas-niveles`, `03-mantenedor-imagenes-home`, `04-servicio-cart-flow` y `05-mantenedor-carrito-compra`; léelas antes de tocar esos dominios.
+- Para diseñar o revisar una spec usa `/spec-ergo-back` (`.claude/skills/spec-ergo-back/`): envuelve `/spec` con el sobre de respuesta, el provider, los perfiles 3/6, la fase `ergo-docs` y el análisis de consumidores (`ergo-contrato-api`) si cambia un endpoint; con una spec existente entra en modo revisión. Nunca la aprueba.
+- Las features nuevas se hacen por spec: `/spec` redacta `specs/NN-nombre.md` y `/spec-impl` o `/spec-impl-ergo-back` la implementan por pasos (el super agente `ergo-father` de la carpeta padre sigue también `spec-impl-ergo-back` cuando orquesta una spec del back). Hoy existen `01-asistente-chat-club`, `02-juego-cartas-niveles`, `03-mantenedor-imagenes-home`, `04-servicio-cart-flow`, `05-mantenedor-carrito-compra` y `06-chat-comercial-ergosanito`; léelas antes de tocar esos dominios.
 
 ## Trampas conocidas
 
@@ -222,15 +234,14 @@ Todo en `routes/api.php`, plano y sin agrupar, con prefijo automático `/api`. O
 - `app/Http/Controllers/bootstrap/` (con `app.php`, `providers.php` y `cache/`) es otra copia versionada y muerta del `bootstrap/` real; nunca se carga. Los archivos que importan son `bootstrap/app.php` y `bootstrap/providers.php`. `src/` está vacío; `base_datos/references/sp/` solo contiene `SP_chequeos_club_prompt.sql` y `SP_juego_cartas_club.sql`, los únicos procedimientos almacenados versionados en el repo (fuera del repo, `Projectos/MySql/SP/` guarda más fuentes `.sql`, sin garantía de que estén al día con la BD).
 - El controlador de Google OAuth se llama `GoogleAuthControlle` (sin la "r" final), tanto el archivo como la clase; y `UserController` expone `UserUpdatePassowrd`. Son typos consolidados: no los "corrijas" sin actualizar `routes/api.php` y los clientes.
 - `App\Models\FichaClinica` tiene el `$table` comentado a propósito: solo es un envoltorio de `SP_ficha_clinica`, no mapea una tabla.
-- No dupliques archivos en `app/IA/` para conservar versiones anteriores de un prompt: declararían la misma clase y colisionarían en el classmap optimizado (ver "Integración OpenAI").
+- No dupliques archivos en `app/PromptSystem/` para conservar versiones anteriores de un prompt: declararían la misma clase y colisionarían en el classmap optimizado (ver "Integración OpenAI").
 
 ## Despliegue
 
-`.github/workflows/github-action.build.yml` tiene dos jobs:
+`.github/workflows/github-action.build.yml` tiene tres jobs:
 
 1. `test`: `composer validate`, `composer install`, `.env` ficticio desde `.env.example` y `php artisan test --filter="CartFlow|ChatComercial"`. Solo esos tests, porque fuerzan SQLite en memoria; el resto tocaría la BD de `.env`. No usa secrets.
 2. `build` (`needs: test`): versionado con `PaulHatch/semantic-version@v5` y un único `docker/build-push-action` con los tags `:<version>` y `:latest` de `nruz176/laravel-back-end-ergosanitas-app`. En **push a `main`** hace login y publica en Docker Hub. En un **pull request** a `main` solo construye la imagen, sin publicarla. No hay migraciones en el pipeline.
-
 3. `deploy` (`needs: test`): sube el back por FTP al hosting compartido, en `/public_html/BackEnd/`, con `lftp mirror -R` **sin `--delete`**, así que nunca borra nada del servidor. Excluye **todo `public/`** (datos de pacientes, imágenes, firmas e `index.php`: cambios ahí se suben a mano), `storage/`, los `.htaccess` y `.env*`. No genera `APP_KEY` ni corre migraciones. Corre en dos casos: a mano desde Actions (por defecto `dry_run`, que solo lista lo que subiría) o en push a `main` si la variable del repo `DEPLOY_FTP_ENABLED` vale `true`. Usa los secrets `FTP_USERNAME` / `FTP_PASSWORD` y las variables opcionales `FTP_HOST` y `FTP_REMOTE_DIR`.
 
 El bump sale del **mensaje de commit** (Conventional Commits, con regex que se aplica solo al asunto del commit): `feat:` / `feat(x):` sube minor; `tipo!:` o `BREAKING CHANGE` en el asunto sube major; cualquier otro, patch.

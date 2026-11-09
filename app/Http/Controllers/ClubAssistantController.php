@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\IA\AsistenteChatClubPrompt;
+use App\PromptSystem\AsistenteChatClubPrompt;
 use App\Models\ChatClubSessions;
 use App\Services\ClubAssistantService;
 use Illuminate\Http\Request;

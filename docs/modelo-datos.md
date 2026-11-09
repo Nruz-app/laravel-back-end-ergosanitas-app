@@ -131,6 +131,7 @@ erDiagram
     AGENDA_HORAS ||..o{ WEB_PAY_INFO : "por rut_paciente"
     CHAT_CLUB_SESSIONS ||..o{ CHAT_CLUB_HISTORY : "session_id"
     CHAT_SESSIONS ||..o{ CHAT_HISTORY : "patient_identifier, NO session_id"
+    CHAT_COMERCIAL_SESSIONS ||..o{ CHAT_COMERCIAL_HISTORY : "session_id"
 
     USERS {
         int id PK
@@ -260,6 +261,29 @@ erDiagram
         longtext context_json
     }
 
+    CHAT_COMERCIAL_SESSIONS {
+        bigint id PK
+        varchar session_id UK "64, UUID del front"
+        int mensajes "unsigned, default 0"
+        timestamp ultimo_mensaje_at "nullable"
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    CHAT_COMERCIAL_HISTORY {
+        bigint id PK
+        varchar session_id "64, index"
+        varchar role "user | assistant"
+        text message "visitante: enmascarado"
+        boolean derivar "default 0"
+        varchar contexto_hash "sha256, nullable"
+        int tokens_prompt "nullable"
+        int tokens_cacheados "hoy siempre null"
+        int tokens_respuesta "nullable"
+        timestamp created_at
+        timestamp updated_at
+    }
+
     LOGS_API {
         int id PK
         varchar rutaWeb
@@ -333,6 +357,10 @@ erDiagram
 | `pago_mensual` | Sin ella no hay facturación mensual por club |
 
 > `chat_history` **no guarda `session_id`**: el historial del asistente clínico se agrupa por `patient_identifier`, así que dos sesiones distintas que hablen del mismo paciente comparten la conversación. El chat de club sí agrupa por sesión.
+
+> `chat_comercial_sessions` / `chat_comercial_history` (Spec 06) son del chat comercial «Ergosanito» del Home: visitantes **anónimos**, sin relación con usuarios, pacientes ni clubes. El historial se agrupa por `session_id` (índice `(session_id, created_at)`). **Ninguna de las dos guarda IP, user agent, email ni nombre**; el mensaje del visitante se guarda ya enmascarado (`[RUT]`, `[EMAIL]`, `[TELEFONO]`) y el del asistente sin el marcador `[DERIVAR]`. No se guarda el contexto enviado al modelo (es catálogo público), solo su `contexto_hash`. Las migraciones `2026_11_09_120000` y `2026_11_09_120100` están en el repo; en la base remota se aplican con `--path`.
+>
+> El chat comercial usa además las tablas `cache` / `cache_locks` de Laravel (migración `0001_01_01_000001_create_cache_table`, con `CACHE_STORE=database` por defecto): ahí viven el contexto del catálogo (clave `chat-comercial:contexto`, 600 s) y los contadores efímeros del limitador por IP.
 
 ---
 

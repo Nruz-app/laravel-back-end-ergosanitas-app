@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Models\Bioimpedancia;
-use App\IA\AnalisisRutBioimpedanciaPrompt;
+use App\PromptSystem\AnalisisRutBioimpedanciaPrompt;
 use OpenAI\Laravel\Facades\OpenAI;
 use Illuminate\Support\Facades\Log;
 use App\Models\ChequeoCardiovascular;

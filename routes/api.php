@@ -24,6 +24,7 @@ use App\Http\Controllers\CartFlow\CatalogoController;
 use App\Http\Controllers\EmailController;
 
 use App\Http\Controllers\ClubAssistantController;
+use App\Http\Controllers\ChatComercialController;
 
 use App\Http\Controllers\OpenAIController;
 
@@ -199,6 +200,12 @@ Route::post('sam-assistant-club/as-question',[ClubAssistantController::class,'As
 
 Route::post('sam-assistant-club/reset-search',[ClubAssistantController::class,'ResetSearch'])
     ->name('ResetSearch');
+
+//CHAT COMERCIAL DEL HOME (SPEC 06): PÚBLICO, CON LIMITADOR POR IP
+
+Route::post('chat-comercial/as-question',[ChatComercialController::class,'AsQuestionUseCase'])
+    ->middleware('throttle:chat-comercial')
+    ->name('ChatComercialAsQuestion');
 
 Route::post('GPT/asistente-voz',[OpenAIController::class,'AsistenteVoz'])
     ->name('AsistenteVoz');

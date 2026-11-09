@@ -272,7 +272,7 @@
       "id": "servicios-openai",
       "from": "servicios",
       "to": "openai",
-      "label": "prompts de app/IA"
+      "label": "prompts de app/PromptSystem"
     },
     {
       "id": "controladores-smtp",

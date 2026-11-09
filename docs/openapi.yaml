@@ -3,7 +3,7 @@ openapi: 3.0.3
 info:
   title: Ergosanitas — API REST
   version: "1.0.0"
-  x-generated-from: "routes/api.php — 119 endpoints"
+  x-generated-from: "routes/api.php — 120 endpoints"
   description: |
     API REST en **Laravel 11 / PHP 8.2** de **Ergo SaniTas SpA**: gestión de chequeos
     cardiovasculares deportivos, electrocardiogramas, bioimpedancia, certificados médicos,
@@ -52,8 +52,10 @@ info:
     existe `app/Http/Middleware`. **Ninguna ruta de negocio en `routes/api.php` está
     protegida.** El `user_email` y el `perfiles_id` viajan como parámetros del request, de
     modo que el filtrado por perfil descrito más abajo es una **regla de presentación, no
-    un control de acceso**. La única ruta con middleware es `GET /user` (`auth:sanctum`),
-    que es el ejemplo que trae Laravel.
+    un control de acceso**. Solo tres rutas llevan middleware: `GET /user` (`auth:sanctum`,
+    el ejemplo que trae Laravel), la descarga de la orden médica del carro (`signed`) y
+    `POST /chat-comercial/as-question` (`throttle:chat-comercial`, el único limitador del
+    repo, que **limita por IP pero no autentica**).
 
     Las escrituras del mantenedor de imágenes del Home (`POST`, `PUT` y `DELETE` de
     `/home-imagenes`) exigen además un `user_email` de perfil **Administrador** y responden
@@ -187,10 +189,10 @@ info:
 
     | Modelo | Endpoints |
     |---|---|
-    | `gpt-4o-mini` | `POST /sam-assistant/as-question`, `POST /sam-assistant-club/as-question`, extracción de paciente en `PatientHelper` |
+    | `gpt-4o-mini` | `POST /sam-assistant/as-question`, `POST /sam-assistant-club/as-question`, `POST /chat-comercial/as-question`, extracción de paciente en `PatientHelper` |
     | `gpt-4.1-mini` | `POST /GPT/analisis-ecg`, `POST /GPT/asistente-voz`, `POST /bioimpedancia/form-upload` |
 
-    Los prompts de sistema viven como clases estáticas en `app/IA/`. Cada prompt debe vivir
+    Los prompts de sistema viven como clases estáticas en `app/PromptSystem/`. Cada prompt debe vivir
     en **un solo archivo**: dos clases homónimas colisionan en el classmap optimizado que
     genera `composer install --optimize-autoloader`.
 
@@ -310,8 +312,9 @@ tags:
     description: Estadísticas clínicas por club y facturación mensual (tabla `pago_mensual`).
   - name: Asistentes IA
     description: |
-      Asistente clínico por paciente, asistente por club, asistente de voz para digitación
-      y lectura de ECG por imagen. Todos usan OpenAI.
+      Asistente clínico por paciente, asistente por club, chat comercial «Ergosanito» del
+      Home (público, con limitador), asistente de voz para digitación y lectura de ECG por
+      imagen. Todos usan OpenAI.
   - name: Carga masiva
     description: Importación de chequeos desde Excel y carga masiva de ECG en PDF.
   - name: Pagos WebPay
@@ -478,8 +481,8 @@ components:
       type: object
       description: |
         Respuesta estándar de `$request->validate()` de Laravel cuando la petición trae
-        `Accept: application/json`. **Solo `ClubAssistantController` la captura de forma
-        explícita**; en el resto de los controladores la `ValidationException` es atrapada
+        `Accept: application/json`. **`ClubAssistantController` y `ChatComercialController` la
+        capturan de forma explícita**; en el resto de los controladores la `ValidationException` es atrapada
         por el `catch (\Exception)` y sale como 500.
       properties:
         message:
@@ -4174,7 +4177,7 @@ paths:
       description: |
         Sube la foto de la hoja de resultados del equipo de bioimpedancia y la convierte en
         datos estructurados con **`gpt-4.1-mini`** y el prompt
-        `App\IA\AnalisisBioimpedanciaPrompt`.
+        `App\PromptSystem\AnalisisBioimpedanciaPrompt`.
 
         Flujo:
 
@@ -6189,7 +6192,7 @@ paths:
       description: |
         Asistente conversacional que responde preguntas clínicas sobre un paciente concreto,
         con memoria por sesión. Usa **`gpt-4o-mini`** con `temperature: 0.2` y el prompt
-        `App\IA\AsistenteChatPacientePrompt`.
+        `App\PromptSystem\AsistenteChatPacientePrompt`.
 
         ### Flujo
 
@@ -6368,7 +6371,7 @@ paths:
       description: |
         Asistente conversacional a nivel de club: responde preguntas sobre el conjunto de
         pacientes **en revisión médica** de ese club. Usa **`gpt-4o-mini`** con
-        `temperature: 0.2` y el prompt `App\IA\AsistenteChatClubPrompt`.
+        `temperature: 0.2` y el prompt `App\PromptSystem\AsistenteChatClubPrompt`.
 
         ### Semántica del campo `search`
 
@@ -6400,7 +6403,7 @@ paths:
         Se guarda en `chat_club_history` **por `session_id`** (no por club) y se recuperan
         los 20 mensajes más recientes, desempatando por `id` cuando comparten `created_at`.
 
-        Este es el único controlador que **captura `ValidationException` por separado** y
+        Como `ChatComercialController`, **captura `ValidationException` por separado** y
         responde 422 correctamente.
       requestBody:
         required: true
@@ -6562,6 +6565,170 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorThrowable'
 
+  /chat-comercial/as-question:
+    post:
+      tags: [Asistentes IA]
+      summary: Chat comercial «Ergosanito» del Home para visitantes anónimos
+      operationId: asQuestionChatComercial
+      description: |
+        SPEC 06 (`specs/06-chat-comercial-ergosanito.md`). Asistente comercial del Home
+        público: responde sobre exámenes y servicios, precios de lista, cobertura y cargos
+        por comuna, operativos por región y preparación. **Pública, sin autenticación**, y es
+        la **primera ruta del repo con limitador** (`throttle:chat-comercial`, ver 429).
+
+        Usa **`gpt-4o-mini`** con `temperature: 0.3` y `max_tokens: 400`, y el prompt
+        `App\PromptSystem\AsistenteChatComercialPrompt`. Es el tercer chat del sistema y es un
+        dominio aparte: tablas propias `chat_comercial_sessions` / `chat_comercial_history`,
+        sin relación con el chat clínico ni con el del club.
+
+        ### Datos que recibe el modelo
+
+        Solo el **catálogo público** del carro (`cf_productos` visibles salvo `toma_muestra`,
+        comunas con zona y cargos, tramos de operativo y las reglas `ticket_minimo` /
+        `horas_ayuno_defecto`), serializado en líneas compactas y en caché 600 s (clave
+        `chat-comercial:contexto`). Lista blanca de columnas: nunca costos, notas internas
+        ni precios por plan. **No consulta tablas clínicas ni procedimientos almacenados.**
+
+        ### Datos personales del visitante
+
+        Antes de guardar y de enviar a OpenAI, `ChatComercialService::enmascarar()` reemplaza
+        correos por `[EMAIL]`, teléfonos chilenos por `[TELEFONO]` y RUT por `[RUT]`. Ninguna
+        tabla guarda IP, user agent, email ni nombre; la IP solo vive en la clave efímera del
+        limitador.
+
+        ### Sesión e historial
+
+        La memoria es **por `sessionId`, no por IP**: si falta o no es un UUID válido, el
+        back genera uno nuevo y lo devuelve; el front lo guarda y lo reenvía. Se reenvían al
+        modelo los **10 mensajes más recientes** de la sesión (`desc` + `reverse`).
+
+        ### Derivación
+
+        Cuando el modelo no sabe la respuesta, o la pregunta toca datos de pacientes, planes
+        o cobertura a cotizar, deriva a la persona de contacto de
+        `config('services.chat_comercial.contacto')` y cierra con el marcador `[DERIVAR]`. El
+        back lo quita de `response` y lo traduce en `derivar: true` (también si el texto trae
+        el teléfono del contacto aunque el modelo olvidara el marcador).
+
+        Sobre de chat **sin `patient`, `club` ni `search`** y con el campo propio `derivar`.
+        El 500, a diferencia de los otros chats, **no expone `error`, `file` ni `line`**.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prompt:
+                  type: string
+                  maxLength: 500
+                  description: Pregunta del visitante. Se hace `trim` y se enmascara.
+                  example: "¿Cuánto cuesta el perfil lipídico y necesito ayuno?"
+                sessionId:
+                  type: string
+                  maxLength: 64
+                  nullable: true
+                  description: |
+                    UUID de la conversación. Omitir (o enviar uno que no sea UUID) para
+                    empezar un hilo nuevo; el back devuelve el que usó.
+                  example: "0f8c2a5e-6a1b-4c2e-9d55-2b7f3c1e9a10"
+              required: [prompt]
+            examples:
+              primeraPregunta:
+                summary: Primera pregunta, sin sesión
+                value:
+                  prompt: "¿Cuánto cuesta el perfil lipídico y necesito ayuno?"
+              continuarHilo:
+                summary: Continuar una conversación
+                value:
+                  prompt: "¿Y lo pueden tomar a domicilio en Maipú?"
+                  sessionId: "0f8c2a5e-6a1b-4c2e-9d55-2b7f3c1e9a10"
+      responses:
+        '200':
+          description: Respuesta del asistente.
+          headers:
+            X-RateLimit-Limit:
+              description: Tope del limitador que Laravel informa en la respuesta.
+              schema: { type: integer }
+            X-RateLimit-Remaining:
+              description: Peticiones que quedan antes del 429.
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessionId:
+                    type: string
+                    description: Siempre presente. El front lo guarda y lo reenvía.
+                    example: "0f8c2a5e-6a1b-4c2e-9d55-2b7f3c1e9a10"
+                  response:
+                    type: string
+                    description: Texto plano, sin markdown y **sin** el marcador `[DERIVAR]`.
+                  derivar:
+                    type: boolean
+                    description: |
+                      Siempre presente. `true` cuando el asistente deriva al contacto
+                      comercial; el front muestra el botón de WhatsApp.
+                required: [sessionId, response, derivar]
+              examples:
+                respuesta:
+                  summary: Respuesta con datos del catálogo
+                  value:
+                    sessionId: "0f8c2a5e-6a1b-4c2e-9d55-2b7f3c1e9a10"
+                    response: "El perfil lipídico cuesta $9.990 y requiere 12 horas de ayuno (puedes tomar agua). Puedes agendarlo en /servicios."
+                    derivar: false
+                derivacion:
+                  summary: El asistente no sabe la respuesta y deriva
+                  value:
+                    sessionId: "0f8c2a5e-6a1b-4c2e-9d55-2b7f3c1e9a10"
+                    response: "No tengo ese dato. Para ayudarte mejor, comunícate con Tiare Vidal al +56 9 6114 9975."
+                    derivar: true
+        '422':
+          description: |
+            Validación fallida (capturada explícitamente en el controlador). Los textos de
+            `errors` salen **en inglés**: el repo no tiene traducciones de validación.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorValidacion'
+              example:
+                message: "Los datos enviados no son válidos."
+                errors:
+                  prompt: ["The prompt field must not be greater than 500 characters."]
+        '429':
+          description: |
+            Límite superado: **20 peticiones por minuto y 200 por día por IP**
+            (`RateLimiter::for('chat-comercial')` en `ChatComercialServiceProvider`). Es solo
+            protección de costo; la memoria del chat no depende de la IP. Trae la cabecera
+            `Retry-After` con los segundos de espera.
+          headers:
+            Retry-After:
+              description: Segundos hasta que se puede volver a preguntar.
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                required: [message]
+              example:
+                message: "Estás enviando muchos mensajes seguidos. Espera un momento y vuelve a intentarlo."
+        '500':
+          description: |
+            Falla de OpenAI o de la base. Mensaje genérico, **sin `error`, `file` ni `line`**:
+            el detalle va solo a `Log::error` en el servidor.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                required: [message]
+              example:
+                message: "No pude responder en este momento. Inténtalo de nuevo en unos minutos."
+
   /GPT/asistente-voz:
     post:
       tags: [Asistentes IA]
@@ -6570,7 +6737,7 @@ paths:
       description: |
         Recibe la **transcripción** de un dictado hecho en terreno y devuelve el formulario
         del chequeo estructurado. Usa **`gpt-4.1-mini`** con `temperature: 0.1` y
-        `max_tokens: 1500`, con el prompt `App\IA\AsistenteVozPrompt`.
+        `max_tokens: 1500`, con el prompt `App\PromptSystem\AsistenteVozPrompt`.
 
         **Este endpoint no transcribe audio**: recibe texto ya transcrito. La transcripción
         la hace el cliente.
@@ -6711,7 +6878,7 @@ paths:
       operationId: analisisEcg
       description: |
         Analiza la imagen de un ECG de 12 derivaciones con **`gpt-4.1-mini`**
-        (`temperature: 0.1`, `max_tokens: 2000`) y el prompt `App\IA\AnalisisECGPrompt`.
+        (`temperature: 0.1`, `max_tokens: 2000`) y el prompt `App\PromptSystem\AnalisisECGPrompt`.
 
         **Es un apoyo al tamizaje, no un informe final**: el prompt lo dice explícitamente y
         la lectura la revisa y firma después un médico. El resultado de este endpoint **no se

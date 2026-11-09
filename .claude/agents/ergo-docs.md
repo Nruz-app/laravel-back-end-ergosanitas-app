@@ -59,7 +59,7 @@ Leer `routes/api.php` a ojo te engaña:
 |---|---|
 | Una ruta en `routes/api.php` | `docs/openapi.yaml` (operación + `x-generated-from` y el conteo de operaciones del bloque `info:`), el catálogo de endpoints del `README.md` raíz y la colección Postman (`php docs/postman/generar-coleccion.php` + `php docs/postman/verificar-cobertura.php`) |
 | Un flujo de negocio end-to-end | El diagrama de secuencia correspondiente en `docs/flujos.md` (hoy son 13) |
-| Un controlador, servicio, modelo o prompt de `app/IA/` | `docs/diagrama-clases.md` |
+| Un controlador, servicio, modelo o prompt de `app/PromptSystem/` | `docs/diagrama-clases.md` |
 | Un provider o el cableado de dependencias | `docs/arquitectura.md` (§ Mapa de dominios y § Inyección de dependencias) |
 | Una tabla, una columna, el `status` o un procedimiento almacenado | `docs/modelo-datos.md` (ERD, máquina de estados, catálogo de SP) |
 | El sobre de respuesta de un endpoint | El bloque `info:` del contrato **y** la tabla de `README.md` raíz **y** la lista de `CLAUDE.md`. **Avisa** además de que el front (`Front-end/ergosanitas-app`, `.claude/ARQUITECTURA.md` §5) y la app móvil parsean ese sobre: no los tocas, pero lo reportas |
