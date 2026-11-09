@@ -1,16 +1,76 @@
-name: ergosanitas backend laravel 11
+name: ergosanitas backend laravel 11 - tests y build Docker
 
 on:
   push:
     branches:
-      - main  # Cambia esto si usas otra rama
+      - main
+  pull_request:
+    branches:
+      - main
+  # Botón "Run workflow" en la pestaña Actions: por defecto solo SIMULA el deploy.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Solo simular (lista lo que subiría sin tocar el servidor)"
+        type: boolean
+        default: true
 
+# El GITHUB_TOKEN solo necesita leer el repo.
+permissions:
+  contents: read
+
+# No se cancela un job en curso: cortar un push a mitad deja :latest y :<version> desalineados.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
+
+env:
+  IMAGE: nruz176/laravel-back-end-ergosanitas-app
 
 jobs:
-  deploy:
+  test:
+    name: Tests (SQLite en memoria)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clonar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, pdo_sqlite, zip, gd, intl, bcmath
+          tools: composer:v2
+          coverage: none
+
+      - name: Validar composer.json
+        run: composer validate --no-check-publish
+
+      - name: Cache de Composer
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache/files
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      - name: Instalar dependencias
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      # .env ficticio: los tests del carro y del chat comercial fuerzan SQLite en memoria
+      # y nunca tocan la base remota. No se usa ningún secret aquí.
+      - name: Preparar .env de pruebas
+        run: |
+          cp .env.example .env
+          php artisan key:generate --force
+
+      - name: Ejecutar tests
+        run: php artisan test --filter="CartFlow|ChatComercial"
+
+  build:
+    name: Build y push de la imagen
+    needs: test
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     steps:
@@ -19,93 +79,140 @@ jobs:
         with:
           fetch-depth: 0
 
-      #https://github.com/marketplace/actions/git-semantic-version?version=v4.0.3
+      # https://github.com/PaulHatch/semantic-version
+      # Los patrones son regex sobre el mensaje de commit (Conventional Commits):
+      #   "feat: ..." / "feat(x): ..."      -> minor
+      #   "tipo!: ..." o "BREAKING CHANGE"  -> major
+      #   cualquier otro                    -> patch
       - name: Git Semantic Version
-        uses: PaulHatch/semantic-version@v4.0.3
+        uses: PaulHatch/semantic-version@v5.4.0
         id: version
         with:
-          major_pattern : "major"
-          minor_pattern : "feat"
-          format: "${major}.${minor}.${patch}-prerelease${increment}"
+          major_pattern: "/^\\w+(\\(.+\\))?!:|BREAKING CHANGE/"
+          minor_pattern: "/^feat(\\(.+\\))?:/"
+          version_format: "${major}.${minor}.${patch}-prerelease${increment}"
 
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Docker Login
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # Un solo build con los dos tags. En pull_request solo se construye (sin push)
+      # para comprobar que el dockerfile sigue funcionando.
+      - name: Build y push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./dockerfile
+          push: ${{ github.event_name == 'push' }}
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.version.outputs.version }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ---------------------------------------------------------------------------
+  # Deploy por FTP al hosting compartido (producción: ergosanitas.com/BackEnd).
+  #
+  # Reglas de seguridad:
+  #  - mirror -R SIN --delete: nunca borra nada del servidor.
+  #  - Las carpetas con datos de pacientes y archivos subidos se EXCLUYEN: ni se leen
+  #    ni se escriben (Certificado, Electrocardiograma, Bioimpedancia, HomeImagenes, Logo).
+  #  - No se sube .env ni se genera APP_KEY: se conserva el .env del servidor.
+  #  - No se ejecutan migraciones.
+  #
+  # Cuándo corre:
+  #  - Manual (workflow_dispatch): simulación por defecto; desmarca "dry_run" para el real.
+  #  - Push a main: solo si la variable del repo DEPLOY_FTP_ENABLED vale "true"
+  #    (Settings → Secrets and variables → Actions → Variables).
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy FTP a producción
+    needs: test
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && vars.DEPLOY_FTP_ENABLED == 'true')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-produccion
+      cancel-in-progress: false
+    env:
+      FTP_HOST: ${{ vars.FTP_HOST || 'ftp.ergosanitas.com' }}
+      FTP_REMOTE_DIR: ${{ vars.FTP_REMOTE_DIR || '/public_html/BackEnd/' }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+
+    steps:
+      - name: Clonar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, zip, gd, intl, bcmath
+          tools: composer:v2
+          coverage: none
+
+      # El hosting no tiene composer: se sube vendor/ ya instalado y sin dependencias de dev.
+      - name: Instalar dependencias de producción
+        run: composer install --no-dev --prefer-dist --optimize-autoloader --no-progress --no-interaction
+
+      - name: Instalar lftp
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp
+
+      - name: Subir por FTP (sin borrar ni pisar archivos de pacientes)
         env:
-            DOCKER_USER: ${{ secrets.DOCKER_USER }}
-            DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          LFTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
         run: |
-          echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USER" --password-stdin
+          if [ -z "$FTP_USERNAME" ] || [ -z "$LFTP_PASSWORD" ]; then
+            echo "ERROR: faltan los secrets FTP_USERNAME / FTP_PASSWORD" >&2
+            exit 1
+          fi
 
-      - name: Build Docker Image
-        env:
-          NEW_VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          docker build -t nruz176/laravel-back-end-ergosanitas-app:$NEW_VERSION .
-          docker build -t nruz176/laravel-back-end-ergosanitas-app:latest .
+          MODO=""
+          if [ "$DRY_RUN" = "true" ]; then
+            MODO="--dry-run"
+            echo "::notice::SIMULACIÓN: no se sube nada, solo se lista lo que se subiría."
+          fi
 
-      - name: Push Docker Image
-        env:
-          NEW_VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          docker push nruz176/laravel-back-end-ergosanitas-app:$NEW_VERSION
-          docker push nruz176/laravel-back-end-ergosanitas-app:latest
+          lftp -u "$FTP_USERNAME" --env-password "$FTP_HOST" <<EOF
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate no
+          set ftp:passive-mode on
+          set net:max-retries 5
+          set net:timeout 60
 
-#      - name: Configurar PHP
-#        uses: shivammathur/setup-php@v2
-#        with:
-#          php-version: '8.2'  # Laravel 11 requiere PHP 8.2
-#          tools: composer
-#
-#      - name: Instalar dependencias de Laravel
-#        run: composer install --no-dev --prefer-dist --no-progress --no-interaction
-#
-#      - name: Subir `.env` al servidor
-#        run: |
-#          if [ -z "${{ secrets.LARAVEL_ENV }}" ]; then
-#            echo "ERROR: No se encontró LARAVEL_ENV en los secrets" >&2
-#            exit 1
-#          fi
-#          echo "${{ secrets.LARAVEL_ENV }}" > .env
-#
-#      - name: Generar clave de aplicación
-#        run: php artisan key:generate
-#
-#      - name: Configurar permisos de Laravel
-#        run: chmod -R 775 storage bootstrap/cache
-#
-#      - name: Instalar lftp
-#        run: sudo NEEDRESTART_MODE=a apt-get install -y lftp
-#
-#      - name: Crear carpetas necesarias en HostGator con FTP
-#        run: |
-#          sudo apt-get install -y lftp
-#          lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" ftp.ergosanitas.com <<EOF
-#          set ftp:ssl-allow no
-#          set net:max-retries 5
-#          set net:timeout 60
-#          set ftp:passive-mode on
-#
-#          cls /public_html/laravel_app/ || mkdir /public_html/laravel_app/
-#          cls /public_html/laravel_app/bootstrap/cache || mkdir /public_html/laravel_app/bootstrap/cache
-#          cls /public_html/laravel_app/storage/framework/sessions || mkdir /public_html/laravel_app/storage/framework/sessions
-#          cls /public_html/laravel_app/storage/framework/views || mkdir /public_html/laravel_app/storage/framework/views
-#          cls /public_html/laravel_app/storage/framework/cache || mkdir /public_html/laravel_app/storage/framework/cache
-#
-#          mirror -R --only-newer . /public_html/laravel_app/
-#          quit
-#          EOF
-#
-#      - name: Ajustar permisos en HostGator
-#        run: |
-#          lftp -u "${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }}" ftp.ergosanitas.com <<EOF
-#          set ftp:ssl-allow no
-#          set ssl:verify-certificate no
-#          set ftp:passive-mode on
-#          chmod -R 775 /public_html/laravel_app/storage
-#          chmod -R 775 /public_html/laravel_app/bootstrap/cache
-#          quit
-#          EOF
-
-
-#      - name: Ejecutar migraciones en HostGator (opcional)
-#        run: php artisan migrate --force
+          mirror -R --verbose --parallel=8 $MODO \
+            --exclude '^public/Certificado/' \
+            --exclude '^public/Electrocardiograma/' \
+            --exclude '^public/Bioimpedancia/' \
+            --exclude '^public/HomeImagenes/' \
+            --exclude '^public/Logo/' \
+            --exclude '^public/storage' \
+            --exclude '^public/firma' \
+            --exclude '^storage/' \
+            --exclude '(^|/)\.htaccess$' \
+            --exclude '^\.env' \
+            --exclude '^\.git' \
+            --exclude '^\.claude/' \
+            --exclude '^\.agents/' \
+            --exclude '^tests/' \
+            --exclude '^docs/' \
+            --exclude '^specs/' \
+            --exclude '^references/' \
+            --exclude '^base_datos/' \
+            --exclude '^dockerHub/' \
+            --exclude '^docker-compose' \
+            --exclude '^node_modules/' \
+            --exclude '^(dockerfile|\.dockerignore|\.cpanel\.yml|phpunit\.xml|skills-lock\.json|api\.php)$' \
+            --exclude '\.md$' \
+            . "$FTP_REMOTE_DIR"
+          quit
+          EOF

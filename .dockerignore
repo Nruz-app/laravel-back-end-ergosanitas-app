@@ -1,0 +1,54 @@
+# Lo que NO debe entrar en la imagen del back-end.
+# Credenciales: nunca copiar un .env (un build local lo metería con datos reales).
+.env
+.env.*
+!.env.example
+auth.json
+
+# Control de versiones, CI y herramientas de IA
+.git
+.github
+.claude
+.agents
+skills-lock.json
+
+# Documentación, especificaciones y referencias (no se ejecutan)
+docs
+specs
+references
+base_datos
+README.md
+CLAUDE.md
+redocly.yaml
+.redocly.lint-ignore.yaml
+
+# Tests y artefactos locales
+tests
+phpunit.xml
+.phpunit.cache
+.phpunit.result.cache
+*.stackdump
+
+# Dependencias: se instalan dentro de la imagen
+vendor
+node_modules
+
+# Estado local de Laravel (en contenedor se monta como volumen)
+storage/logs/*
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/views/*
+bootstrap/cache/*.php
+
+# Archivos subidos en local y copias antiguas de firmas
+public/Certificado
+public/Electrocardiograma
+public/HomeImagenes
+public/Bioimpedancia/*
+public/*_OLD.*
+
+# Material de despliegue que no va dentro de la imagen
+dockerHub
+docker-compose
+docker-compose.yml
+.cpanel.yml
