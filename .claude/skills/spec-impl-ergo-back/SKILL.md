@@ -393,3 +393,5 @@ Mismas reglas de bloqueo y de no-commit, y las mismas cuatro fases de `/spec-imp
 3. **Guardas del repo** aplicadas en cada paso (providers a mano, perfiles 3 y 6, facturación de certificados, MySQL 5.7, typos consolidados, nada de `config:cache`).
 4. **Fase 5 de documentación, obligatoria**: `ergo-docs` pone al día el contrato OpenAPI y los diagramas de `docs/` antes del cierre. Nada de esa carpeta se genera solo, así que si no se hace en este commit, `docs/` queda desactualizada.
 5. **Verificación de cierre y checklist** propios de Ergosanitas —código y documentación—, más el aviso sobre el bump de versión del CI y el despliegue directo desde `main`.
+
+Este comando **no deja evidencia por criterio**. Una vez la spec está en `Implementado`, el siguiente paso es `/spec-verify-ergo-backend <NN>` (o el agente homónimo), que marca cada criterio ✅/❌/⏸ con su evidencia.

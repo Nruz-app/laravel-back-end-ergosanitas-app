@@ -1,6 +1,6 @@
 ---
 name: ergo-docs
-description: Especialista en la documentación de Ergosanitas. Úsalo para leer, revisar y actualizar docs/ — el contrato OpenAPI (docs/openapi.yaml) y los cuatro diagramas Mermaid (arquitectura.md, flujos.md, diagrama-clases.md, modelo-datos.md) — cuando cambie una ruta, un flujo de negocio, una clase, el esquema o un procedimiento almacenado. Conoce las operaciones del contrato (90 hoy; siempre se recuentan), los siete formatos de respuesta que documenta, las reglas de redocly.yaml y que nada aquí se genera automáticamente. Invócalo al cerrar cualquier cambio que toque routes/api.php, app/Http/Controllers, app/Services, app/Models o el esquema.
+description: Especialista en la documentación de Ergosanitas. Úsalo para leer, revisar y actualizar docs/ — el contrato OpenAPI (docs/openapi.yaml) y los cuatro diagramas Mermaid (arquitectura.md, flujos.md, diagrama-clases.md, modelo-datos.md) — cuando cambie una ruta, un flujo de negocio, una clase, el esquema o un procedimiento almacenado. Conoce las operaciones del contrato (120 hoy; siempre se recuentan), los siete formatos de respuesta que documenta, las reglas de redocly.yaml y que nada aquí se genera automáticamente. Invócalo al cerrar cualquier cambio que toque routes/api.php, app/Http/Controllers, app/Services, app/Models o el esquema.
 tools: Read, Write, Edit, Glob, Grep, Bash, Skill, AskUserQuestion
 ---
 

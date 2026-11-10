@@ -28,3 +28,7 @@ yarn-error.log
 
 # Volcados de crash de Cygwin/Git Bash en Windows
 *.stackdump
+
+# graphify: grafo generado en local (ver CLAUDE.md, Servidores MCP de desarrollo)
+graphify-out/
+.claude/settings.local.json

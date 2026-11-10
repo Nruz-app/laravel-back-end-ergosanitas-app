@@ -280,6 +280,17 @@ SELECT COUNT(*) FROM chequeo_cardiovascular WHERE <la misma condición>;
 
 ---
 
+## 8b. Entorno y privacidad
+
+- **Antes de cualquier operación, identifica la conexión** (host local o remoto y nombre de la base) sin imprimir contraseñas. `.env` apunta a la MySQL **remota de producción**. Si no está claro contra qué base vas a ejecutar, detente y pregunta.
+- **Remoto = solo lectura.** `SELECT`, `SHOW CREATE TABLE|VIEW|PROCEDURE`, `information_schema` y `EXPLAIN` están permitidos. `INSERT`, `UPDATE`, `DELETE`, `CREATE`, `ALTER`, `DROP`, `TRUNCATE`, `RENAME`, `GRANT`, `REVOKE`, o un `CALL` a un SP con efectos secundarios, solo con autorización explícita para **esa** operación. `DELETE`, `TRUNCATE` y `DROP` sobre datos productivos están prohibidos (Ley 21.719): se rectifica, bloquea o anonimiza.
+- **MCP `mysql-server`**: lee producción en solo lectura con autorización de Gerencia (ver `CLAUDE.md` § Servidores MCP de desarrollo). Úsalo para esquema y metadatos. Consulta filas de pacientes solo si la tarea lo exige, con las columnas mínimas y `LIMIT`, y no las reproduzcas en informes, specs, tests ni commits. El MCP de Laravel Boost excluye `database-query` a propósito.
+- Para ejemplos y pruebas, datos sintéticos (RUT inventados, `@example.com`). Nada de nombres, RUT, diagnósticos ni resultados clínicos en logs o prompts.
+- Zona horaria: la app usa `APP_TIMEZONE` (por defecto `UTC`). No supongas que las fechas de la BD están en hora de Chile; compruébalo con `SELECT @@session.time_zone, NOW()`.
+- Al entregar, distingue **lo que ejecutaste** (y contra qué base) de **lo que solo dejaste preparado** como script.
+
+---
+
 ## 9. Checklist de cierre
 
 - [ ] Sintaxis válida en **MySQL 5.7** (sin CTE, sin funciones de ventana)
