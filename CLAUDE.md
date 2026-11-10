@@ -46,9 +46,20 @@ php artisan config:clear && php artisan route:clear && php artisan cache:clear
 docker compose up -d --build
 ```
 
+El `docker-compose.yml` de la raíz, junto con `docker-compose/{nginx,php,mysql}` y el `dockerfile`, es solo para desarrollo local. `dockerHub/` es otra cosa: el compose que consume la imagen publicada (ver «Despliegue»).
+
 No hay `pint.json`, así que Pint aplica el preset `laravel`, que el código existente **no** cumple. `vendor/bin/pint` sin argumentos reformatea medio repositorio y entierra el cambio real; usa siempre `--dirty` o rutas explícitas.
 
-Los tests son solo los stubs de Laravel. `phpunit.xml` tiene comentadas las líneas de SQLite en memoria, así que cualquier test que toque la BD usará la conexión de `.env` (MySQL remoto). Descomenta `DB_CONNECTION=sqlite` / `DB_DATABASE=:memory:` antes de escribir tests con base de datos, teniendo en cuenta que ahí no existirán los procedimientos almacenados.
+Los únicos tests reales son los de `CartFlow` (`tests/Feature/CartFlow/`, `tests/Unit/CartFlow/`) y `ChatComercial` (`tests/Feature/ChatComercial/`); el resto son los stubs de Laravel. `phpunit.xml` tiene comentadas las líneas de SQLite en memoria, así que cualquier test que toque la BD usará la conexión de `.env` (MySQL remoto). Para un dominio nuevo, copia el patrón de `CartFlowTestCase` / `ChatComercialTestCase`, que fuerzan SQLite en memoria antes de arrancar la app y migran solo sus tablas, en vez de tocar `phpunit.xml`; en SQLite no existen los procedimientos almacenados ni las tablas sin migración. Es lo único que corre el CI (`--filter="CartFlow|ChatComercial"`).
+
+### Servidores MCP de desarrollo (Laravel Boost, MySQL y graphify)
+
+Instalación, comandos de registro y detalles de Windows: `README.md` § «Entorno de desarrollo con IA (Claude Code)». No hay `.mcp.json`: cada desarrollador registra los MCP con `-s local`. Aquí van solo las reglas.
+
+- **Laravel Boost** (`laravel/boost` ^2.10, solo `require-dev`). Instalarlo el 2026-11-10 subió `laravel/framework` de 11.24.0 a 11.57.1, así que ese cambio va en el mismo commit que `composer.lock`. `config/boost.php` es una **copia completa** de la config del paquete más el bloque `mcp`, porque `mergeConfigFrom` solo mezcla claves de primer nivel; al actualizar Boost, compárala con la del paquete. Excluye `DatabaseQuery`, `ReadLogEntries`, `LastError` y `BrowserLogs`, y tiene Tinker y el `browser_logs_watcher` apagados, porque `.env` apunta a la MySQL con datos clínicos reales. **No ejecutes `php artisan boost:install`**: añadiría guidelines a este `CLAUDE.md`, skills, `boost.json` y `.mcp.json`.
+- **`mysql-server`** apunta a la **base de producción**, con autorización de Gerencia (2026-11-10; es la excepción del `CLAUDE.md` raíz). Corre en solo lectura (`ALLOW_*_OPERATION=false`), pero con el usuario de la app, que sí puede escribir. Úsalo para esquema y metadatos. No consultes filas de pacientes salvo que la tarea lo pida explícitamente, y no copies resultados a docs, specs, tests ni commits.
+- **graphify** construye el grafo **solo con AST local** (`graphify extract . --code-only --no-label` + `graphify cluster-only . --no-label`; refresco con `graphify update .`). **No uses el modo semántico** (`/graphify .` o `extract` sin `--code-only`): manda código a un LLM externo. Sus hooks viven en `.claude/settings.local.json`, no en `.claude/settings.json`: si `graphify install --project` vuelve a crear este último, mueve los hooks otra vez. La sección `## graphify` del final está en inglés porque graphify la reemplaza en cada reinstalación; la línea sobre un `graph.json` commiteado no aplica, porque `graphify-out/` está ignorado. Los `.sql` de `base_datos/references/sp/` no entran al grafo.
+- **Skills importadas**: `skills-lock.json` fija el origen y el hash de `archify` (`tt-a1i/archify`) y de `spec` / `spec-impl` (`Klerith/fernando-skills`, en `.agents/skills/`). `.claude/skills/spec*` son symlinks a esa carpeta. No las edites a mano: se reinstalan con `npx skills@latest add <origen>`.
 
 ## Arquitectura
 
@@ -121,7 +132,7 @@ Gran parte de las estadísticas vive en MySQL, no en PHP. Los modelos exponen wr
 - `ChequeoClubPrompt`: `SP_chequeos_club_prompt` (datos de los chequeos de un club para el asistente por club)
 - `Bioimpedancia`: `SP_bioimpedacia_rut`
 
-Estos SP **no están versionados en el repo** ni en las migraciones. Al cambiar su firma hay que actualizarlos directamente en la base de datos.
+Ninguno está en las migraciones, y en el repo solo se versionan `SP_chequeos_club_prompt` y `SP_juego_cartas_club` (`base_datos/references/sp/`); el resto vive en `../../MySql/SP/`, fuera de git y sin garantía de estar al día. La verdad es la BD: al cambiar una firma, actualiza la base de datos, el `.sql` donde ya viva y el wrapper del modelo.
 
 ### Autenticación y perfiles
 
@@ -202,15 +213,7 @@ Los archivos subidos van a `public/` (`public/Certificado`, `public/Logo`, `publ
 
 Consecuencia en producción: `dockerHub/docker-compose.yml` monta volúmenes para `storage/` y `bootstrap/cache`, **pero no para `public/`**. Los archivos subidos viven en la capa escribible del contenedor, así que un redeploy de `:latest` los pierde. Tenlo presente antes de proponer que algo nuevo se guarde en `public/`. Ojo: eso vale **solo si se despliega con ese Docker**, y hoy no es así. **Producción corre en el hosting compartido**, en `https://ergosanitas.com/BackEnd/public/` (lo confirman `API_PATH_LOGO`, `API_PATH_CER` y el dueño del proyecto, el 2026-11-03), donde `public/` es una carpeta normal y lo subido persiste mientras el despliegue no la borre. Además, el nginx de `dockerHub/` no monta `/var/www/public`, así que ese Docker ni siquiera sirve archivos estáticos.
 
-**Puesta en marcha de `public/HomeImagenes` en el hosting (paso 8 de la Spec 03, se hace una sola vez):**
-
-1. Crear `BackEnd/public/HomeImagenes/` en el hosting.
-2. Subir ahí los 24 archivos de `resources/home-imagenes-semilla/` (los mismos nombres que siembra la migración `2026_11_03_120000_create_home_imagenes_table`).
-3. Definir `API_PATH_HOME=https://ergosanitas.com/BackEnd/public/HomeImagenes` en el `.env` del hosting. Sin ella cada `src` sale relativo y el Home comercial queda sin imágenes.
-4. Confirmar que el método de despliegue del back **no borra** `public/HomeImagenes/`: si es un `mirror` por FTP, sin `--delete` o excluyendo esa carpeta. Ahí viven las imágenes que sube el Administrador y no están en git (`.gitignore`).
-5. Comprobar: `.../HomeImagenes/promo-mes-corazon-01.png` responde 200 y `GET api/home-imagenes` trae `src` con el dominio de producción.
-
-La tabla `home_imagenes` ya existe en la base remota (se migró con `--path` durante la implementación).
+La puesta en marcha de `public/HomeImagenes` en el hosting (paso 8 de la Spec 03, una sola vez: carpeta, las 24 imágenes semilla y `API_PATH_HOME`) está en `README.md` § Despliegue. La tabla `home_imagenes` ya existe en la base remota (se migró con `--path` durante la implementación).
 
 ### Rutas
 
@@ -218,10 +221,15 @@ Todo en `routes/api.php`, plano y sin agrupar, con prefijo automático `/api`. O
 
 ## Agentes, skills y specs (`.claude/`, `specs/`)
 
-- Agentes en `.claude/agents/`: `ergosanitas-developer` (implementa y corrige), `ergosanitas-laravel` (dudas de framework/PHP), `ergosanitas-mysql` (queries, SP, MySQL 5.7) y `ergo-docs` (mantiene `docs/`; documenta, nunca toca código). Cada uno carga su skill homónima de `.claude/skills/`.
+- Agentes en `.claude/agents/`: `ergosanitas-developer` (implementa y corrige), `ergosanitas-laravel` (dudas de framework/PHP), `ergosanitas-mysql` (queries, SP, MySQL 5.7), `ergo-docs` (mantiene `docs/`; documenta, nunca toca código) y `spec-verify-ergo-backend` (verifica specs implementadas; solo escribe en `specs/`). Cada uno carga su skill homónima de `.claude/skills/`.
+- Las features nuevas se hacen por spec, en tres pasos:
+  1. `/spec-ergo-back` diseña la spec. Envuelve `/spec` con el sobre de respuesta, el provider, los perfiles 3/6, la fase `ergo-docs` y el análisis de consumidores (`ergo-contrato-api`) si cambia un endpoint. Con una spec existente entra en modo revisión, y nunca la aprueba.
+  2. Una persona aprueba la spec, y `/spec-impl-ergo-back` la implementa por pasos. El super agente `ergo-father` de la carpeta padre sigue también `spec-impl-ergo-back` cuando orquesta una spec del back.
+  3. `/spec-verify-ergo-backend` deja evidencia ✅/❌/⏸ por criterio y la sección «Estado de verificación», sin cambiar nunca `Estado:`. No hace peticiones HTTP, porque `.env` apunta a la BD de producción: usa tests en SQLite, artisan, grep y el esquema en solo lectura vía Laravel Boost y `mysql-server`.
+
+  Hoy existen `01-asistente-chat-club`, `02-juego-cartas-niveles`, `03-mantenedor-imagenes-home`, `04-servicio-cart-flow`, `05-mantenedor-carrito-compra` y `06-chat-comercial-ergosanito`; léelas antes de tocar esos dominios.
+- Skills sin agente propio, que se activan por contexto: `ergosanitas-api` (contrato, sobres, consumidores y cierre en `openapi.yaml`), `ergosanitas-architecture` (análisis de impacto con graphify y `docs/`), `ergosanitas-security` (auditoría pasiva con la deuda conocida como punto de partida y Ley 21.719) y `ergosanitas-testing` (patrón SQLite forzado, `OpenAI::fake()`, filtro del CI). Salieron de unas plantillas genéricas, reescritas contra este repo: no tienen Form Requests, Resources, Pest ni PHPStan porque no existen aquí. Si una contradice este `CLAUDE.md`, manda el `CLAUDE.md`.
 - Al cerrar un cambio que toque `routes/`, controladores, servicios, modelos o el esquema, pasa por `ergo-docs` para poner al día el contrato, los diagramas y la colección Postman.
-- Para diseñar o revisar una spec usa `/spec-ergo-back` (`.claude/skills/spec-ergo-back/`): envuelve `/spec` con el sobre de respuesta, el provider, los perfiles 3/6, la fase `ergo-docs` y el análisis de consumidores (`ergo-contrato-api`) si cambia un endpoint; con una spec existente entra en modo revisión. Nunca la aprueba.
-- Las features nuevas se hacen por spec: `/spec` redacta `specs/NN-nombre.md` y `/spec-impl` o `/spec-impl-ergo-back` la implementan por pasos (el super agente `ergo-father` de la carpeta padre sigue también `spec-impl-ergo-back` cuando orquesta una spec del back). Hoy existen `01-asistente-chat-club`, `02-juego-cartas-niveles`, `03-mantenedor-imagenes-home`, `04-servicio-cart-flow`, `05-mantenedor-carrito-compra` y `06-chat-comercial-ergosanito`; léelas antes de tocar esos dominios.
 
 ## Trampas conocidas
 
@@ -249,3 +257,14 @@ El bump sale del **mensaje de commit** (Conventional Commits, con regex que se a
 `.dockerignore` deja fuera de la imagen `.env*`, `.git`, `.github`, `.claude`, `docs/`, `specs/`, `tests/`, `vendor/`, lo subido en `public/` y las firmas `*_OLD.*`. Las firmas vigentes y `public/Logo` sí entran porque los PDF los leen con `public_path()`.
 
 `dockerHub/docker-compose.yml` con `dockerHub/entrypoint.sh` (limpia cachés, hace `storage:link` y arranca php-fpm) es el despliegue en contenedor, pero **la producción real corre en el hosting compartido** (`ergosanitas.com/BackEnd`), no en ese Docker: ver «Generación de documentos» para lo que eso implica en `public/`.
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- When graphify-out/graph.json exists, run `graphify query "<question>"` before your first grep, search or source-file read for a codebase question, and put this rule in every subagent prompt that explores code. Read raw files only for lines the graph or an earlier read already located. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- A committed graphify-out/graph.json is rewritten whole on every build, so a large diff to it in a pull request is expected. Do not flag it as churn or suggest skipping the graph rebuild or its hooks.

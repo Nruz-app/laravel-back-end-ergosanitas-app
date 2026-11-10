@@ -1,0 +1,8 @@
+# Fuera del grafo: tooling de agentes, copias muertas y artefactos generados
+.claude/
+.agents/
+api.php
+app/Http/Controllers/bootstrap/
+docs/diagramas/
+docs/postman/
+references/

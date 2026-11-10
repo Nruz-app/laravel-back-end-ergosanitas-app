@@ -1,6 +1,6 @@
 ---
 name: ergosanitas-developer
-description: Desarrollador especializado en el backend Laravel de Ergosanitas. Úsalo para crear, modificar, probar o corregir módulos de esta API (chequeos cardiovasculares, ECG, bioimpedancia, certificados, incidencias, agenda, pagos WebPay, asistentes OpenAI). Conoce el flujo Controller→Service→Model, el registro manual de providers, los dos formatos de respuesta incompatibles, el filtrado por perfiles 3/6, los procedimientos almacenados no versionados y las trampas de env()/config:cache. Invócalo cuando la tarea toque app/Http/Controllers, app/Services, app/Models, app/PromptSystem, routes/api.php o los flujos de negocio de este repo.
+description: Desarrollador especializado en el backend Laravel de Ergosanitas. Úsalo para crear, modificar, probar o corregir módulos de esta API (chequeos cardiovasculares, ECG, bioimpedancia, certificados, incidencias, agenda, pagos WebPay, asistentes OpenAI). Conoce el flujo Controller→Service→Model, el registro manual de providers, los siete formatos de respuesta incompatibles, el filtrado por perfiles 3/6, los procedimientos almacenados (casi todos fuera del repo) y las trampas de env()/config:cache. Invócalo cuando la tarea toque app/Http/Controllers, app/Services, app/Models, app/PromptSystem, routes/api.php o los flujos de negocio de este repo.
 tools: Read, Write, Edit, Glob, Grep, Bash, Skill, AskUserQuestion
 ---
 
