@@ -20,6 +20,7 @@ Un diagrama de secuencia por flujo de negocio, con el endpoint que lo dispara y 
 | 14 | [Carro de servicios](#14-carro-de-servicios) | `POST cart-flow/carritos/{uuid}/checkout` |
 | 15 | [Mantenedor del carro (Administrador)](#15-mantenedor-del-carro-administrador) | `PUT cart-flow/admin/pedidos/{numero}/estado` |
 | 16 | [Chat comercial «Ergosanito»](#16-chat-comercial-ergosanito) | `POST chat-comercial/as-question` |
+| 17 | [Descarga de certificados por RUT](#17-descarga-de-certificados-por-rut) | `POST certificados/consulta` · `GET certificados/descarga/ecg/{id}` · `GET certificados/descarga/bio/{id}` |
 
 ---
 
@@ -733,7 +734,7 @@ sequenceDiagram
 
 ## 16. Chat comercial «Ergosanito»
 
-Tercer chat del sistema (Spec 06), **público y para visitantes anónimos** del Home. Responde solo sobre el catálogo público del carro: exámenes, precios de lista, comunas, operativos y preparación. Es la **única ruta con limitador** del repo.
+Tercer chat del sistema (Spec 06), **público y para visitantes anónimos** del Home. Responde solo sobre el catálogo público del carro: exámenes, precios de lista, comunas, operativos y preparación. Fue la **primera ruta con limitador** del repo; la segunda es la descarga de certificados (§17).
 
 ```mermaid
 sequenceDiagram
@@ -780,6 +781,66 @@ sequenceDiagram
 - **Memoria por `sessionId`, no por IP.** Sin `sessionId` (o con uno que no es UUID) la conversación parte de cero y el back devuelve el UUID nuevo. La IP solo vive en la clave efímera del limitador.
 - **Derivación**: si el modelo cierra con `[DERIVAR]` (o escribe el teléfono del contacto aunque olvide el marcador), `derivar` sale `true` y el front muestra el botón de WhatsApp. El contacto vive en `config('services.chat_comercial.contacto')`, no en `.env`.
 - `tokens_cacheados` queda siempre `null`: `openai-php/client` v0.10.1 no lo expone.
+
+---
+
+## 17. Descarga de certificados por RUT
+
+Página pública `/certificados` del front (Spec 07). Una sola consulta por RUT devuelve los documentos del último chequeo en `REVISION MEDICA` y de la bioimpedancia vigente; los PDF generados se descargan solo con URL firmada de 10 minutos.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Visitante de /certificados
+    participant TH as throttle:certificados
+    participant SG as signed
+    participant CDC as CertificadoDescargaController
+    participant CDS as CertificadoDescargaService
+    participant BS as BioimpedanciaService
+    participant AI as OpenAI gpt-4.1-mini
+    participant DB as MySQL
+
+    U->>TH: POST certificados/consulta {rut}
+    alt mas de 10 por minuto desde la misma IP
+        TH-->>U: 429 {success:false, message, data:null} + Retry-After
+    end
+    TH->>CDC: Consulta
+    CDC->>CDC: normalizarRut + regex (si falla, 422 {success:false, message, errors})
+    CDC->>CDS: consultar(rut)
+    CDS->>DB: ultimo chequeo_cardiovascular en REVISION MEDICA + certificado_url (rut, id_chequeo)
+    CDS->>DB: bioimpedancia vigente (fecha_prueba DESC, id DESC, igual que el SP)
+    CDS->>CDS: URL::temporarySignedRoute para certificado_ecg y certificado_bio (10 min)
+    CDS->>DB: INSERT certificado_descargas (tipo consulta)
+    CDC-->>U: 200 {success, message, data:{rut, nombre, documentos[]}}
+
+    U->>TH: GET certificados/descarga/bio/{id}?expires&signature
+    TH->>SG: firma valida y vigente?
+    alt firma ausente, manipulada o vencida
+        SG-->>U: 403 {message: "Invalid signature."}
+    end
+    SG->>CDC: DescargaBio(id)
+    CDC->>CDS: pdfCertificadoBio(id)
+    CDS->>BS: fichaVigente(rut)
+    BS->>DB: CALL SP_bioimpedacia_rut(rut)
+    alt la ficha vigente no es {id}
+        CDC-->>U: 404 {success:false, message:"Documento no disponible"}
+    end
+    CDS->>BS: BioPDFRut(rut, ficha)
+    BS->>DB: bioimpedancia_analisis_ia por (bioimpedancia_id, sha256 del payload)
+    alt no hay analisis guardado
+        BS->>AI: AnalisisRutBioimpedanciaPrompt + payload
+        AI-->>BS: JSON del analisis
+        BS->>DB: INSERT bioimpedancia_analisis_ia
+    end
+    CDS->>CDS: mPDF
+    CDS->>DB: INSERT certificado_descargas (certificado_bio, ok)
+    CDC-->>U: 200 application/pdf (Cache-Control private, no-store)
+```
+
+- **Solo lee: no factura** ni cambia el estado del chequeo. El certificado ECG (`descarga/ecg/{id}`) sigue el mismo camino y renderiza con `ChequeoCardiovascularPDFService::chequeoPDf`, solo si el chequeo `{id}` está en `REVISION MEDICA`.
+- **Los archivos subidos** (`ecg` desde `certificado_url.url_pdf`, `bio` desde `public/Bioimpedancia`) conservan su URL pública: los sirve el servidor web y **no** quedan en `certificado_descargas`.
+- **OpenAI se llama una vez por versión de los datos**: si la bioimpedancia se recarga, cambia el hash y se agrega un análisis nuevo sin borrar el anterior.
+- Los errores van al log con la **clase y el código** de la excepción, nunca su mensaje (puede traer el RUT). Al cliente, 500 genérico.
 
 ---
 

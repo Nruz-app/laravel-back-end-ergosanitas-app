@@ -1,6 +1,6 @@
 ---
 name: ergosanitas-testing
-description: Crea y ejecuta tests PHPUnit 11 del back-end de Ergosanitas sin tocar la MySQL remota (patrón SQLite forzado de CartFlow y ChatComercial, OpenAI::fake, filtro del CI). Úsala al escribir tests, depurar un fallo o validar un cambio antes de cerrarlo.
+description: Crea y ejecuta tests PHPUnit 11 del back-end de Ergosanitas sin tocar la MySQL remota (patrón SQLite forzado de CartFlow y ChatComercial, OpenAI::fake, filtro del CI). Úsala al escribir tests, depurar un fallo o validar un cambio antes de cerrarlo. Dentro del flujo de specs la cargan solas spec-ergo-backend, spec-impl-ergo-backend y spec-verify-ergo-backend cuando el Kit de ejecución activa sus señales (S-tests).
 ---
 
 # Ergosanitas Testing
@@ -41,3 +41,20 @@ Solo sintéticos: RUT inventados con formato válido, emails `@example.com`. Nun
 ## 6. Informe
 
 Comandos ejecutados, número de tests (aprobados, fallidos, omitidos), conexión usada y limitaciones. No modifiques un test para ocultar un defecto; separa los fallos previos de los nuevos. Nunca inventes resultados.
+
+---
+
+## Uso en el flujo de specs
+
+Esta skill forma parte del **Kit de ejecución** de las specs del back (`.claude/skills/spec-ergo-backend/references/enrutado.md`).
+
+- **Señales que la activan:** S-tests.
+- **Quién la carga:** ergosanitas-developer (escribe los tests).
+
+| Fase | Qué aporta |
+|---|---|
+| Diseño | Qué se prueba en SQLite y con qué `TestCase` (con `engineering:testing-strategy`). |
+| Implementación | Pasos que escriben tests (vía `ergosanitas-developer`) y Fase 4b. |
+| Verificación | Fase 2b y criterios de tipo «test» (Fase 4 del verificador). |
+
+Las reglas transversales (§4 de `enrutado.md`: graphify solo AST, BD solo metadatos, sin HTTP, tests solo en SQLite, sin commits) aplican también aquí. El mapa completo de relaciones está en §8 de ese archivo.

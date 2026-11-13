@@ -1,6 +1,6 @@
 ---
 name: ergo-docs
-description: Recetario operativo para leer, revisar y actualizar la documentación de Ergosanitas — el contrato OpenAPI docs/openapi.yaml, los cuatro diagramas Mermaid de docs/ y los diagramas explorables de docs/diagramas/ generados con archify. Úsalo al añadir o cambiar una ruta, al modificar un flujo de negocio, un servicio, una clase, una tabla o un procedimiento almacenado, y para el checklist de validación de la documentación antes de commitear.
+description: Recetario operativo para leer, revisar y actualizar la documentación de Ergosanitas — el contrato OpenAPI docs/openapi.yaml, los cuatro diagramas Mermaid de docs/ y los diagramas explorables de docs/diagramas/ generados con archify. Úsalo al añadir o cambiar una ruta, al modificar un flujo de negocio, un servicio, una clase, una tabla o un procedimiento almacenado, y para el checklist de validación de la documentación antes de commitear. Dentro del flujo de specs la cargan solas spec-ergo-backend, spec-impl-ergo-backend y spec-verify-ergo-backend cuando el Kit de ejecución activa sus señales (S-ruta y S-flujo).
 argument-hint: 'qué cambió en el código y qué documentación hay que poner al día'
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion
 ---
@@ -304,3 +304,20 @@ php -S localhost:8080 -t docs   # y abre http://localhost:8080
 ### Commit
 
 La documentación va **en el mismo commit** que el cambio de código que la provoca. Cuidado con el mensaje: el CI decide el bump de versión por coincidencia de subcadena (`major` → major, `feat` → minor, cualquier otra cosa → patch), así que un `docs: ...` normal bumpea patch, pero un `docs: documenta el nuevo feature de X` bumpea minor sin querer.
+
+---
+
+## Uso en el flujo de specs
+
+Esta skill forma parte del **Kit de ejecución** de las specs del back (`.claude/skills/spec-ergo-backend/references/enrutado.md`).
+
+- **Señales que la activan:** S-ruta y S-flujo.
+- **Quién la carga:** ergo-docs.
+
+| Fase | Qué aporta |
+|---|---|
+| Diseño | Último paso del plan: qué documentos de `docs/` cambian. |
+| Implementación | Fase 5 obligatoria del implementador (con `archify` si toca `docs/diagramas/`). |
+| Verificación | Revisor de docs (Fase 2b): contrato, diagramas, Postman. |
+
+Las reglas transversales (§4 de `enrutado.md`: graphify solo AST, BD solo metadatos, sin HTTP, tests solo en SQLite, sin commits) aplican también aquí. El mapa completo de relaciones está en §8 de ese archivo.

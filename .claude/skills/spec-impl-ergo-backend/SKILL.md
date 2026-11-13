@@ -1,14 +1,24 @@
 ---
-name: spec-impl-ergo-back
-description: Implementa una spec aprobada del backend Ergosanitas (Laravel 11 / MySQL 5.7). Valida que el estado signifique "Aprobado" (en cualquier idioma), crea la rama git con el nombre de la spec, cambia a ella y ejecuta el plan paso a paso delegando en los agentes ergosanitas-developer / ergosanitas-laravel / ergosanitas-mysql, con pausas para revisar el diff. Cierra con una fase obligatoria de documentación delegada en ergo-docs (contrato OpenAPI y diagramas de docs/) y el checklist de cierre del repo.
+name: spec-impl-ergo-backend
+description: Implementa una spec aprobada del backend Ergosanitas (Laravel 11 / MySQL 5.7). Valida que el estado signifique "Aprobado" (en cualquier idioma), crea la rama git con el nombre de la spec, cambia a ella, arma automáticamente el «Kit de ejecución» de la spec (skills, agentes y MCP según spec-ergo-backend/references/enrutado.md — graphify, Context7, Laravel Boost, mysql-server, engram) y ejecuta el plan paso a paso delegando cada paso en su agente (ergosanitas-developer / ergosanitas-laravel / ergosanitas-mysql / ergo-docs) con su skill y sus MCP, con pausas para revisar el diff. Añade una revisión de seguridad, tests y code-review sobre el diff, cierra con una fase obligatoria de documentación delegada en ergo-docs (contrato OpenAPI y diagramas de docs/) y el checklist de cierre del repo.
 disable-model-invocation: true
 argument-hint: <NN-nombre-spec>
-allowed-tools: Read, Glob, Grep, Edit, Write, AskUserQuestion, Agent, Skill, Bash(git status:*), Bash(git branch:*), Bash(git checkout:*), Bash(git log:*), Bash(git diff:*), Bash(git stash:*), Bash(cat:*), Bash(ls:*), Bash(php:*), Bash(vendor/bin/pint:*), Bash(vendor/bin/phpunit:*), Bash(composer:*), Bash(npx:*)
+allowed-tools: Read, Glob, Grep, Edit, Write, AskUserQuestion, Agent, Skill, ToolSearch, PowerShell, Bash(git status:*), Bash(git branch:*), Bash(git checkout:*), Bash(git log:*), Bash(git diff:*), Bash(git stash:*), Bash(cat:*), Bash(ls:*), Bash(grep:*), Bash(test:*), Bash(php:*), Bash(vendor/bin/pint:*), Bash(vendor/bin/phpunit:*), Bash(composer:*), Bash(npx:*), Bash(graphify:*), mcp__graphify__query_graph, mcp__graphify__get_node, mcp__graphify__get_neighbors, mcp__graphify__shortest_path, mcp__context7__resolve-library-id, mcp__context7__query-docs, mcp__laravel-boost__database-schema, mcp__laravel-boost__search-docs, mcp__mysql-server__mysql_query, mcp__engram__mem_search, mcp__engram__mem_save, mcp__engram__mem_update
 ---
 
-# /spec-impl-ergo-back — Implementador de specs aprobadas para Ergosanitas
+# /spec-impl-ergo-backend — Implementador de specs aprobadas para Ergosanitas
 
-Homólogo de `/spec-impl`, especializado en **este** repositorio: mismas reglas de bloqueo, pero la implementación se ejecuta con los agentes y skills de Ergosanitas, añade una **quinta fase obligatoria de documentación** y termina con el checklist de cierre del proyecto.
+Homólogo de `/spec-impl`, especializado en **este** repositorio: mismas reglas de bloqueo, pero la implementación se ejecuta con el **Kit de ejecución** de la spec (las skills, agentes y MCP que le corresponden, resueltos de forma automática), añade una **revisión 4b** sobre el diff y una **quinta fase obligatoria de documentación**, y termina con el checklist de cierre del proyecto.
+
+```
+/spec-ergo-backend         → diseña la spec y su Kit de ejecución   (Borrador)
+   (una persona aprueba)                                             (Aprobado)
+/spec-impl-ergo-backend    → la implementa con el Kit                (Implementado)   ← este
+/spec-verify-ergo-backend  → comprueba cada criterio con el Kit      (evidencia)
+```
+
+La fuente única del enrutado es `.claude/skills/spec-ergo-backend/references/enrutado.md`
+(señales §2, matriz §3, reglas transversales §4, MCP §5, modos de agente §6, formato del kit §7).
 
 ## Contexto de sesión
 
@@ -29,11 +39,16 @@ Providers registrados a mano (un servicio nuevo debe aparecer aquí):
 
 ---
 
-## Si te ejecuta `ergo-father` desde `D:\ErgoSanitas\Projectos`
+## Si te ejecuta `ergo-father` o el agente `spec-impl-ergo-backend`
 
-El super agente `ergo-father` sigue esta skill leyendo este archivo (no puede invocarla con
-`Skill`: tiene `disable-model-invocation`). En ese caso el directorio actual **no es este repo**,
-así que el bloque «Contexto de sesión» de arriba no se evaluó. Antes de la Fase 1:
+Un agente no invoca esta skill con `Skill` (tiene `disable-model-invocation`): la **lee** y la
+sigue. Lanzado como `claude --agent spec-impl-ergo-backend` tiene `Agent` y delega como dice la
+Fase 4. Como **subagente** no puede lanzar agentes ni preguntar: emula a cada agente del kit
+(lee `.claude/agents/<nombre>.md` y su skill, y dilo en el informe) y, en vez de pausar, devuelve
+el diff del paso y la pregunta pendiente a quien lo lanzó.
+
+Si el directorio actual **no es este repo** (lo lanza `ergo-father` desde la raíz), el bloque
+«Contexto de sesión» de arriba no se evaluó. Antes de la Fase 1:
 
 - Ejecuta a mano esos comandos con el repo explícito: `git -C "D:/ErgoSanitas/Projectos/Back-end/ergosanitas-app" status --short`,
   `git -C … branch --show-current`, y lista `Back-end/ergosanitas-app/specs/`,
@@ -188,7 +203,15 @@ Una vez confirmado que el estado significa `Aprobado`:
 5. **Carga el contexto del repositorio antes de tocar código.** En este orden:
    - Lee `CLAUDE.md` en la raíz. Es la fuente de verdad sobre arquitectura y trampas; no lo contradigas sin verificarlo en el código.
    - Invoca la skill `ergosanitas-dev` (`Skill` con `skill: "ergosanitas-dev"`) para los recetarios paso a paso y las plantillas exactas.
-   - Localiza el **dominio vecino** más parecido a lo que toca la spec (el controlador / service / model existente más cercano) y anótalo: su estilo es el que hay que copiar, incluido **cuál de los dos sobres de respuesta** usa.
+   - Localiza el **dominio vecino** más parecido a lo que toca la spec con `graphify query` / `graphify explain` (nunca el modo semántico) y anótalo: su estilo es el que hay que copiar, incluido **cuál de los siete sobres de respuesta** usa.
+
+6. **Arma el Kit de ejecución (automático).**
+   - Lee `.claude/skills/spec-ergo-backend/references/enrutado.md`.
+   - Lee la sección `## Kit de ejecución` de la spec (si no existe, dilo: la spec es anterior al enrutado).
+   - **Recalcula** las señales contra el plan y los archivos citados, y muestra la diferencia con el kit de la spec (señales nuevas o que sobran). Si hay diferencia, pregunta si se actualiza la sección de la spec; no la edites sin un sí.
+   - Carga los recursos de la columna **I**: los MCP con **una** llamada a `ToolSearch`, y las skills invocables con `Skill` (`ergosanitas-dev` siempre, y `ergosanitas-mysql`, `ergosanitas-laravel`, `ergosanitas-api`, `ergosanitas-security`, `ergosanitas-testing`, `prompt-engineering-patterns`… según las señales). `ergo-contrato-api` (raíz) se **lee** si hay `S-consumido`.
+   - `mem_search` (engram) con el dominio de la spec: decisiones y trampas de sesiones anteriores.
+   - Muestra el kit (formato §7) con `Cargado: … · No disponible: …` y las alternativas usadas (§5).
 
    Si el plan de la spec choca con algo de `CLAUDE.md` — por ejemplo, propone cambiar el sobre de respuesta de un endpoint ya consumido, corregir un typo consolidado, cachear la configuración o guardar archivos nuevos en `public/` — **dilo ahora**, antes del Paso 1, y pregunta si se implementa igual o se corrige la spec. No lo resuelvas por tu cuenta a mitad de la implementación.
 
@@ -216,7 +239,18 @@ Una vez confirmado, sigue estas reglas durante toda la implementación:
 
 #### A quién delegar cada paso
 
-Antes de ejecutar un paso, clasifícalo y delega con la herramienta `Agent`. Pasa siempre en el prompt: el número y el texto literal del paso, la sección relevante de la spec, el dominio vecino identificado en la Fase 3 y la instrucción de **no commitear**.
+Antes de ejecutar un paso, clasifícalo **con las señales del kit** (si el paso dice qué agente lo hace, respétalo) y delega con la herramienta `Agent` (o según el modo de §6 de `enrutado.md`). Pasa siempre en el prompt:
+
+- el número y el texto literal del paso, y la sección relevante de la spec;
+- el dominio vecino identificado en la Fase 3;
+- **la skill que debe cargar** (la de su fila, más las de las señales del paso: p. ej. `ergosanitas-security` si el paso toca datos clínicos, `ergosanitas-testing` si escribe tests, `prompt-engineering-patterns` si toca `app/PromptSystem/`);
+- **los MCP que puede usar** (graphify para impacto; Context7 / Boost `search-docs` para la API de librería; `mysql-server` / Boost `database-schema` solo metadatos);
+- lo que ya consultaste en Context7 / Boost para ese paso (ver abajo), para que no lo repita;
+- las **reglas transversales** de §4 de `enrutado.md` y la instrucción de **no commitear**.
+
+**Antes de un paso que use la API de una librería** (`S-laravel`, `S-openai`, `S-docs-gen`): consulta Context7 (`resolve-library-id` con la versión de `composer.lock` + `query-docs` sobre el patrón exacto) y, para Laravel, Boost `search-docs`. Pasa el resumen con su fuente al agente.
+
+**Antes de un paso con SQL** (`S-sql`): `mysql-server` / Boost `database-schema` para confirmar columnas, tipos e índices reales de las tablas afectadas (solo metadatos).
 
 | Tipo de paso                                                                                                                                                  | Agente                  |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
@@ -224,6 +258,7 @@ Antes de ejecutar un paso, clasifícalo y delega con la herramienta `Agent`. Pas
 | Duda de framework o lenguaje: contenedor, providers, ciclo de vida, auth (sesión / Sanctum / JWT), validación, colas, correo, PHPUnit, refactor idiomático seguro | `ergosanitas-laravel`   |
 | SQL: queries, joins, `EXPLAIN`, índices, migraciones, procedimientos almacenados, esquema real, tipos y charset                                                | `ergosanitas-mysql`     |
 | Documentación: contrato OpenAPI (`docs/openapi.yaml`) o los diagramas Mermaid de `docs/` (`arquitectura.md`, `flujos.md`, `diagrama-clases.md`, `modelo-datos.md`) | `ergo-docs`             |
+| Tests en SQLite (`tests/Feature/<Dominio>/`, `tests/Unit/<Dominio>/`)                                                                                          | `ergosanitas-developer` con la skill `ergosanitas-testing` |
 | Paso trivial y acotado (una constante, un texto, un `use`)                                                                                                     | Hazlo tú directamente   |
 
 Reglas de delegación:
@@ -268,6 +303,32 @@ Reglas de delegación:
 
 ---
 
+### Fase 4b — Revisión del diff con el kit (obligatoria)
+
+Terminado el último paso del plan, **antes** de la documentación, revisa lo implementado con los recursos del kit. Saca la lista de archivos con `git status --short` / `git diff --stat`.
+
+| Revisión | Cuándo | Cómo |
+|---|---|---|
+| `code-review` (nivel `medium`) | Siempre | `Skill(skill: "code-review", args: "medium")` sobre el diff actual. **Nunca `--fix`**. |
+| `ergosanitas-security` + `security-review` | `S-seguridad`, `S-webpay`, `S-facturacion` | Carga la skill y aplica su checklist a los archivos tocados; luego `Skill(skill: "security-review")` sobre el diff. |
+| `ergosanitas-testing` | `S-tests` o la spec pide tests | `php artisan test --filter=<Dominio>` **solo** si el `TestCase` fuerza SQLite (compruébalo con `grep -n sqlite`); cobertura de los criterios. |
+| Impacto | Siempre | `graphify update .` y luego `graphify affected "<Servicio/Controlador nuevo>"`: lo que depende de lo cambiado y no estaba en el plan. |
+| Contrato | `S-consumido` | `grep` de la ruta en el front y en la app (`ergo-contrato-api`): confirma que el sobre consumido no cambió. |
+
+Reglas:
+
+- Los hallazgos **se presentan al usuario** con `archivo:línea · severidad · fuente`. **No se corrigen sin su visto bueno**; si los aprueba, la corrección la hace el agente dueño (como un paso más, con pausa).
+- Verifica cada hallazgo con `Read` en la línea citada antes de mostrarlo: los revisores se equivocan.
+- Un hallazgo que exige cambiar la spec es una ambigüedad: detente y pregunta.
+
+```
+Revisión 4b: code-review · security · testing · impacto
+Hallazgos: bloqueantes N · mayores N · menores N   [detalle]
+¿Corrijo alguno antes de la documentación?
+```
+
+---
+
 ### Fase 5 — Documentación (obligatoria)
 
 Terminado el último paso del plan, **antes** de la verificación de cierre, actualiza la documentación. En este repo nada de `docs/` se genera solo: ni el contrato OpenAPI ni los diagramas. Si la spec se implementa y la documentación no se toca, `docs/` queda mintiendo desde el mismo commit.
@@ -288,6 +349,7 @@ Qué debe cubrir, según lo que tocó la spec:
 | Controlador, service, model o prompt de `app/PromptSystem/` | `docs/diagrama-clases.md` |
 | Un provider o el cableado de dependencias | `docs/arquitectura.md` |
 | Tabla, columna, `status` o procedimiento almacenado | `docs/modelo-datos.md` |
+| Un flujo con diagrama explorable en `docs/diagramas/` | su `.json` fuente y el `.html` regenerado con la skill `archify` |
 
 Reglas de esta fase:
 
@@ -315,7 +377,8 @@ vendor/bin/pint --dirty                           # 2. formato SOLO de lo tocado
 php artisan config:clear && php artisan route:clear && php artisan cache:clear
 php artisan route:list --path=<prefijo>           # 4. la ruta resuelve y no quedó pisada por una duplicada
 php artisan tinker --execute="var_dump(app(App\Services\XService::class) === app(App\Services\XService::class));"
-php artisan test                                  # 6. hoy solo stubs; deben seguir en verde
+php artisan test --filter="CartFlow|ChatComercial|<Dominio>"   # 6. SOLO tests que fuerzan SQLite (el resto toca la BD de .env)
+graphify update .                                 # 7. el grafo refleja el código nuevo (AST, sin coste)
 ```
 
 Y sobre la documentación de la Fase 5:
@@ -343,38 +406,46 @@ Checklist de cierre:
   [ ] docs/openapi.yaml actualizado (o consta por qué no hacía falta)
   [ ] Diagramas de docs/ afectados actualizados (flujos, clases, arquitectura, modelo de datos)
   [ ] El contrato parsea y redocly lint está en verde (o consta que no había Node)
+  [ ] Kit de ejecución aplicado: cada señal con su skill, agente y MCP (o consta cuál faltó)
+  [ ] Revisión 4b hecha (code-review, security, testing, impacto) y hallazgos resueltos o aceptados
+  [ ] graphify update . ejecutado
 
-Siguiente paso: verificar los criterios de aceptación de la spec uno por uno.
-Si todos pasan, actualiza el estado de la spec a "Implementado" (o el equivalente
-en el idioma de tu repo) y haz el commit final antes de mergear esta rama.
+Siguiente paso: /spec-verify-ergo-backend NN — verifica los criterios uno por uno
+con el mismo Kit y deja la evidencia. Si todos pasan, actualiza el estado de la
+spec a "Implementado" y haz el commit final antes de mergear esta rama.
 
-Recuerda: el mensaje del commit decide el bump de versión del CI por coincidencia
-de subcadena (`major` → major, `feat` → minor, cualquier otra cosa → patch), y un
-push a main publica la imagen a Docker Hub sin lint, tests ni migraciones.
+Recuerda: el asunto del commit decide el bump de versión del CI (Conventional
+Commits: `feat:` → minor, `tipo!:` o BREAKING CHANGE → major, el resto → patch),
+y un push a main publica la imagen a Docker Hub.
 ```
 
-Reporta con honestidad **qué verificaste de verdad y qué no**: los procedimientos almacenados viven solo en la BD, la facturación y varios endpoints necesitan datos reales, y los tests actuales son stubs de Laravel. Si algo quedó sin comprobar, dilo.
+Reporta con honestidad **qué verificaste de verdad y qué no**: los procedimientos almacenados viven solo en la BD, la facturación y varios endpoints necesitan datos reales, y solo corren los tests que fuerzan SQLite. Si algo quedó sin comprobar o un MCP del kit no estaba disponible, dilo.
+
+Al cerrar, guarda en engram (buscando antes el tema; `mem_update` si ya existe) las trampas y decisiones no obvias que salieron en la implementación. Nada de datos de pacientes ni de `.env`.
 
 ---
 
 ## Resumen del comportamiento esperado
 
 ```
-/spec-impl-ergo-back 03-alertas-ecg
+/spec-impl-ergo-backend 03-alertas-ecg
 
   Fase 1  →  Encuentra specs/03-alertas-ecg.md
   Fase 2  →  Lee el estado → "Aprobado" (o "Approved", etc.) → ✅ continúa
   Fase 3  →  git checkout -b spec-03-alertas-ecg → git checkout spec-03-alertas-ecg
              Muestra objetivo, alcance, plan y criterios
              Lee CLAUDE.md, invoca la skill ergosanitas-dev, identifica el dominio vecino
+             Arma el Kit (señales → skills, agentes, MCP) y lo compara con el de la spec
   Fase 4  →  Implementa paso a paso delegando en ergosanitas-developer /
-             ergosanitas-laravel / ergosanitas-mysql, con pausas para revisar el diff
+             ergosanitas-laravel / ergosanitas-mysql, cada uno con su skill,
+             sus MCP y lo consultado en Context7/Boost, con pausas para revisar el diff
+  Fase 4b →  code-review, security, testing e impacto con graphify sobre el diff
   Fase 5  →  Delega en ergo-docs: actualiza docs/openapi.yaml y los diagramas
              Mermaid afectados (flujos, clases, arquitectura, modelo de datos)
-  Cierre  →  php -l, pint --dirty, *:clear, route:list, tinker, test,
-             validación del contrato y el checklist de cierre del repo
+  Cierre  →  php -l, pint --dirty, *:clear, route:list, tinker, tests SQLite,
+             graphify update, validación del contrato y el checklist de cierre
 
-/spec-impl-ergo-back 04-bioimpedancia-pdf  (estado: Borrador / Draft)
+/spec-impl-ergo-backend 04-bioimpedancia-pdf  (estado: Borrador / Draft)
 
   Fase 1  →  Encuentra specs/04-bioimpedancia-pdf.md
   Fase 2  →  Lee el estado → "Borrador" → ❌ se detiene
@@ -389,9 +460,28 @@ Reporta con honestidad **qué verificaste de verdad y qué no**: los procedimien
 Mismas reglas de bloqueo y de no-commit, y las mismas cuatro fases de `/spec-impl` más una quinta propia. Lo que añade este comando:
 
 1. **Contexto obligatorio del repo** antes del Paso 1 (Fase 3, punto 5): `CLAUDE.md`, skill `ergosanitas-dev`, dominio vecino y sobre de respuesta.
-2. **Delegación por tipo de paso** a los agentes `ergosanitas-developer`, `ergosanitas-laravel`, `ergosanitas-mysql` y `ergo-docs`.
-3. **Guardas del repo** aplicadas en cada paso (providers a mano, perfiles 3 y 6, facturación de certificados, MySQL 5.7, typos consolidados, nada de `config:cache`).
-4. **Fase 5 de documentación, obligatoria**: `ergo-docs` pone al día el contrato OpenAPI y los diagramas de `docs/` antes del cierre. Nada de esa carpeta se genera solo, así que si no se hace en este commit, `docs/` queda desactualizada.
-5. **Verificación de cierre y checklist** propios de Ergosanitas —código y documentación—, más el aviso sobre el bump de versión del CI y el despliegue directo desde `main`.
+2. **Kit de ejecución automático** (Fase 3, punto 6): señales de la spec → skills, agentes y MCP (graphify, Context7, Boost, mysql-server, engram), según `spec-ergo-backend/references/enrutado.md`.
+3. **Delegación por tipo de paso** a los agentes `ergosanitas-developer`, `ergosanitas-laravel`, `ergosanitas-mysql` y `ergo-docs`, cada uno con su skill y sus MCP.
+4. **Fase 4b de revisión** del diff: `code-review`, `ergosanitas-security` + `security-review`, `ergosanitas-testing` e impacto con graphify.
+5. **Guardas del repo** aplicadas en cada paso (providers a mano, perfiles 3 y 6, facturación de certificados, MySQL 5.7, typos consolidados, nada de `config:cache`).
+6. **Fase 5 de documentación, obligatoria**: `ergo-docs` pone al día el contrato OpenAPI y los diagramas de `docs/` antes del cierre. Nada de esa carpeta se genera solo, así que si no se hace en este commit, `docs/` queda desactualizada.
+7. **Verificación de cierre y checklist** propios de Ergosanitas —código y documentación—, más el aviso sobre el bump de versión del CI y el despliegue directo desde `main`.
 
 Este comando **no deja evidencia por criterio**. Una vez la spec está en `Implementado`, el siguiente paso es `/spec-verify-ergo-backend <NN>` (o el agente homónimo), que marca cada criterio ✅/❌/⏸ con su evidencia.
+
+---
+
+## Nota sobre dónde viven las piezas
+
+| Pieza | Dónde |
+|---|---|
+| Enrutado: señales, matriz, reglas transversales, MCP, formato del kit | `.claude/skills/spec-ergo-backend/references/enrutado.md` (§1–§7) |
+| Mapa de relaciones (diagrama, recurso → quién lo usa, quién invoca a quién) | el mismo archivo, §8 |
+| Diseñador | `.claude/skills/spec-ergo-backend/SKILL.md` + agente `.claude/agents/spec-ergo-backend.md` |
+| Implementador | `.claude/skills/spec-impl-ergo-backend/SKILL.md` + agente `.claude/agents/spec-impl-ergo-backend.md` |
+| Verificador | `.claude/skills/spec-verify-ergo-backend/SKILL.md` + agente `.claude/agents/spec-verify-ergo-backend.md` |
+| Flujo genérico (se lee, no se invoca) | `.agents/skills/spec/` (+ `template.md`) y `.agents/skills/spec-impl/` |
+| Agentes del dominio | `.claude/agents/{ergosanitas-developer,ergosanitas-mysql,ergosanitas-laravel,ergo-docs}.md` |
+| Consumidores de un endpoint | skill raíz `D:/ErgoSanitas/Projectos/.claude/skills/ergo-contrato-api/` |
+| Orquestador | `D:/ErgoSanitas/Projectos/.claude/agents/ergo-father.md` + skill `ergo-father` |
+| Homólogos del front | `Front-end/ergosanitas-app/.claude/skills/{spec-ergo-front,spec-impl-ergo-front,spec-verify-ergo-front}/` |

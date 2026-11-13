@@ -6,6 +6,7 @@ Clases reales del proyecto por dominio, con sus firmas tal como están en el có
 - [Certificados y electrocardiogramas](#certificados-y-electrocardiogramas)
 - [Asistentes de IA](#asistentes-de-ia)
 - [Bioimpedancia](#bioimpedancia)
+- [Descarga de certificados por RUT](#descarga-de-certificados-por-rut)
 - [Incidencias y ficha clínica](#incidencias-y-ficha-clínica)
 - [Usuarios y perfiles](#usuarios-y-perfiles)
 - [Agenda, servicios y pagos](#agenda-servicios-y-pagos)
@@ -374,7 +375,8 @@ classDiagram
         +CreateBio(rut, nombre, club) Bioimpedancia
         +saveFromAI(parsed, rut, nombre, club, fileName) Bioimpedancia
         +SP_bioempdacia_rut(rut_paciente)
-        +BioPDFRut(string rut_paciente)
+        +fichaVigente(string rut_paciente) array
+        +BioPDFRut(string rut_paciente, array ficha)
         -cleanNumber(value)
         -formatDate(date)
         -mapBioimpedancia(ai, rut, nombre) array
@@ -382,6 +384,7 @@ classDiagram
         -seccion(titulo) string
         -parrafo(titulo, texto) string
         -prepararPayloadIA(array ficha) array
+        -analisisPersistido(array ficha, rut) array
         -analizarConIA(array payload) array
         -pieInforme(analisis, firmaErgo) string
     }
@@ -408,9 +411,68 @@ classDiagram
     BioimpedanciaService ..> AnalisisRutBioimpedanciaPrompt
     BioimpedanciaService --> Bioimpedancia
     BioimpedanciaService --> ChequeoCardiovascular : fallback por rut
+    BioimpedanciaService --> BioimpedanciaAnalisisIa : analisis guardado (Spec 07)
 ```
 
 `Bioimpedancia` es el único modelo con `$guarded = []`; el resto no declara `$fillable` salvo los cuatro modelos de chat.
+
+---
+
+## Descarga de certificados por RUT
+
+Spec 07. Dominio de solo lectura para la página pública `/certificados`: no factura ni cambia estados. `CertificadoDescargaServiceProvider` lo registra como singleton y define el limitador `certificados`.
+
+```mermaid
+classDiagram
+    class CertificadoDescargaController {
+        +Consulta(Request) JsonResponse
+        +DescargaEcg(Request, int id) Response
+        +DescargaBio(Request, int id) Response
+        -descargar(Request, tipo, rut, pdf) Response
+    }
+
+    class CertificadoDescargaService {
+        +MINUTOS_URL = 10
+        +ESTADO_CERTIFICABLE = REVISION MEDICA
+        +normalizarRut(rut)$ string
+        +rutValido(rut)$ bool
+        +contextoError(Throwable)$ array
+        +consultar(string rut) array
+        +rutDeChequeo(int id) string
+        +rutDeBioimpedancia(int id) string
+        +pdfCertificadoEcg(int id) array
+        +pdfCertificadoBio(int id) array
+        +registrar(rut, tipo, ip, resultado)
+        +urlFirmada(ruta, int id) array
+        #renderizarPdf(html) string
+    }
+
+    class CertificadoDescargaServiceProvider {
+        +register()
+        +boot() RateLimiter certificados
+    }
+
+    class CertificadoDescarga {
+        <<Model>>
+        table certificado_descargas
+        UPDATED_AT null
+    }
+
+    class BioimpedanciaAnalisisIa {
+        <<Model>>
+        table bioimpedancia_analisis_ia
+        casts analisis array
+    }
+
+    CertificadoDescargaController *-- CertificadoDescargaService
+    CertificadoDescargaServiceProvider ..> CertificadoDescargaService : singleton
+    CertificadoDescargaService --> ChequeoCardiovascularPDFService : chequeoPDf
+    CertificadoDescargaService --> BioimpedanciaService : fichaVigente y BioPDFRut
+    CertificadoDescargaService --> CertificadoDescarga : registrar
+    CertificadoDescargaService --> ChequeoCardiovascular
+    CertificadoDescargaService --> Bioimpedancia
+    BioimpedanciaService --> BioimpedanciaAnalisisIa : analisisPersistido
+```
 
 ---
 

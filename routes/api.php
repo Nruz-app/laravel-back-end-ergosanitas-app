@@ -33,6 +33,7 @@ use App\Http\Controllers\Auth\GoogleAuthControlle;
 use App\Http\Controllers\Auth\UserController;
 
 use App\Http\Controllers\CertificadoUrlController;
+use App\Http\Controllers\CertificadoDescargaController;
 
 use App\Http\Controllers\ElectroCardiogramaController;
 
@@ -214,6 +215,22 @@ Route::post('GPT/asistente-voz',[OpenAIController::class,'AsistenteVoz'])
 Route::post('GPT/analisis-ecg',[OpenAIController::class,'AnalisisEcg'])
     ->name('AnalisisEcg');
 
+
+// SPEC 07 — Descarga de certificados por RUT (página pública /certificados). Consulta única con
+// limitador por IP; los PDF generados solo con URL firmada y temporal (middleware signed).
+Route::post('certificados/consulta', [CertificadoDescargaController::class, 'Consulta'])
+    ->middleware('throttle:certificados')
+    ->name('CertificadosConsulta');
+
+Route::get('certificados/descarga/ecg/{id}', [CertificadoDescargaController::class, 'DescargaEcg'])
+    ->whereNumber('id')
+    ->middleware(['throttle:certificados', 'signed'])
+    ->name('CertificadosDescargaEcg');
+
+Route::get('certificados/descarga/bio/{id}', [CertificadoDescargaController::class, 'DescargaBio'])
+    ->whereNumber('id')
+    ->middleware(['throttle:certificados', 'signed'])
+    ->name('CertificadosDescargaBio');
 
 Route::post('certificado/save-url',[CertificadoUrlController::class,'FileUploadCer'])
     ->name('FileUploadCer');

@@ -1,6 +1,6 @@
 ---
 name: ergosanitas-laravel
-description: Referencia de PHP 8.2 y Laravel 11 aplicada a Ergosanitas. Úsala para resolver dudas del framework en este repo (contenedor y providers, ciclo de vida en el skeleton slim de Laravel 11, rutas, validación, Eloquent vs Query Builder, los tres mecanismos de autenticación, correo, colas, PHPUnit 11 y Pint) y para decidir qué refactor idiomático es seguro y cuál rompe las convenciones del proyecto.
+description: Referencia de PHP 8.2 y Laravel 11 aplicada a Ergosanitas. Úsala para resolver dudas del framework en este repo (contenedor y providers, ciclo de vida en el skeleton slim de Laravel 11, rutas, validación, Eloquent vs Query Builder, los tres mecanismos de autenticación, correo, colas, PHPUnit 11 y Pint) y para decidir qué refactor idiomático es seguro y cuál rompe las convenciones del proyecto. Dentro del flujo de specs la cargan solas spec-ergo-backend, spec-impl-ergo-backend y spec-verify-ergo-backend cuando el Kit de ejecución activa sus señales (S-laravel y S-arquitectura).
 argument-hint: 'la duda de PHP/Laravel o el refactor que estás evaluando'
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion
 ---
@@ -239,3 +239,20 @@ php artisan test
 ```
 
 Y reporta: qué corriste de verdad, qué no pudiste verificar (SPs, endpoints con datos reales, facturación) y qué antipatrón detectaste pero dejaste intacto por estar fuera de alcance.
+
+---
+
+## Uso en el flujo de specs
+
+Esta skill forma parte del **Kit de ejecución** de las specs del back (`.claude/skills/spec-ergo-backend/references/enrutado.md`).
+
+- **Señales que la activan:** S-laravel y S-arquitectura.
+- **Quién la carga:** ergosanitas-laravel.
+
+| Fase | Qué aporta |
+|---|---|
+| Diseño | API del framework que fija la spec, contrastada con Context7 y Boost `search-docs`. |
+| Implementación | Skill del agente `ergosanitas-laravel` en pasos de framework. |
+| Verificación | Revisor `ergosanitas-laravel` (Fase 2b). |
+
+Las reglas transversales (§4 de `enrutado.md`: graphify solo AST, BD solo metadatos, sin HTTP, tests solo en SQLite, sin commits) aplican también aquí. El mapa completo de relaciones está en §8 de ese archivo.

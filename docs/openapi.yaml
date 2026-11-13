@@ -3,7 +3,7 @@ openapi: 3.0.3
 info:
   title: Ergosanitas — API REST
   version: "1.0.0"
-  x-generated-from: "routes/api.php — 120 endpoints"
+  x-generated-from: "routes/api.php — 123 endpoints"
   description: |
     API REST en **Laravel 11 / PHP 8.2** de **Ergo SaniTas SpA**: gestión de chequeos
     cardiovasculares deportivos, electrocardiogramas, bioimpedancia, certificados médicos,
@@ -23,7 +23,7 @@ info:
 
     | Formato | Forma | Controladores que lo usan |
     |---|---|---|
-    | A — `success` | `{"success": true, "message": "...", "data": {...}}` | `Auth/UserController`, `Auth/GoogleAuthControlle`, `BioimpedanciaController`, `CertificadoUrlController`, `FichaClinicaController`, `FileUploadController`, `IncidenciasController`, `OpenAIController` |
+    | A — `success` | `{"success": true, "message": "...", "data": {...}}` | `Auth/UserController`, `Auth/GoogleAuthControlle`, `BioimpedanciaController`, `CertificadoUrlController`, `FichaClinicaController`, `FileUploadController`, `IncidenciasController`, `OpenAIController`, `CertificadoDescargaController` (variante Spec 07: errores con `data: null` y 422 con `errors`) |
     | B — `response` | `{"response": {"status": "OK", "mensaje": "..."}}` | `AgendaHorasController`, `ChequeoCardiovascularController`, `ElectroCardiogramaController`, `EmailController`, `EstadisticasController` |
 
     `OpenAIController` y `GoogleAuthControlle` **mezclan ambos dentro del mismo archivo**.
@@ -276,7 +276,8 @@ tags:
   - name: Certificados
     description: |
       Subida y consulta de los certificados/ECG en PDF. Subir un certificado marca el
-      chequeo como `ECG FOTO` y **factura** el mes del club.
+      chequeo como `ECG FOTO` y **factura** el mes del club. La página pública usa la
+      consulta única `POST /certificados/consulta` y descargas con URL firmada (SPEC 07).
   - name: Bioimpedancia
     description: |
       Extracción por IA de la hoja de resultados del equipo de bioimpedancia, listados y
@@ -3411,8 +3412,9 @@ paths:
       summary: Certificado del chequeo en PDF (por RUT)
       operationId: chequeoPDFRut
       description: |
-        Busca el **último** chequeo del RUT (`ORDER BY id DESC`) y delega en
-        `GET /chequeo-cardiovascular/pdf/{id}`.
+        Busca el **último** chequeo del RUT **en `REVISION MEDICA`** (`ORDER BY id DESC`) y delega en
+        `GET /chequeo-cardiovascular/pdf/{id}`. Desde la SPEC 07 ignora los chequeos que no
+        pasaron la revisión médica (antes tomaba el último en cualquier estado).
 
         Es el único endpoint de PDF que responde un 404 limpio cuando no encuentra al
         paciente.
@@ -3420,14 +3422,14 @@ paths:
         - $ref: '#/components/parameters/RutPaciente'
       responses:
         '200':
-          description: PDF del certificado del último chequeo del paciente.
+          description: PDF del certificado del último chequeo en `REVISION MEDICA` del paciente.
           content:
             application/pdf:
               schema:
                 type: string
                 format: binary
         '404':
-          description: No hay chequeos para ese RUT.
+          description: No hay chequeos en `REVISION MEDICA` para ese RUT.
           content:
             application/json:
               example:
@@ -3526,6 +3528,219 @@ paths:
   # ====================================================================
   # CERTIFICADOS
   # ====================================================================
+
+  /certificados/consulta:
+    post:
+      tags: [Certificados]
+      summary: Consulta única de los documentos descargables de un RUT (página pública)
+      operationId: certificadosConsulta
+      description: |
+        SPEC 07. Usado por la página pública `/certificados` del front. En **una** respuesta
+        devuelve los documentos del **último chequeo en `REVISION MEDICA`** y de la **última
+        bioimpedancia** del RUT, en orden fijo: `certificado_ecg`, `ecg`, `certificado_bio`, `bio`.
+
+        - `certificado_ecg` y `certificado_bio` son PDF generados: su `url` es **firmada y
+          temporal** (10 minutos) hacia `GET /certificados/descarga/{ecg|bio}/{id}`, y `expira`
+          trae la fecha ISO 8601 de vencimiento.
+        - `ecg` y `bio` son los archivos subidos, con `expira: null`: `ecg` trae tal cual
+          `certificado_url.url_pdf` del chequeo (la URL armada con `API_PATH_CER` al subirlo) y
+          `bio` la URL pública `Bioimpedancia/{archivo}`.
+        - La bioimpedancia vigente se elige como `SP_bioimpedacia_rut` (`fecha_prueba DESC, id DESC`)
+          y su `fecha` es `fecha_prueba`.
+
+        El RUT se normaliza (sin puntos ni espacios, `k` minúscula) y se valida con
+        `^\d{7,8}-[\dk]$`. Sin autenticación; limitador `throttle:certificados` de
+        **10 consultas por minuto por IP**. Cada consulta válida se registra en
+        `certificado_descargas` (`tipo = consulta`). Solo lee: no factura.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rut]
+              properties:
+                rut: { type: string, example: "11111111-1" }
+      responses:
+        '200':
+          description: Documentos disponibles (la lista puede venir vacía).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      rut: { type: string, example: "11111111-1" }
+                      nombre: { type: string, nullable: true, example: "Paciente Ficticio" }
+                      documentos:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            tipo: { type: string, enum: [certificado_ecg, ecg, certificado_bio, bio] }
+                            fecha: { type: string, format: date, nullable: true, example: "2026-05-04" }
+                            url: { type: string, format: uri }
+                            expira: { type: string, format: date-time, nullable: true }
+              examples:
+                conDocumentos:
+                  value:
+                    success: true
+                    message: "Documentos encontrados"
+                    data:
+                      rut: "11111111-1"
+                      nombre: "Paciente Ficticio"
+                      documentos:
+                        - { tipo: certificado_ecg, fecha: "2026-05-04", url: "https://ergosanitas.com/BackEnd/public/api/certificados/descarga/ecg/123?expires=1762870000&signature=abc123", expira: "2026-11-11T15:10:00-03:00" }
+                        - { tipo: ecg, fecha: "2026-05-04", url: "https://ergosanitas.com/BackEnd/public/Certificado/11111111-1-123.pdf", expira: null }
+                        - { tipo: certificado_bio, fecha: "2026-06-30", url: "https://ergosanitas.com/BackEnd/public/api/certificados/descarga/bio/45?expires=1762870000&signature=def456", expira: "2026-11-11T15:10:00-03:00" }
+                        - { tipo: bio, fecha: "2026-06-30", url: "https://ergosanitas.com/BackEnd/public/Bioimpedancia/archivo-ficticio.pdf", expira: null }
+                sinDocumentos:
+                  value:
+                    success: true
+                    message: "No hay documentos disponibles para este RUT"
+                    data: { rut: "11111111-1", nombre: null, documentos: [] }
+        '422':
+          description: RUT ausente o con formato inválido.
+          content:
+            application/json:
+              example:
+                success: false
+                message: "El RUT no tiene un formato válido."
+                errors: { rut: ["El RUT no tiene un formato válido."] }
+        '429':
+          description: Más de 10 consultas por minuto desde la misma IP.
+          headers:
+            Retry-After:
+              schema: { type: integer }
+              description: Segundos hasta poder reintentar.
+          content:
+            application/json:
+              example:
+                success: false
+                message: "Demasiadas consultas seguidas. Espera un momento y vuelve a intentarlo."
+                data: null
+        '500':
+          description: Error interno. El detalle va al log, nunca al cliente.
+          content:
+            application/json:
+              example:
+                success: false
+                message: "No fue posible consultar los documentos. Intenta más tarde."
+                data: null
+
+  /certificados/descarga/ecg/{id}:
+    get:
+      tags: [Certificados]
+      summary: Certificado del chequeo en PDF (URL firmada)
+      operationId: certificadosDescargaEcg
+      description: |
+        SPEC 07. Solo responde con la firma (`expires`, `signature`) que entrega
+        `POST /certificados/consulta`; sin firma, manipulada o vencida (10 minutos) → 403
+        (middleware `signed`). `{id}` es el id del chequeo, que debe estar en
+        `REVISION MEDICA`. Limitador `throttle:certificados` (30 descargas por minuto por IP).
+        Cada intento se registra en `certificado_descargas` (`tipo = certificado_ecg`).
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, example: 123 } }
+        - { name: expires, in: query, required: true, schema: { type: integer } }
+        - { name: signature, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: "PDF del certificado (`Cache-Control: private, no-store`)."
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+              example: 'attachment; filename="Certificado-Paciente-Ficticio.pdf"'
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        '403':
+          description: "Firma ausente, manipulada o vencida (middleware `signed`). Con `Accept: application/json` el cuerpo es JSON; desde el navegador, la página de error de Laravel."
+          content:
+            application/json:
+              example: { message: "Invalid signature." }
+        '404':
+          description: Chequeo inexistente o fuera de `REVISION MEDICA`.
+          content:
+            application/json:
+              example: { success: false, message: "Documento no disponible", data: null }
+        '429':
+          description: Más de 30 descargas por minuto desde la misma IP.
+          headers:
+            Retry-After:
+              schema: { type: integer }
+              description: Segundos hasta poder reintentar.
+          content:
+            application/json:
+              example:
+                success: false
+                message: "Demasiadas consultas seguidas. Espera un momento y vuelve a intentarlo."
+                data: null
+        '500':
+          description: Error al generar el PDF (sin detalle de la excepción).
+          content:
+            application/json:
+              example: { success: false, message: "No fue posible generar el documento. Intenta más tarde.", data: null }
+
+  /certificados/descarga/bio/{id}:
+    get:
+      tags: [Certificados]
+      summary: Certificado de bioimpedancia en PDF (URL firmada)
+      operationId: certificadosDescargaBio
+      description: |
+        SPEC 07. Igual que `GET /certificados/descarga/ecg/{id}`, pero `{id}` es el id de la
+        bioimpedancia. Genera el informe con `BioimpedanciaService::BioPDFRut()`: el análisis de
+        IA se reutiliza desde `bioimpedancia_analisis_ia` si ya existe, así que solo la primera
+        descarga llama a OpenAI. Se registra con `tipo = certificado_bio`.
+
+        Antes de renderizar comprueba con `SP_bioimpedacia_rut` que `{id}` siga siendo la
+        bioimpedancia **vigente** del RUT (`fecha_prueba DESC, id DESC`). Si entre la consulta y
+        la descarga llegó otra medición, responde **404** en vez de entregar un informe distinto
+        al que la URL firmada prometía: hay que volver a consultar.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, example: 45 } }
+        - { name: expires, in: query, required: true, schema: { type: integer } }
+        - { name: signature, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: "PDF del informe de bioimpedancia (`Cache-Control: private, no-store`)."
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+              example: 'attachment; filename="Certificado-Paciente-Ficticio.pdf"'
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        '403':
+          description: "Firma ausente, manipulada o vencida (middleware `signed`). Con `Accept: application/json` el cuerpo es JSON; desde el navegador, la página de error de Laravel."
+          content:
+            application/json:
+              example: { message: "Invalid signature." }
+        '404':
+          description: Bioimpedancia inexistente, o `{id}` ya no es la medición vigente del RUT.
+          content:
+            application/json:
+              example: { success: false, message: "Documento no disponible", data: null }
+        '429':
+          description: Más de 30 descargas por minuto desde la misma IP.
+          headers:
+            Retry-After:
+              schema: { type: integer }
+              description: Segundos hasta poder reintentar.
+          content:
+            application/json:
+              example:
+                success: false
+                message: "Demasiadas consultas seguidas. Espera un momento y vuelve a intentarlo."
+                data: null
+        '500':
+          description: Sin datos del SP, fallo de la IA o de mPDF (sin detalle de la excepción).
+          content:
+            application/json:
+              example: { success: false, message: "No fue posible generar el documento. Intenta más tarde.", data: null }
 
   /certificado/save-url:
     post:
@@ -4502,8 +4717,9 @@ paths:
         Genera con **mPDF** el informe de composición corporal del paciente. El HTML lo arma
         `BioimpedanciaService::BioPDFRut()`, que además llama a
         `AnalisisRutBioimpedanciaPrompt` para redactar la **interpretación clínica del
-        resultado con IA** — por eso este endpoint tarda varios segundos y depende de que
-        OpenAI responda.
+        resultado con IA**. Desde la SPEC 07 el análisis se guarda en `bioimpedancia_analisis_ia`
+        la primera vez (clave `bioimpedancia_id` + sha256 de los datos enviados) y las descargas
+        siguientes lo reutilizan sin llamar a OpenAI; solo la primera tarda varios segundos.
 
         El archivo se descarga como `Certificado-{rut}.pdf`.
 
@@ -8296,7 +8512,10 @@ paths:
             application/octet-stream:
               schema: { type: string, format: binary }
         '403':
-          description: Firma inválida o vencida.
+          description: "Firma ausente, manipulada o vencida (middleware `signed`). Con `Accept: application/json` el cuerpo es JSON; desde el navegador, la página de error de Laravel."
+          content:
+            application/json:
+              example: { message: "Invalid signature." }
         '404':
           description: Orden o archivo inexistente.
 

@@ -3,13 +3,18 @@
 namespace App\Services;
 
 use App\Models\Bioimpedancia;
+use App\Models\BioimpedanciaAnalisisIa;
 use App\PromptSystem\AnalisisRutBioimpedanciaPrompt;
+use Illuminate\Database\UniqueConstraintViolationException;
 use OpenAI\Laravel\Facades\OpenAI;
 use Illuminate\Support\Facades\Log;
 use App\Models\ChequeoCardiovascular;
 
 class BioimpedanciaService
 {
+    /** Modelo de OpenAI del análisis del certificado de bioimpedancia. */
+    private const MODELO_ANALISIS = 'gpt-4.1-mini';
+
     /**
      * Limpia números flotantes (evita 33.10000000000001)
      */
@@ -552,12 +557,62 @@ class BioimpedanciaService
     }
 
     /**
+     * SPEC 07 — Devuelve el análisis de IA de la bioimpedancia sin repetir la llamada a OpenAI.
+     *
+     * Busca un análisis guardado para (bioimpedancia_id, sha256 del payload). Si existe, lo
+     * reutiliza; si no, llama a OpenAI una vez y lo guarda. Un análisis vacío (la IA no devolvió
+     * JSON válido) no se guarda, para que la próxima descarga lo reintente.
+     */
+    private function analisisPersistido(array $ficha, string $rut_paciente): array
+    {
+        $payload = $this->prepararPayloadIA($ficha);
+
+        // Mismo orden que SP_bioimpedacia_rut: fecha_prueba DESC, id DESC.
+        $bioimpedanciaId = $ficha['id'] ?? Bioimpedancia::where('rut', $rut_paciente)
+            ->orderByDesc('fecha_prueba')
+            ->orderByDesc('id')
+            ->value('id');
+
+        if (!$bioimpedanciaId) {
+            return $this->analizarConIA($payload);
+        }
+
+        $hash = hash('sha256', json_encode($payload, JSON_UNESCAPED_UNICODE));
+
+        $guardado = BioimpedanciaAnalisisIa::where('bioimpedancia_id', $bioimpedanciaId)
+            ->where('payload_hash', $hash)
+            ->first();
+
+        if ($guardado) {
+            return $guardado->analisis;
+        }
+
+        $analisis = $this->analizarConIA($payload);
+
+        if (!empty($analisis)) {
+            try {
+                BioimpedanciaAnalisisIa::create([
+                    'bioimpedancia_id' => (int) $bioimpedanciaId,
+                    'rut'              => $rut_paciente,
+                    'payload_hash'     => $hash,
+                    'modelo'           => self::MODELO_ANALISIS,
+                    'analisis'         => $analisis,
+                ]);
+            } catch (UniqueConstraintViolationException $e) {
+                // Dos descargas simultáneas generaron el mismo análisis: basta con el primero.
+            }
+        }
+
+        return $analisis;
+    }
+
+    /**
      * Llama a OpenAI y devuelve el análisis decodificado, o [] si falla.
      */
     private function analizarConIA(array $payload): array
     {
         $response = OpenAI::chat()->create([
-            'model'           => 'gpt-4.1-mini',
+            'model'           => self::MODELO_ANALISIS,
             'response_format' => ['type' => 'json_object'],
             'messages'        => [
                 [
@@ -605,7 +660,32 @@ class BioimpedanciaService
     |
     */
 
-    public function BioPDFRut(string $rut_paciente)
+    /**
+     * SPEC 07 — Ficha de la bioimpedancia vigente del RUT según SP_bioimpedacia_rut
+     * (fecha_prueba DESC, id DESC), o null si no hay. Lanza si el SP devuelve un JSON inválido.
+     */
+    public function fichaVigente(string $rut_paciente): ?array
+    {
+        $resultadoJson = $this->SP_bioempdacia_rut($rut_paciente);
+
+        if (!$resultadoJson) {
+            return null;
+        }
+
+        $ficha = json_decode($resultadoJson, true);
+
+        if (!is_array($ficha)) {
+            throw new \Exception("El procedimiento SP_bioimpedacia_rut devolvió un JSON inválido");
+        }
+
+        return $ficha;
+    }
+
+    /**
+     * @param  array|null  $ficha  Ficha ya obtenida con fichaVigente() (SPEC 07), para no llamar
+     *                             dos veces al SP. Sin ella se consulta aquí, como antes.
+     */
+    public function BioPDFRut(string $rut_paciente, ?array $ficha = null)
     {
         $logoPath  = public_path('logo.png');
         $firmaErgo = public_path('firmarErgo.jpg');
@@ -616,16 +696,10 @@ class BioimpedanciaService
         |--------------------------------------------------------------------------
         */
 
-        $resultadoJson = $this->SP_bioempdacia_rut($rut_paciente);
+        $ficha = $ficha ?? $this->fichaVigente($rut_paciente);
 
-        if (!$resultadoJson) {
+        if ($ficha === null) {
             throw new \Exception("No existe bioimpedancia registrada para el RUT {$rut_paciente}");
-        }
-
-        $ficha = json_decode($resultadoJson, true);
-
-        if (!is_array($ficha)) {
-            throw new \Exception("El procedimiento SP_bioimpedacia_rut devolvió un JSON inválido");
         }
 
         /*
@@ -634,7 +708,7 @@ class BioimpedanciaService
         |--------------------------------------------------------------------------
         */
 
-        $analisis = $this->analizarConIA($this->prepararPayloadIA($ficha));
+        $analisis = $this->analisisPersistido($ficha, $rut_paciente);
 
         $encabezado  = $analisis['encabezado'] ?? [];
         $resumen     = $analisis['resumen_resultados'] ?? [];

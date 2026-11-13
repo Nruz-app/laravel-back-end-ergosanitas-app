@@ -245,7 +245,7 @@ que sostiene el limitador `throttle:chat-comercial`.
 
 ## Inyección de dependencias
 
-Todos los servicios se registran **a mano** en `bootstrap/providers.php` — no hay auto-discovery. Cada provider es un `singleton()` con una closure trivial; los que resuelven dependencias son `CertificadoProvider`, `CartFlowServiceProvider` y `ChatComercialServiceProvider`.
+Todos los servicios se registran **a mano** en `bootstrap/providers.php` — no hay auto-discovery. Cada provider es un `singleton()` con una closure trivial; los que resuelven dependencias son `CertificadoProvider`, `CertificadoDescargaServiceProvider`, `CartFlowServiceProvider` y `ChatComercialServiceProvider`.
 
 ```mermaid
 flowchart LR
@@ -291,7 +291,8 @@ Los 15 providers registrados en `bootstrap/providers.php`:
 | `BioimpedanciaServiceProvider` | `BioimpedanciaService` |
 | `CartFlowServiceProvider` | Los 10 servicios de `app/Services/CartFlow/` (`CalculadoraCarroService`, `CatalogoCsv`, `CatalogoService`, `AgendaService`, `PedidoService`, `WebPayCartFlowService`, `AdminPedidoService`, más `ImportadorCatalogoService`, `CarritoService` y `CheckoutService` **con sus dependencias inyectadas**). Registra además el comando `cart-flow:importar-catalogo` en `boot()` |
 | `CertificadoProvider` | `CertificadoService`, **inyectándole `EstadisticasService`** |
-| `ChatComercialServiceProvider` | `ChatComercialService`, **inyectándole `CartFlow\CatalogoService`**. En `boot()` registra el limitador `chat-comercial` (`RateLimiter::for`): 20 peticiones por minuto y 200 por día por IP, con un 429 propio en español y `Retry-After`. Es el **primer y único limitador del repo** |
+| `CertificadoDescargaServiceProvider` | `CertificadoDescargaService` (Spec 07), **inyectándole `ChequeoCardiovascularPDFService` y `BioimpedanciaService`**. En `boot()` registra el limitador `certificados`: 10 consultas por minuto por IP en `certificados/consulta` y 30 descargas por minuto por IP en las descargas firmadas, con 429 `{success, message, data}` y `Retry-After` |
+| `ChatComercialServiceProvider` | `ChatComercialService`, **inyectándole `CartFlow\CatalogoService`**. En `boot()` registra el limitador `chat-comercial` (`RateLimiter::for`): 20 peticiones por minuto y 200 por día por IP, con un 429 propio en español y `Retry-After`. Fue el **primer limitador del repo**; el segundo es `certificados` (Spec 07) |
 | `ChequeoCardiovascularPDFProvider` | `ChequeoCardiovascularPDFService` |
 | `ChequeoCardiovascularProvider` | `ChequeoCardiovascularService` |
 | `ClubAssistantServiceProvider` | `ClubAssistantService` |

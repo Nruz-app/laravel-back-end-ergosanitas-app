@@ -1,6 +1,6 @@
 ---
 name: ergosanitas-security
-description: Revisa seguridad y privacidad del back-end de Ergosanitas (autenticación, autorización por perfil, secretos, subida de archivos, dependencias y datos clínicos bajo la Ley 21.719). Úsala para auditorías, para revisar un cambio sensible y antes de tocar auth, permisos, uploads o datos de pacientes.
+description: Revisa seguridad y privacidad del back-end de Ergosanitas (autenticación, autorización por perfil, secretos, subida de archivos, dependencias y datos clínicos bajo la Ley 21.719). Úsala para auditorías, para revisar un cambio sensible y antes de tocar auth, permisos, uploads o datos de pacientes. Dentro del flujo de specs la cargan solas spec-ergo-backend, spec-impl-ergo-backend y spec-verify-ergo-backend cuando el Kit de ejecución activa sus señales (S-seguridad, S-webpay y S-facturacion; en verificación, siempre).
 ---
 
 # Ergosanitas Security
@@ -49,3 +49,20 @@ No la "descubras" como hallazgo nuevo; úsala para priorizar y para no empeorarl
 ## 5. Informe
 
 Por hallazgo: severidad (Crítico, Alto, Medio, Bajo), archivo:línea, evidencia mínima no sensible, escenario de explotación, impacto (prioriza la exposición de datos clínicos), corrección mínima y la prueba de regresión que la cubriría. Separa la deuda conocida (§1) de lo nuevo.
+
+---
+
+## Uso en el flujo de specs
+
+Esta skill forma parte del **Kit de ejecución** de las specs del back (`.claude/skills/spec-ergo-backend/references/enrutado.md`).
+
+- **Señales que la activan:** S-seguridad, S-webpay y S-facturacion (en verificación, siempre).
+- **Quién la carga:** quien orquesta la fase, o como carga extra en el prompt de ergosanitas-developer.
+
+| Fase | Qué aporta |
+|---|---|
+| Diseño | Sección de seguridad de la spec: datos clínicos expuestos, quién llama, límites, deuda heredada. |
+| Implementación | Fase 4b del implementador, junto con `security-review` sobre el diff. |
+| Verificación | Revisión obligatoria de la Fase 2b del verificador. |
+
+Las reglas transversales (§4 de `enrutado.md`: graphify solo AST, BD solo metadatos, sin HTTP, tests solo en SQLite, sin commits) aplican también aquí. El mapa completo de relaciones está en §8 de ese archivo.
