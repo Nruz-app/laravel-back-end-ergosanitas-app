@@ -1,6 +1,6 @@
 ---
 name: ergosanitas-api
-description: Diseña, modifica y diagnostica endpoints REST de la API de Ergosanitas (todo bajo /api) sin romper a sus clientes React y React Native. Úsala al tocar routes/api.php, un controlador, la validación, el sobre JSON de una respuesta o el contrato que consume el front o la app móvil.
+description: Diseña, modifica y diagnostica endpoints REST de la API de Ergosanitas (todo bajo /api) sin romper a sus clientes React y React Native. Úsala al tocar routes/api.php, un controlador, la validación, el sobre JSON de una respuesta o el contrato que consume el front o la app móvil. Dentro del flujo de specs la cargan solas spec-ergo-backend, spec-impl-ergo-backend y spec-verify-ergo-backend cuando el Kit de ejecución activa sus señales (S-ruta, y S-consumido junto con ergo-contrato-api).
 ---
 
 # Ergosanitas API
@@ -50,3 +50,20 @@ Conviven **siete formatos** (tabla en `README.md` § Formatos de respuesta y en 
 1. `docs/openapi.yaml` actualizado en el mismo cambio; luego `php docs/postman/generar-coleccion.php` y `php docs/postman/verificar-cobertura.php`. Pasa por el agente `ergo-docs`.
 2. Tests: éxito, validación inválida, recurso inexistente y, si aplica, filtrado por perfil 3/6 (ver skill `ergosanitas-testing`). Nunca con pacientes reales.
 3. Resume qué clientes deben actualizarse y con qué JSON de ejemplo.
+
+---
+
+## Uso en el flujo de specs
+
+Esta skill forma parte del **Kit de ejecución** de las specs del back (`.claude/skills/spec-ergo-backend/references/enrutado.md`).
+
+- **Señales que la activan:** S-ruta (y S-consumido junto con `ergo-contrato-api`).
+- **Quién la carga:** ergo-docs (y ergosanitas-developer en pasos de ruta).
+
+| Fase | Qué aporta |
+|---|---|
+| Diseño | Sobre de respuesta, orden de rutas y contrato de la spec. |
+| Implementación | Carga extra del developer en pasos de ruta y de `ergo-docs` en la Fase 5. |
+| Verificación | Revisor `ergo-docs` (Fase 2b): contrato, orden de rutas, consumidores. |
+
+Las reglas transversales (§4 de `enrutado.md`: graphify solo AST, BD solo metadatos, sin HTTP, tests solo en SQLite, sin commits) aplican también aquí. El mapa completo de relaciones está en §8 de ese archivo.

@@ -1,6 +1,6 @@
 ---
 name: ergo-docs
-description: Especialista en la documentación de Ergosanitas. Úsalo para leer, revisar y actualizar docs/ — el contrato OpenAPI (docs/openapi.yaml) y los cuatro diagramas Mermaid (arquitectura.md, flujos.md, diagrama-clases.md, modelo-datos.md) — cuando cambie una ruta, un flujo de negocio, una clase, el esquema o un procedimiento almacenado. Conoce las operaciones del contrato (120 hoy; siempre se recuentan), los siete formatos de respuesta que documenta, las reglas de redocly.yaml y que nada aquí se genera automáticamente. Invócalo al cerrar cualquier cambio que toque routes/api.php, app/Http/Controllers, app/Services, app/Models o el esquema.
+description: Especialista en la documentación de Ergosanitas. Úsalo para leer, revisar y actualizar docs/ — el contrato OpenAPI (docs/openapi.yaml) y los cuatro diagramas Mermaid (arquitectura.md, flujos.md, diagrama-clases.md, modelo-datos.md) — cuando cambie una ruta, un flujo de negocio, una clase, el esquema o un procedimiento almacenado. Conoce las operaciones del contrato (120 hoy; siempre se recuentan), los siete formatos de respuesta que documenta, las reglas de redocly.yaml y que nada aquí se genera automáticamente. Invócalo al cerrar cualquier cambio que toque routes/api.php, app/Http/Controllers, app/Services, app/Models o el esquema. Lo lanzan también spec-impl-ergo-backend y spec-verify-ergo-backend (este último como revisor en solo lectura) con el Kit de ejecución de la spec en el prompt.
 tools: Read, Write, Edit, Glob, Grep, Bash, Skill, AskUserQuestion
 ---
 
@@ -103,3 +103,12 @@ php artisan route:list --json
 ## Al terminar
 
 Sé explícito sobre lo que quedó sin comprobar. En concreto: si **recontaste** las operaciones o solo asumiste el número; si `redocly lint` **corrió** o no había Node disponible; si la firma de un SP la **confirmaste contra la BD** o la dedujiste del código PHP que lo llama; y si algún endpoint documentado no lo pudiste ejercitar por necesitar datos reales. No declares "verificado" lo que solo leíste.
+
+## Cuando te lanza un flujo de spec
+
+Te lanzan las skills o agentes `spec-ergo-backend`, `spec-impl-ergo-backend` y `spec-verify-ergo-backend` (o `ergo-father`, que las sigue) en: implementación (Fase 5 obligatoria) y verificación (revisor si hay S-ruta o S-flujo).
+
+- El prompt trae el **Kit de ejecución** de la spec: señales, skills que debes cargar y MCP que puedes usar. Carga esas skills además de la tuya.
+- Aplica las reglas transversales de §4 de `.claude/skills/spec-ergo-backend/references/enrutado.md`: graphify solo AST; `mysql-server` y Boost solo metadatos (nunca filas de pacientes ni `CALL`); nada de HTTP contra `/api`; tests solo en SQLite; ningún valor de `.env` en la salida.
+- Como **revisor** (Fase 2b del verificador): no modificas nada y devuelves `archivo:línea · severidad · regla · sugerencia`.
+- **Nunca commiteas.** Haces solo el paso o la revisión que te pidieron y reportas lo que no pudiste verificar.

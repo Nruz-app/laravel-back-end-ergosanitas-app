@@ -1,23 +1,35 @@
 {
-  "version": 1,
+  "version": 2,
   "skills": {
     "archify": {
       "source": "tt-a1i/archify",
       "sourceType": "github",
       "skillPath": "archify/SKILL.md",
-      "computedHash": "f7788266498f3b5cb7575288fc736b2e0d94521e1ebe1ceebf2594e92165f38f"
+      "computedHash": ""
+    },
+    "brainstorming": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/brainstorming/SKILL.md",
+      "computedHash": "a7424777b7f81e3eb9b4556d29fe233553736d8255780d3e1feea190fef61fef"
+    },
+    "changelog-generator": {
+      "source": "composiohq/awesome-claude-skills",
+      "sourceType": "github",
+      "skillPath": "changelog-generator/SKILL.md",
+      "computedHash": "5434338dd0ea8f61988d1e9ab2a224a5b461c7ea2e7b7f33db56eab6fb6a4db1"
     },
     "spec": {
       "source": "Klerith/fernando-skills",
       "sourceType": "github",
       "skillPath": "skills/engineering/spec/SKILL.md",
-      "computedHash": "65b3e5a3383949a4cca0756b3b37ac4b9980bb0fec0b5885fd576da308982a2e"
+      "computedHash": "f3a64cb76144805ccb4734626cd16cf5e05d069250e22cbde1b8e5bfc9af61a1"
     },
     "spec-impl": {
       "source": "Klerith/fernando-skills",
       "sourceType": "github",
       "skillPath": "skills/engineering/spec-impl/SKILL.md",
-      "computedHash": "072b2551ffcc78286a081141f5b549fb52d557345d4afd14902c30ebc35ac1a9"
+      "computedHash": "9ad5b48f60e7d312b5ed5f6bb293fa0942a21eb0b8f267bcc50bee550c687afd"
     }
   }
 }

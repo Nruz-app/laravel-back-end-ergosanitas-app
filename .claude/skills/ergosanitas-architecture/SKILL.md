@@ -1,6 +1,6 @@
 ---
 name: ergosanitas-architecture
-description: Analiza la arquitectura del back-end de Ergosanitas (capas Controller→Service→Model, providers, procedimientos almacenados, contratos con React y la app móvil) para diseño, análisis de impacto y refactorización. Úsala antes de proponer un cambio estructural o de documentar cómo encaja una pieza.
+description: Analiza la arquitectura del back-end de Ergosanitas (capas Controller→Service→Model, providers, procedimientos almacenados, contratos con React y la app móvil) para diseño, análisis de impacto y refactorización. Úsala antes de proponer un cambio estructural o de documentar cómo encaja una pieza. Dentro del flujo de specs la cargan solas spec-ergo-backend, spec-impl-ergo-backend y spec-verify-ergo-backend cuando el Kit de ejecución activa sus señales (S-base, es decir siempre).
 ---
 
 # Ergosanitas Architecture
@@ -36,10 +36,27 @@ Objetivo: entender lo que **ya existe** antes de proponer cambios. No impongas u
 3. La solución más pequeña que mejora la mantenibilidad. Nada de refactors masivos por preferencia.
 4. Compatibilidad con la API y la BD; migraciones aditivas y reversibles (Ley 21.719: no borrar ni sobrescribir datos clínicos).
 5. Rollback y pruebas de regresión.
-6. Las features nuevas van por spec (`/spec-ergo-back`), no directo a código.
+6. Las features nuevas van por spec, no directo a código: `/spec-ergo-backend` la diseña con su Kit de ejecución, una persona la aprueba, `/spec-impl-ergo-backend` la implementa y `/spec-verify-ergo-backend` la verifica.
 
 ## 5. Documentar
 
 - Separa lo verificado de lo supuesto y cita archivos o clases concretos.
 - Actualiza el diagrama `.md` que corresponda vía el agente `ergo-docs`; no crees documentos paralelos.
 - Sin secretos ni datos de pacientes.
+
+---
+
+## Uso en el flujo de specs
+
+Esta skill forma parte del **Kit de ejecución** de las specs del back (`.claude/skills/spec-ergo-backend/references/enrutado.md`).
+
+- **Señales que la activan:** S-base (siempre).
+- **Quién la carga:** quien orquesta la fase (no tiene agente propio).
+
+| Fase | Qué aporta |
+|---|---|
+| Diseño | Impacto del dominio vecino con graphify antes de proponer el plan. |
+| Implementación | Impacto del diff en la Fase 4b (`graphify affected`). |
+| Verificación | Lectura de impactos de la Fase 2. |
+
+Las reglas transversales (§4 de `enrutado.md`: graphify solo AST, BD solo metadatos, sin HTTP, tests solo en SQLite, sin commits) aplican también aquí. El mapa completo de relaciones está en §8 de ese archivo.

@@ -1,6 +1,6 @@
 ---
 name: ergosanitas-dev
-description: Recetario operativo para desarrollar, modificar, probar y corregir módulos del backend Laravel de Ergosanitas respetando sus convenciones. Úsalo al crear un endpoint o dominio nuevo (controller/service/provider/model/ruta), al tocar queries filtradas por perfil, certificados y facturación, prompts de OpenAI, procedimientos almacenados, generación de PDF/Word/Excel o pagos WebPay; y para el checklist de verificación antes de commitear.
+description: Recetario operativo para desarrollar, modificar, probar y corregir módulos del backend Laravel de Ergosanitas respetando sus convenciones. Úsalo al crear un endpoint o dominio nuevo (controller/service/provider/model/ruta), al tocar queries filtradas por perfil, certificados y facturación, prompts de OpenAI, procedimientos almacenados, generación de PDF/Word/Excel o pagos WebPay; y para el checklist de verificación antes de commitear. Dentro del flujo de specs la cargan solas spec-ergo-backend, spec-impl-ergo-backend y spec-verify-ergo-backend cuando el Kit de ejecución activa sus señales (S-base siempre, S-capas, S-perfiles, S-facturacion, S-openai, S-docs-gen y S-webpay).
 argument-hint: 'qué módulo vas a crear, modificar o corregir'
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion
 ---
@@ -240,3 +240,20 @@ Para tests con BD, primero descomenta en `phpunit.xml` las líneas `DB_CONNECTIO
 El mensaje decide el bump de versión en el CI por coincidencia de subcadena: `major` → major, `feat` → minor, cualquier otra cosa → patch. Cuidado con mensajes como *"refactor: quita el **feat**ure flag"*, que bumpean minor sin querer.
 
 Push a `main` publica la imagen a Docker Hub directo, **sin lint, tests ni migraciones** en el pipeline.
+
+---
+
+## Uso en el flujo de specs
+
+Esta skill forma parte del **Kit de ejecución** de las specs del back (`.claude/skills/spec-ergo-backend/references/enrutado.md`).
+
+- **Señales que la activan:** S-base (siempre), S-capas, S-perfiles, S-facturacion, S-openai, S-docs-gen y S-webpay.
+- **Quién la carga:** ergosanitas-developer.
+
+| Fase | Qué aporta |
+|---|---|
+| Diseño | Recetas para escribir el plan: capas, provider, perfiles 3/6, facturación, SP, documentos, WebPay, OpenAI. |
+| Implementación | Contexto obligatorio antes del Paso 1 y skill del agente `ergosanitas-developer` en cada paso de código. |
+| Verificación | Checklist del revisor `ergosanitas-developer` (Fase 2b). |
+
+Las reglas transversales (§4 de `enrutado.md`: graphify solo AST, BD solo metadatos, sin HTTP, tests solo en SQLite, sin commits) aplican también aquí. El mapa completo de relaciones está en §8 de ese archivo.

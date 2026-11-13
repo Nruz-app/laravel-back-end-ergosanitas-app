@@ -3,7 +3,7 @@
         "name": "Ergosanitas — API REST v1.0.0",
         "_postman_id": "6f2c1a34-e0a1-4a11-9c8e-e12345678901",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-        "description": "Generada desde `docs/openapi.yaml` (120 operaciones).\n\nLas rutas de negocio **no llevan middleware de autenticacion**: `user_email` y `perfiles_id` viajan como parametros del request.\n\nAjusta `baseUrl` y las variables de coleccion (`user_email`, `admin_email`, `rut_paciente`, `id_paciente`, `perfil`) antes de ejecutar. Las carpetas del carro se ejecutan en orden: cada request guarda en variables lo que necesita el siguiente.\n\nLos cuerpos son los ejemplos del contrato OpenAPI; en los `multipart/form-data` hay que seleccionar el archivo a mano."
+        "description": "Generada desde `docs/openapi.yaml` (123 operaciones).\n\nLas rutas de negocio **no llevan middleware de autenticacion**: `user_email` y `perfiles_id` viajan como parametros del request.\n\nAjusta `baseUrl` y las variables de coleccion (`user_email`, `admin_email`, `rut_paciente`, `id_paciente`, `perfil`) antes de ejecutar. Las carpetas del carro se ejecutan en orden: cada request guarda en variables lo que necesita el siguiente.\n\nLos cuerpos son los ejemplos del contrato OpenAPI; en los `multipart/form-data` hay que seleccionar el archivo a mano."
     },
     "item": [
         {
@@ -966,7 +966,7 @@
                                 "{{rut_paciente}}"
                             ]
                         },
-                        "description": "Busca el **último** chequeo del RUT (`ORDER BY id DESC`) y delega en\n`GET /chequeo-cardiovascular/pdf/{id}`.\n\nEs el único endpoint de PDF que responde un 404 limpio cuando no encuentra al\npaciente.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - PDF del certificado del último chequeo del paciente.\n- `404` - No hay chequeos para ese RUT.\n- `500` - Error al generar el PDF.\n\n---\n\n_operationId_: `chequeoPDFRut`"
+                        "description": "Busca el **último** chequeo del RUT **en `REVISION MEDICA`** (`ORDER BY id DESC`) y delega en\n`GET /chequeo-cardiovascular/pdf/{id}`. Desde la SPEC 07 ignora los chequeos que no\npasaron la revisión médica (antes tomaba el último en cualquier estado).\n\nEs el único endpoint de PDF que responde un 404 limpio cuando no encuentra al\npaciente.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - PDF del certificado del último chequeo en `REVISION MEDICA` del paciente.\n- `404` - No hay chequeos en `REVISION MEDICA` para ese RUT.\n- `500` - Error al generar el PDF.\n\n---\n\n_operationId_: `chequeoPDFRut`"
                     },
                     "response": []
                 },
@@ -1118,8 +1118,125 @@
         },
         {
             "name": "Certificados",
-            "description": "Subida y consulta de los certificados/ECG en PDF. Subir un certificado marca el\nchequeo como `ECG FOTO` y **factura** el mes del club.",
+            "description": "Subida y consulta de los certificados/ECG en PDF. Subir un certificado marca el\nchequeo como `ECG FOTO` y **factura** el mes del club. La página pública usa la\nconsulta única `POST /certificados/consulta` y descargas con URL firmada (SPEC 07).",
             "item": [
+                {
+                    "name": "Consulta única de los documentos descargables de un RUT (página pública)",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/certificados/consulta",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "certificados",
+                                "consulta"
+                            ]
+                        },
+                        "description": "SPEC 07. Usado por la página pública `/certificados` del front. En **una** respuesta\ndevuelve los documentos del **último chequeo en `REVISION MEDICA`** y de la **última\nbioimpedancia** del RUT, en orden fijo: `certificado_ecg`, `ecg`, `certificado_bio`, `bio`.\n\n- `certificado_ecg` y `certificado_bio` son PDF generados: su `url` es **firmada y\n  temporal** (10 minutos) hacia `GET /certificados/descarga/{ecg|bio}/{id}`, y `expira`\n  trae la fecha ISO 8601 de vencimiento.\n- `ecg` y `bio` son los archivos subidos, con `expira: null`: `ecg` trae tal cual\n  `certificado_url.url_pdf` del chequeo (la URL armada con `API_PATH_CER` al subirlo) y\n  `bio` la URL pública `Bioimpedancia/{archivo}`.\n- La bioimpedancia vigente se elige como `SP_bioimpedacia_rut` (`fecha_prueba DESC, id DESC`)\n  y su `fecha` es `fecha_prueba`.\n\nEl RUT se normaliza (sin puntos ni espacios, `k` minúscula) y se valida con\n`^\\d{7,8}-[\\dk]$`. Sin autenticación; limitador `throttle:certificados` de\n**10 consultas por minuto por IP**. Cada consulta válida se registra en\n`certificado_descargas` (`tipo = consulta`). Solo lee: no factura.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Documentos disponibles (la lista puede venir vacía).\n- `422` - RUT ausente o con formato inválido.\n- `429` - Más de 10 consultas por minuto desde la misma IP.\n- `500` - Error interno. El detalle va al log, nunca al cliente.\n\n---\n\n_operationId_: `certificadosConsulta`",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"rut\": \"11111111-1\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Certificado del chequeo en PDF (URL firmada)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/certificados/descarga/ecg/{{id}}?expires=0&signature=",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "certificados",
+                                "descarga",
+                                "ecg",
+                                "{{id}}"
+                            ],
+                            "query": [
+                                {
+                                    "key": "expires",
+                                    "value": "0",
+                                    "disabled": false,
+                                    "description": ""
+                                },
+                                {
+                                    "key": "signature",
+                                    "value": "",
+                                    "disabled": false,
+                                    "description": ""
+                                }
+                            ]
+                        },
+                        "description": "SPEC 07. Solo responde con la firma (`expires`, `signature`) que entrega\n`POST /certificados/consulta`; sin firma, manipulada o vencida (10 minutos) → 403\n(middleware `signed`). `{id}` es el id del chequeo, que debe estar en\n`REVISION MEDICA`. Limitador `throttle:certificados` (30 descargas por minuto por IP).\nCada intento se registra en `certificado_descargas` (`tipo = certificado_ecg`).\n\n---\n\n**Respuestas documentadas**\n\n- `200` - PDF del certificado (`Cache-Control: private, no-store`).\n- `403` - Firma ausente, manipulada o vencida (middleware `signed`). Con `Accept: application/json` el cuerpo es JSON; desde el navegador, la página de error de Laravel.\n- `404` - Chequeo inexistente o fuera de `REVISION MEDICA`.\n- `429` - Más de 30 descargas por minuto desde la misma IP.\n- `500` - Error al generar el PDF (sin detalle de la excepción).\n\n---\n\n_operationId_: `certificadosDescargaEcg`"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Certificado de bioimpedancia en PDF (URL firmada)",
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/certificados/descarga/bio/{{id}}?expires=0&signature=",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "certificados",
+                                "descarga",
+                                "bio",
+                                "{{id}}"
+                            ],
+                            "query": [
+                                {
+                                    "key": "expires",
+                                    "value": "0",
+                                    "disabled": false,
+                                    "description": ""
+                                },
+                                {
+                                    "key": "signature",
+                                    "value": "",
+                                    "disabled": false,
+                                    "description": ""
+                                }
+                            ]
+                        },
+                        "description": "SPEC 07. Igual que `GET /certificados/descarga/ecg/{id}`, pero `{id}` es el id de la\nbioimpedancia. Genera el informe con `BioimpedanciaService::BioPDFRut()`: el análisis de\nIA se reutiliza desde `bioimpedancia_analisis_ia` si ya existe, así que solo la primera\ndescarga llama a OpenAI. Se registra con `tipo = certificado_bio`.\n\nAntes de renderizar comprueba con `SP_bioimpedacia_rut` que `{id}` siga siendo la\nbioimpedancia **vigente** del RUT (`fecha_prueba DESC, id DESC`). Si entre la consulta y\nla descarga llegó otra medición, responde **404** en vez de entregar un informe distinto\nal que la URL firmada prometía: hay que volver a consultar.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - PDF del informe de bioimpedancia (`Cache-Control: private, no-store`).\n- `403` - Firma ausente, manipulada o vencida (middleware `signed`). Con `Accept: application/json` el cuerpo es JSON; desde el navegador, la página de error de Laravel.\n- `404` - Bioimpedancia inexistente, o `{id}` ya no es la medición vigente del RUT.\n- `429` - Más de 30 descargas por minuto desde la misma IP.\n- `500` - Sin datos del SP, fallo de la IA o de mPDF (sin detalle de la excepción).\n\n---\n\n_operationId_: `certificadosDescargaBio`"
+                    },
+                    "response": []
+                },
                 {
                     "name": "Sube el certificado/ECG del paciente — CAMBIA EL ESTADO Y FACTURA",
                     "request": {
@@ -1468,7 +1585,7 @@
                                 "{{rut_paciente}}"
                             ]
                         },
-                        "description": "Genera con **mPDF** el informe de composición corporal del paciente. El HTML lo arma\n`BioimpedanciaService::BioPDFRut()`, que además llama a\n`AnalisisRutBioimpedanciaPrompt` para redactar la **interpretación clínica del\nresultado con IA** — por eso este endpoint tarda varios segundos y depende de que\nOpenAI responda.\n\nEl archivo se descarga como `Certificado-{rut}.pdf`.\n\nA diferencia del PDF de chequeo, aquí sí hay `try/catch`: los errores salen como\nJSON 500.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - PDF del informe.\n- `500` - Sin datos para ese RUT, fallo de la IA o error de mPDF.\n\n---\n\n_operationId_: `bioPDFRut`"
+                        "description": "Genera con **mPDF** el informe de composición corporal del paciente. El HTML lo arma\n`BioimpedanciaService::BioPDFRut()`, que además llama a\n`AnalisisRutBioimpedanciaPrompt` para redactar la **interpretación clínica del\nresultado con IA**. Desde la SPEC 07 el análisis se guarda en `bioimpedancia_analisis_ia`\nla primera vez (clave `bioimpedancia_id` + sha256 de los datos enviados) y las descargas\nsiguientes lo reutilizan sin llamar a OpenAI; solo la primera tarda varios segundos.\n\nEl archivo se descarga como `Certificado-{rut}.pdf`.\n\nA diferencia del PDF de chequeo, aquí sí hay `try/catch`: los errores salen como\nJSON 500.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - PDF del informe.\n- `500` - Sin datos para ese RUT, fallo de la IA o error de mPDF.\n\n---\n\n_operationId_: `bioPDFRut`"
                     },
                     "response": []
                 }
@@ -2972,7 +3089,7 @@
                                 }
                             ]
                         },
-                        "description": "Solo responde con la firma (`expires`, `signature`) que entrega el endpoint de enlace. Sin firma válida o vencida, 403.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Archivo (PDF o imagen).\n- `403` - Firma inválida o vencida.\n- `404` - Orden o archivo inexistente.\n\n---\n\n_operationId_: `cartFlowAdminOrdenDescarga`"
+                        "description": "Solo responde con la firma (`expires`, `signature`) que entrega el endpoint de enlace. Sin firma válida o vencida, 403.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Archivo (PDF o imagen).\n- `403` - Firma ausente, manipulada o vencida (middleware `signed`). Con `Accept: application/json` el cuerpo es JSON; desde el navegador, la página de error de Laravel.\n- `404` - Orden o archivo inexistente.\n\n---\n\n_operationId_: `cartFlowAdminOrdenDescarga`"
                     },
                     "response": []
                 },
@@ -3849,7 +3966,7 @@
                                 "as-question"
                             ]
                         },
-                        "description": "Asistente conversacional a nivel de club: responde preguntas sobre el conjunto de\npacientes **en revisión médica** de ese club. Usa **`gpt-4o-mini`** con\n`temperature: 0.2` y el prompt `App\\PromptSystem\\AsistenteChatClubPrompt`.\n\n### Semántica del campo `search`\n\nEs el detalle más importante de la integración. `search` filtra los pacientes que se\nmandan al modelo y **se persiste en la sesión** (`chat_club_sessions.search_actual`):\n\n| Cómo se envía | Efecto |\n|---|---|\n| El campo **no viene** en el JSON | Se conserva el `search_actual` que ya tenía la sesión. |\n| `\"search\": \"\"` (cadena vacía) | **Reset explícito**: `search_actual = null`, el chat pasa a hablar de todo el club. |\n| `\"search\": \"Fuentes\"` | Se guarda ese filtro y el chat queda acotado a ese paciente. |\n\n### Datos que recibe el modelo\n\n`SP_chequeos_club_prompt(search, club)` devuelve los pacientes. El servicio:\n\n- **Invierte la presión arterial** antes de mandarla al modelo: el SP la arma como\n  `CONCAT(presionArterial, '/', presion_sistolica)`, es decir\n  diastólica/sistólica (`\"70/130\"`), y se corrige a `\"130/70\"` para que el modelo no\n  lea una presión normal como una crisis hipertensiva.\n- **Trunca en 120 pacientes** (`ClubAssistantService::MAX_PACIENTES`). El prompt\n  recibe el total real y una marca de truncado, para que el asistente avise cuando\n  está viendo solo una parte.\n\nSi el SP no devuelve pacientes, responde `status: \"sin_datos\"` con HTTP 200.\n\n### Historial\n\nSe guarda en `chat_club_history` **por `session_id`** (no por club) y se recuperan\nlos 20 mensajes más recientes, desempatando por `id` cuando comparten `created_at`.\n\nEste es el único controlador que **captura `ValidationException` por separado** y\nresponde 422 correctamente.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Respuesta del asistente, o `sin_datos` si el filtro no arrojó pacientes.\n- `422` - Validación fallida (capturada explícitamente en este controlador).\n- `500` - Falla de OpenAI o del SP. **Filtra `file` y `line` antes de mostrar el error.**\n\n---\n\n_operationId_: `asQuestionClubUseCase`",
+                        "description": "Asistente conversacional a nivel de club: responde preguntas sobre el conjunto de\npacientes **en revisión médica** de ese club. Usa **`gpt-4o-mini`** con\n`temperature: 0.2` y el prompt `App\\PromptSystem\\AsistenteChatClubPrompt`.\n\n### Semántica del campo `search`\n\nEs el detalle más importante de la integración. `search` filtra los pacientes que se\nmandan al modelo y **se persiste en la sesión** (`chat_club_sessions.search_actual`):\n\n| Cómo se envía | Efecto |\n|---|---|\n| El campo **no viene** en el JSON | Se conserva el `search_actual` que ya tenía la sesión. |\n| `\"search\": \"\"` (cadena vacía) | **Reset explícito**: `search_actual = null`, el chat pasa a hablar de todo el club. |\n| `\"search\": \"Fuentes\"` | Se guarda ese filtro y el chat queda acotado a ese paciente. |\n\n### Datos que recibe el modelo\n\n`SP_chequeos_club_prompt(search, club)` devuelve los pacientes. El servicio:\n\n- **Invierte la presión arterial** antes de mandarla al modelo: el SP la arma como\n  `CONCAT(presionArterial, '/', presion_sistolica)`, es decir\n  diastólica/sistólica (`\"70/130\"`), y se corrige a `\"130/70\"` para que el modelo no\n  lea una presión normal como una crisis hipertensiva.\n- **Trunca en 120 pacientes** (`ClubAssistantService::MAX_PACIENTES`). El prompt\n  recibe el total real y una marca de truncado, para que el asistente avise cuando\n  está viendo solo una parte.\n\nSi el SP no devuelve pacientes, responde `status: \"sin_datos\"` con HTTP 200.\n\n### Historial\n\nSe guarda en `chat_club_history` **por `session_id`** (no por club) y se recuperan\nlos 20 mensajes más recientes, desempatando por `id` cuando comparten `created_at`.\n\nComo `ChatComercialController`, **captura `ValidationException` por separado** y\nresponde 422 correctamente.\n\n---\n\n**Respuestas documentadas**\n\n- `200` - Respuesta del asistente, o `sin_datos` si el filtro no arrojó pacientes.\n- `422` - Validación fallida (capturada explícitamente en este controlador).\n- `500` - Falla de OpenAI o del SP. **Filtra `file` y `line` antes de mostrar el error.**\n\n---\n\n_operationId_: `asQuestionClubUseCase`",
                         "body": {
                             "mode": "raw",
                             "raw": "{\n    \"email\": \"club.deportivo@ergosanitas.com\",\n    \"prompt\": \"¿Cuántos pacientes tienen la presión alterada?\",\n    \"sessionId\": \"4b8e1d90-77aa-42c3-93d1-0f5e2a6c8b11\"\n}",
@@ -4357,7 +4474,7 @@
             "key": "id",
             "value": "5",
             "type": "string",
-            "description": "Id de `home_imagenes`. Solo dígitos (`whereNumber`); otro valor no encuentra ruta."
+            "description": ""
         },
         {
             "key": "id_paciente",

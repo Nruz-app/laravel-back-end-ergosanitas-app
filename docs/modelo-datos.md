@@ -20,6 +20,8 @@ erDiagram
     CHEQUEO_CARDIOVASCULAR ||..o{ ELECTRO_CARDIOGRANAS : "por (rut, id_chequeo)"
     CHEQUEO_CARDIOVASCULAR ||..o{ CERTIFICADO_URL : "por (rut, id_chequeo)"
     CHEQUEO_CARDIOVASCULAR ||..o{ BIOIMPEDANCIA : "solo por rut"
+    BIOIMPEDANCIA ||..o{ BIOIMPEDANCIA_ANALISIS_IA : "bioimpedancia_id, sin FK (Spec 07)"
+    CHEQUEO_CARDIOVASCULAR ||..o{ CERTIFICADO_DESCARGAS : "solo por rut (Spec 07)"
 
     CHEQUEO_CARDIOVASCULAR {
         int id PK
@@ -102,10 +104,31 @@ erDiagram
         decimal peso_objetivo_kg
         decimal control_peso_kg
         varchar archivo
+        date fecha_prueba "orden de SP_bioimpedacia_rut y de la Spec 07"
         text observaciones
         json raw_json
         datetime created_at
         datetime updated_at
+    }
+
+    BIOIMPEDANCIA_ANALISIS_IA {
+        bigint id PK
+        bigint bioimpedancia_id "unico con payload_hash"
+        varchar rut
+        char payload_hash "sha256 del payload enviado a la IA"
+        varchar modelo
+        json analisis
+        datetime created_at
+        datetime updated_at
+    }
+
+    CERTIFICADO_DESCARGAS {
+        bigint id PK
+        varchar rut
+        varchar tipo "consulta, certificado_ecg, certificado_bio"
+        varchar ip
+        varchar resultado
+        datetime created_at "solo insercion"
     }
 ```
 
@@ -361,6 +384,8 @@ erDiagram
 > `chat_comercial_sessions` / `chat_comercial_history` (Spec 06) son del chat comercial «Ergosanito» del Home: visitantes **anónimos**, sin relación con usuarios, pacientes ni clubes. El historial se agrupa por `session_id` (índice `(session_id, created_at)`). **Ninguna de las dos guarda IP, user agent, email ni nombre**; el mensaje del visitante se guarda ya enmascarado (`[RUT]`, `[EMAIL]`, `[TELEFONO]`) y el del asistente sin el marcador `[DERIVAR]`. No se guarda el contexto enviado al modelo (es catálogo público), solo su `contexto_hash`. Las migraciones `2026_11_09_120000` y `2026_11_09_120100` están en el repo; en la base remota se aplican con `--path`.
 >
 > El chat comercial usa además las tablas `cache` / `cache_locks` de Laravel (migración `0001_01_01_000001_create_cache_table`, con `CACHE_STORE=database` por defecto): ahí viven el contexto del catálogo (clave `chat-comercial:contexto`, 600 s) y los contadores efímeros del limitador por IP.
+
+> `certificado_descargas` y `bioimpedancia_analisis_ia` (Spec 07) son aditivas y sin FK. `certificado_descargas` es de **solo inserción**: una fila por consulta (`tipo = consulta`) o descarga firmada (`certificado_ecg`, `certificado_bio`) de la página pública de certificados, con `rut`, `ip`, `resultado` y `created_at`; no guarda nombre, datos clínicos ni la URL firmada. Las descargas de los archivos subidos (`public/Certificado`, `public/Bioimpedancia`) las sirve el servidor web y no quedan registradas. `bioimpedancia_analisis_ia` guarda el análisis de IA del certificado de bioimpedancia por `(bioimpedancia_id, payload_hash)` (índice único): mientras los datos enviados a la IA no cambien, las descargas siguientes no llaman a OpenAI; si cambian, se agrega una fila nueva y la anterior queda como histórico. Las migraciones `2026_11_11_120000` y `2026_11_11_120100` están en el repo; en la base remota se aplican con `--path`.
 
 ---
 

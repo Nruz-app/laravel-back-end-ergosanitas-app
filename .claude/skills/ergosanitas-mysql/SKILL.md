@@ -1,6 +1,6 @@
 ---
 name: ergosanitas-mysql
-description: Referencia de MySQL 5.7 para la base de datos de Ergosanitas. Úsala para escribir u optimizar queries y joins, diagnosticar con EXPLAIN, diseñar índices, crear o modificar procedimientos almacenados, escribir migraciones, inspeccionar el esquema real (que va por delante de las migraciones del repo) y resolver problemas de tipos varchar, charset o integridad sin foreign keys.
+description: Referencia de MySQL 5.7 para la base de datos de Ergosanitas. Úsala para escribir u optimizar queries y joins, diagnosticar con EXPLAIN, diseñar índices, crear o modificar procedimientos almacenados, escribir migraciones, inspeccionar el esquema real (que va por delante de las migraciones del repo) y resolver problemas de tipos varchar, charset o integridad sin foreign keys. Dentro del flujo de specs la cargan solas spec-ergo-backend, spec-impl-ergo-backend y spec-verify-ergo-backend cuando el Kit de ejecución activa sus señales (S-sql).
 argument-hint: 'la query, el SP o el problema de base de datos'
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion
 ---
@@ -302,3 +302,20 @@ SELECT COUNT(*) FROM chequeo_cardiovascular WHERE <la misma condición>;
 - [ ] SP: original guardado antes de reemplazarlo; wrapper del modelo actualizado si cambió la firma
 - [ ] Avisado si el cambio toca facturación (`SP_pago_mensual`, `SP_update_pago_mensual`, `SP_agenda_mensual`)
 - [ ] Reportado contra qué base se ejecutó cada cosa y qué quedó sin verificar
+
+---
+
+## Uso en el flujo de specs
+
+Esta skill forma parte del **Kit de ejecución** de las specs del back (`.claude/skills/spec-ergo-backend/references/enrutado.md`).
+
+- **Señales que la activan:** S-sql.
+- **Quién la carga:** ergosanitas-mysql.
+
+| Fase | Qué aporta |
+|---|---|
+| Diseño | Esquema real (metadatos con `mysql-server` / Boost), triángulo del SP, índices, MySQL 5.7. |
+| Implementación | Skill del agente `ergosanitas-mysql` en pasos de SQL, SP y migraciones. |
+| Verificación | Revisor `ergosanitas-mysql` (Fase 2b) y criterios de esquema (Fase 5). |
+
+Las reglas transversales (§4 de `enrutado.md`: graphify solo AST, BD solo metadatos, sin HTTP, tests solo en SQLite, sin commits) aplican también aquí. El mapa completo de relaciones está en §8 de ese archivo.

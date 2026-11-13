@@ -88,7 +88,7 @@ Documentación que nombra la carpeta (verificado con grep de `app/IA` y `App\IA`
 | `docs/arquitectura.md`, `docs/diagrama-clases.md` | `ergo-docs` |
 | `docs/diagramas/arquitectura.architecture.json` → regenerar `arquitectura.html` con archify | `ergo-docs` |
 | `.claude/agents/ergo-docs.md`, `.claude/agents/ergosanitas-developer.md` | `ergosanitas-developer` (BE) |
-| `.claude/skills/ergo-docs/SKILL.md`, `.claude/skills/ergosanitas-dev/SKILL.md`, `.claude/skills/spec-impl-ergo-back/SKILL.md` | `ergosanitas-developer` (BE) |
+| `.claude/skills/ergo-docs/SKILL.md`, `.claude/skills/ergosanitas-dev/SKILL.md`, `.claude/skills/spec-impl-ergo-backend/SKILL.md` | `ergosanitas-developer` (BE) |
 | `specs/01-asistente-chat-club.md` | **No se reescribe** (es registro histórico): se añade una nota al pie del Paso 6 «Desde la SPEC 06 el prompt vive en `app/PromptSystem/`». |
 
 `docs/flujos.md` y `docs/postman/*` **no** nombran la carpeta (verificado): no se tocan por el
@@ -355,7 +355,7 @@ el chat del club). Parámetros de OpenAI: `model => 'gpt-4o-mini'`, `temperature
 
 ## 4 — Plan de implementación
 
-Pasos pequeños, cada uno deja el sistema funcional. Se ejecuta con `spec-impl-ergo-back`, con
+Pasos pequeños, cada uno deja el sistema funcional. Se ejecuta con `spec-impl-ergo-backend`, con
 pausa y confirmación del usuario entre pasos. Agente por paso entre paréntesis.
 
 **Paso 1 — Crear la tabla de caché y medir el catálogo (`ergosanitas-mysql`).**
@@ -460,7 +460,7 @@ plan con valores reconocibles). Tests con `OpenAI::fake([CreateResponse::fake([.
 
 `php artisan test --filter=ChatComercial` y `php artisan test` completo en verde.
 
-**Paso 9 — Documentación (`ergo-docs`, fase obligatoria de `spec-impl-ergo-back`).**
+**Paso 9 — Documentación (`ergo-docs`, fase obligatoria de `spec-impl-ergo-backend`).**
 Renombrado en toda la tabla de §3.1. Endpoint nuevo en `docs/openapi.yaml` (request, 200 con
 `derivar`, 422, 429, 500 con ejemplos), regenerar Postman (`php docs/postman/generar-coleccion.php`
 + `verificar-cobertura.php`), secuencia nueva en `docs/flujos.md`, clases nuevas en

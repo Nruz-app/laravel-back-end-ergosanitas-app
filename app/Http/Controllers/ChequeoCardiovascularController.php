@@ -568,7 +568,10 @@ class ChequeoCardiovascularController extends Controller
 
     public function ChequeoPDFRut(string $rut_paciente)
     {
+        // SPEC 07: el certificado sale solo de un chequeo con revisión médica, igual que
+        // certificado/valida-certificado. Antes tomaba el más reciente en cualquier estado.
         $chequeoCardiovascular = ChequeoCardiovascular::where(['rut' => $rut_paciente])
+            ->where('status', 'REVISION MEDICA')
             ->orderBy('id', 'desc')
             ->first();
 

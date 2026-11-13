@@ -596,7 +596,7 @@ Son **siete formas distintas**, no dos. La mayoría de los controladores mezcla 
 
 | Formato | Forma | Dónde aparece |
 |---|---|---|
-| **A** — `success` | `{"success": true, "message": "...", "data": {...}}` | `Auth/UserController` (usa `user` en vez de `data` en el login), `Auth/GoogleAuthControlle`, `BioimpedanciaController`, `FichaClinicaController`, `FileUploadController`, `JuegoCartasController`, `HomeImagenController` (con 201 en el alta y 403/404/422 propios), `CertificadoUrlController::FileUploadCer` y `::CargaMasivaEcg`, `OpenAIController::AsistenteVoz` y `::AnalisisEcg` |
+| **A** — `success` | `{"success": true, "message": "...", "data": {...}}` | `Auth/UserController` (usa `user` en vez de `data` en el login), `Auth/GoogleAuthControlle`, `BioimpedanciaController`, `FichaClinicaController`, `FileUploadController`, `JuegoCartasController`, `HomeImagenController` (con 201 en el alta y 403/404/422 propios), `CertificadoUrlController::FileUploadCer` y `::CargaMasivaEcg`, `OpenAIController::AsistenteVoz` y `::AnalisisEcg` · `CertificadoDescargaController` (Spec 07): **variante** con `data: null` en los errores (404, 429, 500) en vez de `error`, y 422 `{success: false, message, errors}` |
 | **B** — `response` anidado | `{"response": {"status": "OK", "mensaje": "..."}}` | `EmailController`, `ElectroCardiogramaController::Save`, `ChequeoCardiovascularController::Store`; en `AgendaHorasController`, `EstadisticasController`, `GoogleAuthControlle` y `ChequeoCardiovascularController::Update` **solo en el `catch`** |
 | **C** — `status` plano | `{"status": ..., "mensaje": "..."}` — `status` a veces es texto (`'OK'`, `'Bad Request'`) y a veces un entero (`200`, `404`, `500`) | `ChequeoCardiovascularController` (`deleteById`, `FilterCalendar`, `LikeChequeo*`, `SearchChequeo`, `Update` en el camino feliz), `CertificadoUrlController` (`ValidarRut`, `PathUrlCertificado`, `ValidaCertificado`, `showCertificado`), `EstadisticasController::deletePagoMensual`, `CargaMasivaController` |
 | **D** — `status: 'success'` | `{"status": "success", "message": "...", "data": [...]}` | `IncidenciasController`, los 12 métodos. **Devuelve 201 también en los GET** |
@@ -951,7 +951,7 @@ La carpeta [`docs/`](docs/) contiene la vista gráfica del sistema, en diagramas
 | Documento | Qué muestra |
 |---|---|
 | [`docs/arquitectura.md`](docs/arquitectura.md) | Componentes, las tres capas y sus excepciones, inyección de dependencias y despliegue |
-| [`docs/flujos.md`](docs/flujos.md) | 16 diagramas de secuencia, uno por flujo end-to-end (carga masiva, facturación, asistentes, WebPay…) |
+| [`docs/flujos.md`](docs/flujos.md) | 17 diagramas de secuencia, uno por flujo end-to-end (carga masiva, facturación, asistentes, WebPay…) |
 | [`docs/diagrama-clases.md`](docs/diagrama-clases.md) | Clases UML por dominio: controladores, servicios, modelos y prompts, con sus firmas reales |
 | [`docs/modelo-datos.md`](docs/modelo-datos.md) | ERD de las 18 tablas, máquina de estados del chequeo, autorización por perfil y catálogo de procedimientos almacenados |
 
@@ -961,7 +961,7 @@ La carpeta [`docs/`](docs/) contiene la vista gráfica del sistema, en diagramas
 
 ## Contrato OpenAPI (Swagger)
 
-El contrato completo de la API vive en **[`docs/openapi.yaml`](docs/openapi.yaml)** (OpenAPI 3.0.3): las 120 operaciones de `routes/api.php`, con esquemas, parámetros, ejemplos de request y de respuesta para cada código de estado, y las particularidades reales del proyecto (los dos formatos de sobre incompatibles, los endpoints que facturan, los que devuelven 200 en caso de error, el filtrado por perfil).
+El contrato completo de la API vive en **[`docs/openapi.yaml`](docs/openapi.yaml)** (OpenAPI 3.0.3): las 123 operaciones de `routes/api.php`, con esquemas, parámetros, ejemplos de request y de respuesta para cada código de estado, y las particularidades reales del proyecto (los dos formatos de sobre incompatibles, los endpoints que facturan, los que devuelven 200 en caso de error, el filtrado por perfil).
 
 Las tablas de la sección [Endpoints](#endpoints) son el índice rápido; el YAML es la referencia detallada.
 
@@ -998,7 +998,7 @@ php artisan route:list --json
 
 ## Colección Postman
 
-**[`docs/postman/`](docs/postman/)** trae la colección Postman v2.1 con las **120 operaciones** repartidas en 19 carpetas, más tres entornos (local, Docker y producción). A diferencia del contrato y los diagramas, esto **sí es generado**: la fuente es `docs/openapi.yaml`.
+**[`docs/postman/`](docs/postman/)** trae la colección Postman v2.1 con las **123 operaciones** repartidas en 19 carpetas, más tres entornos (local, Docker y producción). A diferencia del contrato y los diagramas, esto **sí es generado**: la fuente es `docs/openapi.yaml`.
 
 ```bash
 # Regenerar la colección y los entornos tras tocar el contrato
@@ -1117,6 +1117,13 @@ Administrador y responden **403** si no lo es; no es autenticación real (ver
 
 `home-imagenes/admin` se declara antes que las rutas con `{id}`, y `{id}` lleva `whereNumber`.
 
+`GET home-imagenes` tiene **tres consumidores** en el front:
+- el Home comercial (`src/home-ergo/`);
+- el mantenedor del Administrador (`src/chequeo-administrador/`);
+- desde la [SPEC 08](specs/08-banner-ofertas-certificados-sin-impacto.md), el banner de ofertas de la página pública de certificados (`src/Certificados/`).
+
+El banner muestra las filas con `seccion = 'promocion'` mientras se busca un RUT, y el filtro lo hace el front sobre la respuesta actual. La SPEC 08 no cambia nada en este repo: sin fechas de vigencia, sin `throttle` y el RUT no viaja a este endpoint. Cualquier cambio del sobre, de los campos (`src`, `alt`, `caption`, `seccion`) o del filtro de activas debe revisar a los tres consumidores con `ergo-contrato-api`.
+
 ### Certificados
 
 | Método | Ruta | Acción |
@@ -1127,6 +1134,9 @@ Administrador y responden **403** si no lo es; no es autenticación real (ver
 | `POST` | `carga-masiva-ecg` | Carga masiva de ECG |
 | `GET` | `certificado/validar/{rut_paciente}` | Validar por RUT |
 | `GET` | `certificado/{rut_paciente}` | Mostrar certificado |
+| `POST` | `certificados/consulta` | Consulta única por RUT para la página pública (SPEC 07, `throttle:certificados`) |
+| `GET` | `certificados/descarga/ecg/{id}` | Certificado del chequeo en PDF, solo con URL firmada (`signed`, 10 min) |
+| `GET` | `certificados/descarga/bio/{id}` | Certificado de bioimpedancia en PDF, solo con URL firmada (`signed`, 10 min) |
 
 ### Estadísticas y pagos
 
@@ -1328,7 +1338,7 @@ Comandos de la sesión que se usan en este proyecto:
 | `/mcp` | Ver el estado de los servidores MCP. |
 | `/agents` | Listar los agentes de `.claude/agents/`. |
 | `/plugin` | Instalar, activar y desactivar plugins. |
-| `/spec-ergo-back`, `/spec-impl-ergo-back`, `/spec-verify-ergo-backend`, `/graphify`… | Skills del proyecto ([Skills](#skills)). |
+| `/spec-ergo-backend`, `/spec-impl-ergo-backend`, `/spec-verify-ergo-backend`, `/graphify`… | Skills del proyecto ([Skills](#skills)). |
 | `/init` | Revisar o regenerar `CLAUDE.md` (aquí solo se usa para proponer mejoras: el archivo se mantiene a mano). |
 | `! <comando>` | Ejecutar un comando de shell dentro de la sesión. |
 | `claude mcp list` / `claude mcp get <nombre>` | Ver los MCP registrados, su alcance y su comando (desde la terminal). |
@@ -1339,17 +1349,22 @@ Comandos de la sesión que se usan en este proyecto:
 ```
 ergosanitas-app/
 ├── CLAUDE.md                        convenciones, arquitectura y trampas (lo lee Claude al arrancar) [git]
-├── skills-lock.json                 origen y hash de las skills importadas (archify, spec, spec-impl)  [git]
+├── skills-lock.json                 origen y hash de las skills importadas                             [git]
 ├── .graphifyignore                  lo que graphify no debe indexar                                    [git]
 ├── config/boost.php                 configuración de Laravel Boost (herramientas excluidas)            [git]
-├── .agents/skills/                  skills importadas de Klerith/fernando-skills                       [git]
-│   ├── spec/
-│   └── spec-impl/
+├── .agents/skills/                  skills importadas (npx skills add)                                 [git]
+│   ├── spec/  spec-impl/            Klerith/fernando-skills: flujo spec-driven genérico
+│   ├── brainstorming/               obra/superpowers: técnica para requisitos ambiguos
+│   └── changelog-generator/         composiohq/awesome-claude-skills: changelog desde commits
 ├── .claude/
 │   ├── CLAUDE.md                    registro de la skill graphify (lo escribió graphify install)       [git]
 │   ├── settings.local.json          hooks de graphify de ESTA máquina                                  [local]
-│   ├── agents/                      5 agentes (ver "Agentes")                                         [git]
-│   └── skills/                      16 skills (ver "Skills"); spec y spec-impl son symlinks a .agents/ [git]
+│   ├── agents/                      7 agentes (ver "Agentes")                                         [git]
+│   └── skills/                      17 skills (ver "Skills"); spec, spec-impl, brainstorming y
+│       │                            changelog-generator son symlinks a .agents/                       [git]
+│       └── spec-ergo-backend/references/enrutado.md
+│                                    Kit de ejecución: señales → skills, agentes y MCP, y el mapa
+│                                    de relaciones (ver "Flujo spec-driven")                           [git]
 └── graphify-out/                    grafo de conocimiento generado                                     [ignorado]
 ```
 
@@ -1520,31 +1535,35 @@ Se instalan a **nivel usuario** desde el marketplace oficial `claude-plugins-off
 
 Una skill es un paquete de instrucciones (`SKILL.md` con frontmatter) que Claude carga cuando la tarea lo pide, o cuando se invoca con `/nombre`. Documentación: <https://docs.claude.com/en/docs/claude-code/skills>. Las propias se **escribieron a mano** en `.claude/skills/<nombre>/SKILL.md`; no hay generador.
 
-| Skill | Origen y cómo se creó | Invocación | Para qué |
-|---|---|---|---|
-| `ergosanitas-dev` | Propia (2026-09-05). Trae `references/`. | Automática | Recetario para crear o corregir módulos: controller/service/provider/model/ruta, queries por perfil, certificados y facturación, prompts, SP, PDF/Word/Excel, WebPay, y el checklist antes de commitear. |
-| `ergosanitas-laravel` | Propia (2026-09-05) | Automática | PHP 8.2 / Laravel 11 en este repo: contenedor, skeleton slim, autenticación triple, Eloquent frente a Query Builder, PHPUnit y Pint, refactors seguros. |
-| `ergosanitas-mysql` | Propia (2026-09-05) | Automática | MySQL 5.7 (sin CTE ni funciones de ventana): queries, EXPLAIN, índices, SP, migraciones, relaciones sin foreign key. |
-| `ergo-docs` | Propia (2026-09-07) | Automática | Mantener `docs/openapi.yaml`, los cuatro Mermaid y los diagramas archify, con el checklist de validación. |
-| `ergosanitas-api` | Propia (2026-11-10, sin commit) | Automática | Diseñar o cambiar endpoints sin romper a los clientes: sobres, consumidores y cierre en `openapi.yaml`. |
-| `ergosanitas-architecture` | Propia (2026-11-10, sin commit) | Automática | Análisis de impacto con graphify y `docs/` antes de un cambio estructural. |
-| `ergosanitas-security` | Propia (2026-11-10, sin commit) | Automática | Auditoría pasiva: auth, autorización por perfil, secretos, uploads, dependencias y Ley 21.719. |
-| `ergosanitas-testing` | Propia (2026-11-10, sin commit) | Automática | Tests PHPUnit 11 sin tocar la MySQL remota: patrón SQLite forzado, `OpenAI::fake()` y el filtro del CI. |
-| `spec-ergo-back` | Propia (2026-11-09), envuelve `/spec` | **Solo manual**: `/spec-ergo-back <descripción \| NN-slug>` | Diseñar una spec con las convenciones del repo (sobre de respuesta, provider, perfiles 3/6, fase `ergo-docs`, consumidores). Con una spec existente entra en modo revisión. Nunca la aprueba. |
-| `spec-impl-ergo-back` | Propia (2026-11-09; antes `spec-impl-ergo`), envuelve `/spec-impl` | **Solo manual**: `/spec-impl-ergo-back <NN-slug>` | Implementar una spec `Aprobado`: crea la rama, ejecuta paso a paso con pausas, revisión por agente y cierre de documentación. |
-| `spec-verify-ergo-backend` | Propia (2026-11-10, sin commit) | **Solo manual**: `/spec-verify-ergo-backend <NN-slug \| todas>` | Verificar specs implementadas y dejar evidencia por criterio (ver [Verificador](#verificador-de-specs-spec-verify-ergo-backend)). |
+| Skill | Origen y cómo se creó | Invocación | Señal del Kit | Para qué |
+|---|---|---|---|---|
+| `ergosanitas-dev` | Propia (2026-09-05). Trae `references/`. | Automática | siempre · `S-capas` `S-perfiles` `S-facturacion` `S-openai` `S-docs-gen` `S-webpay` | Recetario para crear o corregir módulos: controller/service/provider/model/ruta, queries por perfil, certificados y facturación, prompts, SP, PDF/Word/Excel, WebPay, y el checklist antes de commitear. |
+| `ergosanitas-laravel` | Propia (2026-09-05) | Automática | `S-laravel` `S-arquitectura` | PHP 8.2 / Laravel 11 en este repo: contenedor, skeleton slim, autenticación triple, Eloquent frente a Query Builder, PHPUnit y Pint, refactors seguros. |
+| `ergosanitas-mysql` | Propia (2026-09-05) | Automática | `S-sql` | MySQL 5.7 (sin CTE ni funciones de ventana): queries, EXPLAIN, índices, SP, migraciones, relaciones sin foreign key. |
+| `ergo-docs` | Propia (2026-09-07) | Automática | `S-ruta` `S-flujo` | Mantener `docs/openapi.yaml`, los cuatro Mermaid y los diagramas archify, con el checklist de validación. |
+| `ergosanitas-api` | Propia (2026-11-10, sin commit) | Automática | `S-ruta` (`S-consumido` con `ergo-contrato-api`) | Diseñar o cambiar endpoints sin romper a los clientes: sobres, consumidores y cierre en `openapi.yaml`. |
+| `ergosanitas-architecture` | Propia (2026-11-10, sin commit) | Automática | siempre | Análisis de impacto con graphify y `docs/` antes de un cambio estructural. |
+| `ergosanitas-security` | Propia (2026-11-10, sin commit) | Automática | `S-seguridad` `S-webpay` `S-facturacion` (verificación: siempre) | Auditoría pasiva: auth, autorización por perfil, secretos, uploads, dependencias y Ley 21.719. |
+| `ergosanitas-testing` | Propia (2026-11-10, sin commit) | Automática | `S-tests` | Tests PHPUnit 11 sin tocar la MySQL remota: patrón SQLite forzado, `OpenAI::fake()` y el filtro del CI. |
+| `spec-ergo-backend` | Propia (2026-11-09, renombrada el 2026-11-12), sigue `/spec`. Trae `references/enrutado.md`. | **Solo manual**: `/spec-ergo-backend <descripción \| NN-slug>` | — (arma el Kit) | Diseñar una spec: arma el **Kit de ejecución** (skills, agentes y MCP según lo que toca), aplica las convenciones del repo (sobre, provider, perfiles 3/6, SP, seguridad, tests, `ergo-docs`, consumidores) y escribe la sección `## Kit de ejecución`. Con una spec existente entra en modo revisión. Nunca la aprueba. |
+| `spec-impl-ergo-backend` | Propia (2026-11-09; antes `spec-impl-ergo` y `spec-impl-ergo-back`), sigue `/spec-impl` | **Solo manual**: `/spec-impl-ergo-backend <NN-slug>` | — (aplica el Kit) | Implementar una spec `Aprobado`: rama, Kit recalculado, pasos con pausa delegados en su agente con su skill y sus MCP, Fase 4b (code-review, seguridad, tests, impacto), Fase 5 de documentación y cierre. |
+| `spec-verify-ergo-backend` | Propia (2026-11-10, sin commit) | **Solo manual**: `/spec-verify-ergo-backend <NN-slug \| todas>` | — (recalcula el Kit) | Verificar specs implementadas y dejar evidencia por criterio; el Kit elige revisores y librerías (ver [Verificador](#verificador-de-specs-spec-verify-ergo-backend)). |
+| `brainstorming` | [obra/superpowers](https://github.com/obra/superpowers), fijada en `skills-lock.json` (2026-11-12) | Automática | `S-ambiguo` (solo diseño) | Explorar un requisito vago con preguntas y alternativas. Dentro de `/spec-ergo-backend` se usa solo la técnica, sin su documento de diseño. |
+| `changelog-generator` | [composiohq/awesome-claude-skills](https://github.com/composiohq/awesome-claude-skills), fijada en `skills-lock.json` (2026-11-12) | Automática | — | Notas de versión desde los commits. Fuera del Kit. |
 | `spec` | [Klerith/fernando-skills](https://github.com/Klerith/fernando-skills): `npx skills@latest add Klerith/fernando-skills` (2026-09-05) | **Solo manual**: `/spec <descripción>` | Diseño spec-driven genérico; nunca escribe código. |
 | `spec-impl` | [Klerith/fernando-skills](https://github.com/Klerith/fernando-skills), mismo comando | **Solo manual**: `/spec-impl <NN-slug>` | Implementación genérica de una spec aprobada. |
 | `archify` | [tt-a1i/archify](https://github.com/tt-a1i/archify) v2.17, fijada en `skills-lock.json` (2026-09-07) | Automática | Diagramas explorables en HTML/SVG de `docs/diagramas/`. El `.html` es generado; la fuente es su `.json` hermano. |
 | `graphify` | `graphify install --project` (2026-11-10, sin commit) | `/graphify` o automática | Construir y consultar el grafo (ver [graphify](#graphify)). |
 
-«Solo manual» quiere decir que la skill declara `disable-model-invocation: true`: Claude no la lanza por su cuenta y hay que escribir el comando.
+«Solo manual» quiere decir que la skill declara `disable-model-invocation: true`: Claude no la lanza por su cuenta y hay que escribir el comando. «Señal del Kit» es la señal de `enrutado.md` que hace que las skills de spec la carguen solas (ver [Flujo spec-driven](#flujo-spec-driven)). Además, las skills de spec usan las de plugins `code-review`, `security-review`, `prompt-engineering-patterns`, `engineering:architecture` y `engineering:testing-strategy` según la misma matriz.
 
 **Reinstalar las skills importadas:**
 
 ```bash
 npx skills@latest add Klerith/fernando-skills     # vuelve a traer spec y spec-impl a .agents/skills/
 npx skills@latest add tt-a1i/archify              # archify
+npx skills@latest add obra/superpowers            # brainstorming (elige solo esa skill)
+npx skills@latest add composiohq/awesome-claude-skills   # changelog-generator (elige solo esa)
 ```
 
 `skills-lock.json` guarda la ruta de origen y el hash de cada una, para saber si cambiaron.
@@ -1561,17 +1580,21 @@ New-Item -ItemType Junction -Path .claude\skills\spec-impl -Target .agents\skill
 
 Viven en `.claude/agents/*.md` (frontmatter `name`, `description`, `tools` + instrucciones) y se escribieron a mano. Documentación: <https://docs.claude.com/en/docs/claude-code/sub-agents>. Se listan con `/agents`.
 
-| Agente | Misión | Herramientas | Skill que carga |
-|---|---|---|---|
-| `ergosanitas-developer` | Implementar, corregir y probar módulos. El de uso general. | Read, Write, Edit, Glob, Grep, Bash, Skill, AskUserQuestion | `ergosanitas-dev` |
-| `ergosanitas-laravel` | Dudas y decisiones de framework y lenguaje sin romper las convenciones. | Las mismas | `ergosanitas-laravel` |
-| `ergosanitas-mysql` | Queries, índices, SP y migraciones en MySQL 5.7. | Las mismas | `ergosanitas-mysql` |
-| `ergo-docs` | Mantener `docs/` (contrato, diagramas, Postman). Documenta; nunca toca código. | Las mismas | `ergo-docs` + `archify` |
-| `spec-verify-ergo-backend` | Verificar specs implementadas con evidencia. No implementa ni corrige, y solo escribe en `specs/`. | Read, Grep, Glob, Bash, PowerShell, Edit, Write, ToolSearch + MCP `context7`, `graphify`, `laravel-boost`, `mysql-server` | `spec-verify-ergo-backend` |
+| Agente | Misión | Herramientas | Skill que carga | Lo lanzan |
+|---|---|---|---|---|
+| `ergosanitas-developer` | Implementar, corregir y probar módulos. El de uso general. | Read, Write, Edit, Glob, Grep, Bash, Skill, AskUserQuestion | `ergosanitas-dev` | tú · `spec-impl-ergo-backend` (pasos de código y tests) · `spec-verify-ergo-backend` (revisor) · `ergo-father` |
+| `ergosanitas-laravel` | Dudas y decisiones de framework y lenguaje sin romper las convenciones. | Las mismas | `ergosanitas-laravel` | tú · `spec-ergo-backend` (consulta) · `spec-impl-ergo-backend` (`S-laravel`) · `spec-verify-ergo-backend` (revisor) |
+| `ergosanitas-mysql` | Queries, índices, SP y migraciones en MySQL 5.7. | Las mismas | `ergosanitas-mysql` | tú · `spec-ergo-backend` (consulta) · `spec-impl-ergo-backend` (`S-sql`) · `spec-verify-ergo-backend` (revisor) |
+| `ergo-docs` | Mantener `docs/` (contrato, diagramas, Postman). Documenta; nunca toca código. | Las mismas | `ergo-docs` + `archify` | tú · `spec-impl-ergo-backend` (Fase 5) · `spec-verify-ergo-backend` (revisor) |
+| `spec-ergo-backend` | Diseñar o revisar specs con su Kit de ejecución. Nunca código ni `Aprobado`; solo escribe en `specs/`. | Read, Grep, Glob, Bash, PowerShell, Edit, Write, Skill, ToolSearch, Agent, AskUserQuestion + MCP `graphify`, `context7`, `laravel-boost`, `mysql-server`, `engram` | lee `spec-ergo-backend` + `enrutado.md` | `claude --agent spec-ergo-backend` · `ergo-father` |
+| `spec-impl-ergo-backend` | Implementar specs `Aprobado` con su Kit, delegando en los agentes de arriba. Nunca commitea. | Las mismas | lee `spec-impl-ergo-backend` + `enrutado.md` | `claude --agent spec-impl-ergo-backend` · `ergo-father` |
+| `spec-verify-ergo-backend` | Verificar specs implementadas con evidencia. No implementa ni corrige, y solo escribe en `specs/`. | Read, Grep, Glob, Bash, PowerShell, Edit, Write, ToolSearch, Agent + MCP `context7`, `graphify`, `laravel-boost`, `mysql-server`, `engram` | lee `spec-verify-ergo-backend` + `enrutado.md` | `claude --agent spec-verify-ergo-backend` · `ergo-father` |
 
 Uso: Claude los elige solo por su `description`, o se piden explícitamente («usa el agente `ergo-docs` para…»). Al cerrar un cambio que toque `routes/`, controladores, servicios, modelos o el esquema, pasa por `ergo-docs`.
 
-**Agente padre `ergo-father`.** Vive **fuera** de este repo, en `D:\ErgoSanitas\Projectos\.claude\agents\ergo-father.md`, con sus skills `ergo-father`, `ergo-contrato-api` y `ergo-fullstack` en `D:\ErgoSanitas\Projectos\.claude\skills\`. Orquesta el back-end, el front-end y la app móvil, y delega en los 12 agentes hijos (estos 5 y los 7 del front). Para que pueda delegar tiene que ser el agente principal:
+Un agente lanzado como **subagente** no puede lanzar otros. Por eso los tres agentes de spec, si corren así, **emulan** a los agentes del dominio (leen su `.md` y su skill) y lo dicen en el informe; para que deleguen de verdad, lánzalos como principal con `claude --agent …`.
+
+**Agente padre `ergo-father`.** Vive **fuera** de este repo, en `D:\ErgoSanitas\Projectos\.claude\agents\ergo-father.md`, con sus skills `ergo-father`, `ergo-contrato-api` y `ergo-fullstack` en `D:\ErgoSanitas\Projectos\.claude\skills\`. Orquesta el back-end, el front-end y la app móvil, y delega en los 14 agentes hijos (estos 7 y los 7 del front). Para que pueda delegar tiene que ser el agente principal:
 
 ```bash
 cd D:\ErgoSanitas\Projectos
@@ -1583,14 +1606,95 @@ claude --agent ergo-father
 Las features nuevas pasan por una especificación antes del código:
 
 ```bash
-/spec-ergo-back <descripción>        # diseña una spec nueva → specs/NN-slug.md en Borrador
-/spec-ergo-back <NN-slug>            # modo revisión de una spec existente
+/spec-ergo-backend <descripción>        # diseña una spec nueva → specs/NN-slug.md en Borrador
+/spec-ergo-backend <NN-slug>            # modo revisión de una spec existente
 # (una persona cambia el Estado a Aprobado: nunca el agente)
-/spec-impl-ergo-back <NN-slug>       # implementa: rama spec-NN-slug, pasos con pausa, revisión y ergo-docs
-/spec-verify-ergo-backend <NN-slug>  # verifica: cada criterio queda ✅/❌/⏸ con evidencia
+/spec-impl-ergo-backend <NN-slug>       # implementa: rama spec-NN-slug, pasos con pausa, revisión y ergo-docs
+/spec-verify-ergo-backend <NN-slug>     # verifica: cada criterio queda ✅/❌/⏸ con evidencia
 ```
 
-Estado al 2026-11-10:
+Las tres son manuales, pero por dentro arman solas el **Kit de ejecución** de la spec: detectan qué toca y cargan las skills, agentes y MCP correspondientes. La fuente única es `.claude/skills/spec-ergo-backend/references/enrutado.md` (señales §2, matriz §3, reglas §4, MCP §5, modos §6, formato §7 y mapa de relaciones §8); el diseñador deja el kit escrito en la sección `## Kit de ejecución` de cada spec, y el implementador y el verificador lo recalculan.
+
+#### Mapa de relaciones
+
+```mermaid
+flowchart LR
+    U([Persona]) -->|/spec-ergo-backend| D
+    U -->|cambia Estado a Aprobado| A{{Aprobado}}
+    U -->|/spec-impl-ergo-backend| I
+    U -->|/spec-verify-ergo-backend| V
+    EF[ergo-father<br/>raíz] -. lee y sigue .-> D & I & V
+
+    subgraph Flujo
+      D[spec-ergo-backend<br/>diseño] -->|specs/NN-slug.md<br/>+ Kit de ejecución| A --> I[spec-impl-ergo-backend<br/>implementación] -->|Implementado| V[spec-verify-ergo-backend<br/>verificación]
+    end
+
+    K[(enrutado.md<br/>señales → recursos)] -. arma el kit .-> D & I & V
+    SB[/spec y spec-impl<br/>.agents/skills/] -. se leen .-> D & I
+
+    subgraph Agentes
+      DEV[ergosanitas-developer]
+      MY[ergosanitas-mysql]
+      LA[ergosanitas-laravel]
+      DOC[ergo-docs]
+    end
+    I -->|Agent: cada paso| DEV & MY & LA
+    I -->|Fase 5| DOC
+    V -->|Fase 2b: revisores| DEV & MY & LA & DOC
+    D -. consulta solo lectura .-> MY & LA
+
+    subgraph Skills
+      SDEV[ergosanitas-dev] --- SAPI[ergosanitas-api] --- SARQ[ergosanitas-architecture]
+      SSEC[ergosanitas-security] --- STST[ergosanitas-testing]
+      SMY[ergosanitas-mysql] --- SLA[ergosanitas-laravel] --- SDOC[ergo-docs]
+      CR[ergo-contrato-api<br/>raíz]
+    end
+    D & I & V -->|Skill / Read según señal| Skills
+
+    subgraph MCP
+      G[graphify AST] --- C7[context7] --- LB[laravel-boost] --- MS[mysql-server<br/>solo metadatos] --- EN[engram]
+    end
+    D & I & V -->|ToolSearch único| MCP
+```
+
+#### Señales del Kit (resumen)
+
+| Señal | Se activa cuando la spec toca… | Carga |
+|---|---|---|
+| siempre | — | `ergosanitas-architecture`, `ergosanitas-dev`, graphify, engram |
+| `S-capas` | controladores, servicios, providers, modelos | `ergosanitas-developer` |
+| `S-ruta` / `S-consumido` | rutas o contrato / un endpoint que ya consumen el front o la app | `ergosanitas-api`, `ergo-docs` / `ergo-contrato-api`, spec hermana del front |
+| `S-sql` | tablas, migraciones, SP, índices | `ergosanitas-mysql` (skill y agente), `mysql-server`, Boost `database-schema` |
+| `S-laravel` | limitador, caché, URL firmadas, auth, correo, colas | `ergosanitas-laravel` (skill y agente), Context7, Boost `search-docs` |
+| `S-seguridad` | datos clínicos, uploads, endpoint público, permisos | `ergosanitas-security`, `security-review` |
+| `S-perfiles` / `S-facturacion` / `S-webpay` | chequeos / certificados y ECG / Transbank | recetas de `ergosanitas-dev` (+ `ergosanitas-security`) |
+| `S-openai` / `S-docs-gen` | OpenAI y prompts / PDF, Word, Excel, correo | `ergosanitas-dev`, `prompt-engineering-patterns`, Context7 |
+| `S-tests` | tests | `ergosanitas-testing` (+ `engineering:testing-strategy` en diseño) |
+| `S-flujo` | flujos, estados, diagramas | `ergo-docs`, `archify` |
+| `S-arquitectura` / `S-ambiguo` | decisión estructural / requisito vago (solo diseño) | `engineering:architecture` / técnica de `brainstorming` |
+
+La matriz completa, con lo que aporta cada recurso en diseño (D), implementación (I) y verificación (V), está en §3 y §8.2 de `enrutado.md`.
+
+#### Qué hace cada fase
+
+| Fase | Comando · agente | Kit | Pasos clave | Escribe |
+|---|---|---|---|---|
+| Diseño | `/spec-ergo-backend` · `spec-ergo-backend` | lo **arma** (Fase E) | engram, graphify, Context7/Boost y esquema en solo lectura → flujo de `/spec` → guardas del repo → `## Kit de ejecución` | solo `specs/` (en `Borrador`) |
+| Implementación | `/spec-impl-ergo-backend` · `spec-impl-ergo-backend` | lo **recalcula** y aplica (Fase 3.6) | estado `Aprobado` → rama `spec-NN-slug` → pasos delegados con su skill y MCP, con pausa → 4b: code-review, seguridad, tests, impacto → 5: `ergo-docs` → cierre | código vía agentes; nunca commitea |
+| Verificación | `/spec-verify-ergo-backend` · `spec-verify-ergo-backend` | lo **recalcula** contra el diff (Fase 0.4) | graphify → impactos → 2b: revisores del kit → Context7/Boost → criterios → esquema | solo criterios y «Estado de verificación» |
+
+#### Modos de ejecución
+
+| Cómo | Delega en agentes | Pregunta al usuario |
+|---|---|---|
+| `/spec-…-ergo-backend` en una sesión de este repo | sí (`Agent`) | sí |
+| `claude --agent spec-…-ergo-backend` | sí (`Agent`) | sí |
+| Como subagente (p. ej. desde otra sesión) | **no**: emula a los agentes y lo declara | no: devuelve las preguntas en el informe |
+| `ergo-father` desde `D:\ErgoSanitas\Projectos` | sí, como `general-purpose` con el kit en el prompt | sí |
+
+Si un MCP no está conectado, el kit lo marca como «No disponible» y usa la alternativa (§5 de `enrutado.md`): CLI de graphify, Boost ↔ `mysql-server`, o «no consultado» para Context7. Nunca se reemplaza con memoria.
+
+Estado al 2026-11-12:
 
 | Spec | Estado |
 |---|---|
@@ -1600,12 +1704,16 @@ Estado al 2026-11-10:
 | `04-servicio-cart-flow` | Implementado |
 | `05-mantenedor-carrito-compra` | Implementado |
 | `06-chat-comercial-ergosanito` | Implementado |
+| `07-descarga-certificados-rut` | Aprobado |
+| `08-banner-ofertas-certificados-sin-impacto` | Implementado (sin cambios en el back) |
+
+Las specs 01 a 07 son anteriores al Kit: no tienen sección `## Kit de ejecución`. El implementador y el verificador la arman desde cero; `/spec-ergo-backend NN` en modo revisión la añade. La 08 ya tiene la suya desde que nació.
 
 Si durante la implementación una decisión de la spec resulta equivocada, **se corrige en la spec**, no en el código por sorpresa.
 
 ### Verificador de specs (`spec-verify-ergo-backend`)
 
-Skill `.claude/skills/spec-verify-ergo-backend/SKILL.md` + agente `.claude/agents/spec-verify-ergo-backend.md`. Comprueba lo que `/spec-impl-ergo-back` dio por implementado y lo deja escrito en la spec.
+Skill `.claude/skills/spec-verify-ergo-backend/SKILL.md` + agente `.claude/agents/spec-verify-ergo-backend.md`. Comprueba lo que `/spec-impl-ergo-backend` dio por implementado y lo deja escrito en la spec.
 
 ```bash
 /spec-verify-ergo-backend 06-chat-comercial-ergosanito   # una spec
@@ -1615,8 +1723,10 @@ Skill `.claude/skills/spec-verify-ergo-backend/SKILL.md` + agente `.claude/agent
 | Fase | Herramienta | Qué hace |
 |---|---|---|
 | 0. Alcance y preparación | `git`, `claude mcp` | Resuelve el argumento, comprueba las herramientas y lee la spec y su contexto. |
+| 0.4 Kit de ejecución | `enrutado.md`, engram | Recalcula las señales contra la spec y el diff, carga skills y MCP, y anota las diferencias con el kit de la spec como hallazgo. |
 | 1. Mapa | graphify | Lista real de clases, métodos y rutas de la spec. |
-| 2. Dependencias e impactos | graphify (`path`), `grep` | Consumidores y reglas duras del `CLAUDE.md`. |
+| 2. Dependencias e impactos | graphify (`path`, `affected`), skill `ergosanitas-architecture`, `grep` | Consumidores y reglas duras del `CLAUDE.md`. |
+| 2b. Revisión de calidad | Agentes del kit (`ergosanitas-developer`, `-mysql`, `-laravel`, `ergo-docs`) + skills `ergosanitas-security` / `ergosanitas-testing` | Hallazgos con severidad; no marcan checks, pero un bloqueante recomienda `En revisión`. |
 | 3. Buenas prácticas | Context7 y Laravel Boost (`search-docs`) | Observaciones por librería y versión. No marcan checks. |
 | 4. Criterios | Tests en SQLite, `artisan`, `grep` | Clasifica y ejecuta cada criterio verificable sin red. |
 | 5. Esquema | `laravel-boost` y `mysql-server`, solo lectura | Contrasta tablas y columnas con la BD real. |
@@ -1630,6 +1740,9 @@ Reglas: **no hace peticiones HTTP** (el `.env` apunta a la BD de producción), *
 
 | Síntoma | Causa | Solución |
 |---|---|---|
+| `/spec-ergo-back` o `/spec-impl-ergo-back` no existen | Se renombraron el 2026-11-12 | Usa `/spec-ergo-backend` y `/spec-impl-ergo-backend`. |
+| El Kit de una spec dice «No disponible: context7» (u otro MCP) | El servidor MCP no conectó en la sesión | `claude mcp list`; mientras tanto la skill usa la alternativa de §5 de `enrutado.md` y lo declara en el informe. |
+| Un agente de spec dice que «emuló» a los revisores | Corrió como subagente y no puede lanzar otros | Lánzalo como principal: `claude --agent spec-verify-ergo-backend` (o `spec-impl-…`), o desde `ergo-father`. |
 | Certificados, logos, WebPay o el login de Google devuelven `null` o fallan tras un deploy | Se cacheó la configuración y los `env()` fuera de `config/` devuelven `null` | `php artisan config:clear` (o `optimize:clear`). Nunca `config:cache`. |
 | 500 al subir un certificado o un ECG | Falta la fila `VALOR-ECG` en `params` (`firstOrFail()`) | Insertar la fila en `params`. |
 | 500 en `chat-comercial/as-question` | Faltan las tablas `cache` / `cache_locks` (`CACHE_STORE=database`) | `php artisan migrate` (migración `0001_01_01_000001_create_cache_table`). |
@@ -1655,7 +1768,7 @@ Reglas: **no hace peticiones HTTP** (el `.env` apunta a la BD de producción), *
 
 ## Cómo contribuir
 
-1. **Rama por trabajo**, nunca directo sobre `main`. Las de spec siguen el patrón `spec-NN-slug` y las crea `/spec-impl-ergo-back`.
+1. **Rama por trabajo**, nunca directo sobre `main`. Las de spec siguen el patrón `spec-NN-slug` y las crea `/spec-impl-ergo-backend`.
 2. **Asunto del commit en Conventional Commits** (`feat`, `fix`, `docs`, `chore`…): define el bump de versión en la CI (ver [Versión semántica](#versión-semántica)).
 3. **Formatea solo lo tuyo**: `vendor/bin/pint --dirty` o rutas explícitas. Nunca `pint` sin argumentos.
 4. **Tests**: `php artisan test --filter="CartFlow|ChatComercial"` en verde (es lo que corre la CI). Un dominio nuevo copia el patrón de `CartFlowTestCase` / `ChatComercialTestCase`.
@@ -1723,13 +1836,13 @@ graphify cluster-only . --no-label
 
 **G. Skills importadas**
 
-- [ ] Si `/spec` no aparece: recrear los enlaces `.claude/skills/spec` y `spec-impl` (ver [Skills](#skills)).
+- [ ] Si `/spec` no aparece: recrear los enlaces `.claude/skills/spec` y `spec-impl` (ver [Skills](#skills)). Lo mismo con `brainstorming` y `changelog-generator`.
 
 **H. Comprobación final**
 
-- [ ] `/agents` muestra los 5 agentes.
-- [ ] Al escribir `/` aparecen `spec-ergo-back`, `spec-impl-ergo-back`, `spec-verify-ergo-backend`, `spec`, `spec-impl` y `graphify`.
-- [ ] `/mcp` en verde.
+- [ ] `/agents` muestra los 7 agentes (4 del dominio y 3 de spec).
+- [ ] Al escribir `/` aparecen `spec-ergo-backend`, `spec-impl-ergo-backend`, `spec-verify-ergo-backend`, `spec`, `spec-impl` y `graphify`.
+- [ ] `/mcp` en verde: `graphify`, `context7`, `laravel-boost`, `mysql-server` y `engram` son los que usa el Kit de ejecución.
 - [ ] `graphify query "CertificadoService"` responde.
 
 ---
@@ -1754,3 +1867,4 @@ Registro de qué se instaló y cuándo, para reconstruir el porqué. Las fechas 
 | 2026-11-10 | Skills `ergosanitas-api`, `-architecture`, `-security`, `-testing` | Escritas a mano a partir de plantillas genéricas | Sin commit. Reescritas contra este repo. |
 | 2026-11-10 | Skill y agente `spec-verify-ergo-backend` | Escritos a mano | Sin commit. Tercer paso del flujo spec-driven. |
 | 2026-11-10 | Este README ampliado (enlaces, entorno IA, checklist, historial) | — | — |
+| 2026-11-12 | `spec-ergo-back` → `spec-ergo-backend`, `spec-impl-ergo-back` → `spec-impl-ergo-backend`; Kit de ejecución (`references/enrutado.md`); agentes `spec-ergo-backend` y `spec-impl-ergo-backend` | Escritos a mano | Sin commit. Las tres skills cargan solas skills, agentes y MCP según la spec. |

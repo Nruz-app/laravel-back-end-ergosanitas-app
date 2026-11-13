@@ -1,12 +1,12 @@
 # Colección Postman de la API de Ergosanitas
 
-Colección **Postman v2.1** con las **120 operaciones** de la API, generada desde
+Colección **Postman v2.1** con las **123 operaciones** de la API, generada desde
 [`docs/openapi.yaml`](../openapi.yaml). Cubre el 100 % de las rutas que devuelve
 `php artisan route:list` bajo el prefijo `/api`.
 
 | Archivo | Qué es |
 |---|---|
-| `Ergosanitas-API.postman_collection.json` | La colección: 120 requests en 19 carpetas, una por dominio |
+| `Ergosanitas-API.postman_collection.json` | La colección: 123 requests en 19 carpetas, una por dominio |
 | `Ergosanitas-Local.postman_environment.json` | Entorno `http://127.0.0.1:8000/api` (`php artisan serve`) |
 | `Ergosanitas-Docker.postman_environment.json` | Entorno `http://localhost:6162/api` (`docker compose up`) |
 | `Ergosanitas-Prod.postman_environment.json` | Entorno `https://api.ergosanitas.com/api` — **ajusta el host real** |
