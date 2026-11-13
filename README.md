@@ -1117,6 +1117,13 @@ Administrador y responden **403** si no lo es; no es autenticación real (ver
 
 `home-imagenes/admin` se declara antes que las rutas con `{id}`, y `{id}` lleva `whereNumber`.
 
+`GET home-imagenes` tiene **tres consumidores** en el front:
+- el Home comercial (`src/home-ergo/`);
+- el mantenedor del Administrador (`src/chequeo-administrador/`);
+- desde la [SPEC 08](specs/08-banner-ofertas-certificados-sin-impacto.md), el banner de ofertas de la página pública de certificados (`src/Certificados/`).
+
+El banner muestra las filas con `seccion = 'promocion'` mientras se busca un RUT, y el filtro lo hace el front sobre la respuesta actual. La SPEC 08 no cambia nada en este repo: sin fechas de vigencia, sin `throttle` y el RUT no viaja a este endpoint. Cualquier cambio del sobre, de los campos (`src`, `alt`, `caption`, `seccion`) o del filtro de activas debe revisar a los tres consumidores con `ergo-contrato-api`.
+
 ### Certificados
 
 | Método | Ruta | Acción |
@@ -1590,7 +1597,7 @@ Las features nuevas pasan por una especificación antes del código:
 /spec-verify-ergo-backend <NN-slug>  # verifica: cada criterio queda ✅/❌/⏸ con evidencia
 ```
 
-Estado al 2026-11-10:
+Estado al 2026-11-12:
 
 | Spec | Estado |
 |---|---|
@@ -1600,6 +1607,7 @@ Estado al 2026-11-10:
 | `04-servicio-cart-flow` | Implementado |
 | `05-mantenedor-carrito-compra` | Implementado |
 | `06-chat-comercial-ergosanito` | Implementado |
+| `08-banner-ofertas-certificados-sin-impacto` | Implementado (sin cambios en el back) |
 
 Si durante la implementación una decisión de la spec resulta equivocada, **se corrige en la spec**, no en el código por sorpresa.
 
